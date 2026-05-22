@@ -1,9 +1,9 @@
 {
-  "name": "SR Advocacia Gestao Juridica",
+  "name": "SR Advocacia Gestão Jurídica",
   "short_name": "SR Advocacia",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#fbf8f2",
   "theme_color": "#5a1d2b",
-  "description": "Painel juridico para processos, clientes, agenda, configuracoes e honorarios."
+  "description": "Painel jurídico para processos, clientes, agenda, configurações e honorários."
 }

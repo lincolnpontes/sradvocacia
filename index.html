@@ -4,46 +4,61 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#5a1d2b">
-  <title>SR Advocacia - Gestao Juridica</title>
+  <title>SR Advocacia Gestão Jurídica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <section class="login-screen" id="loginScreen">
+  <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
     <form class="login-card" id="formLogin">
-      <div class="login-brand">
-        <div class="brand-mark large" aria-hidden="true">S</div>
-        <div>
-          <p class="eyebrow">SR Advocacia</p>
-          <h1>Gestao Juridica</h1>
-        </div>
-      </div>
+      <div class="login-mark" aria-hidden="true">SR</div>
+      <p class="eyebrow">SR Advocacia</p>
+      <h1 id="loginTitle">Gestão Jurídica</h1>
+      <p class="login-copy">Acesse o painel do escritório para acompanhar clientes, processos, prazos e movimentações.</p>
+
       <label>
-        <span>Usuario</span>
+        <span>Usuário</span>
         <select id="loginUsuario" required></select>
       </label>
       <label>
         <span>Senha</span>
-        <input id="loginSenha" type="password" placeholder="Digite qualquer senha" required>
+        <input id="loginSenha" type="password" placeholder="Digite sua senha" required>
       </label>
+
       <button class="primary-button full" type="submit">Entrar</button>
-      <small>Versao 1.0.1 - acesso local do escritorio</small>
+      <small>Versão 1.0.1</small>
     </form>
   </section>
 
   <div class="app-shell is-locked" id="appShell">
-    <aside class="sidebar" aria-label="Navegacao principal">
-      <div class="brand brand-action" id="brandMenuButton" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
-        <div class="brand-mark" id="usuarioInicial" aria-hidden="true">S</div>
-        <div>
-          <strong>SR Advocacia</strong>
-          <span>Gestao Juridica</span>
-        </div>
-      </div>
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand-wrap">
+        <button class="brand" id="brandButton" type="button" aria-haspopup="true" aria-expanded="false">
+          <span class="brand-mark" id="usuarioInicial" aria-hidden="true">L</span>
+          <span class="brand-copy">
+            <strong>SR Advocacia</strong>
+            <span>Gestão Jurídica</span>
+          </span>
+          <span class="brand-caret" aria-hidden="true">⌄</span>
+        </button>
 
-      <div class="brand-menu" id="brandMenu">
-        <button type="button" data-view-shortcut="configuracoes">Configuracoes</button>
-        <button type="button" id="btnSair">Sair do perfil</button>
+        <div class="brand-popover" id="brandPopover">
+          <div class="popover-profile">
+            <span class="profile-initial" id="popoverInicial">L</span>
+            <div>
+              <strong id="popoverNome">Letícia Ramos</strong>
+              <small id="popoverEmail">leticia@sradvocacia.com</small>
+            </div>
+          </div>
+          <button class="popover-action" type="button" data-view-shortcut="configuracoes">
+            <span aria-hidden="true">⚙</span>
+            <span>Configurações</span>
+          </button>
+          <button class="popover-action danger" type="button" id="btnSair">
+            <span aria-hidden="true">↪</span>
+            <span>Sair do perfil</span>
+          </button>
+        </div>
       </div>
 
       <nav class="nav-list">
@@ -65,21 +80,21 @@
         </button>
         <button class="nav-item" type="button" data-view="financeiro">
           <span class="nav-icon" aria-hidden="true">R$</span>
-          <span>Honorarios</span>
+          <span>Honorários</span>
         </button>
       </nav>
 
       <div class="sidebar-card">
         <span>Perfil ativo</span>
-        <strong id="plantaoNome">SR Advocacia</strong>
-        <small id="plantaoResumo">Nenhum prazo critico</small>
+        <strong id="plantaoNome">Letícia Ramos</strong>
+        <small id="plantaoResumo">3 prazos críticos</small>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow" id="topEyebrow">Escritorio de Advocacia</p>
+          <p class="eyebrow">Escritório de Advocacia</p>
           <h1 id="viewTitle">Painel</h1>
         </div>
         <div class="topbar-actions">
@@ -97,12 +112,13 @@
 
       <section class="view is-visible" id="view-dashboard" aria-labelledby="viewTitle">
         <div class="metrics-grid" id="metricas"></div>
+
         <div class="content-grid">
           <section class="panel panel-wide">
             <div class="panel-header">
               <div>
                 <h2>Processos em destaque</h2>
-                <p>Movimentacoes recentes e risco de prazo</p>
+                <p>Movimentações recentes e risco de prazo</p>
               </div>
               <button class="ghost-button" type="button" data-view-shortcut="processos">Ver todos</button>
             </div>
@@ -112,8 +128,8 @@
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2>Proximos prazos</h2>
-                <p>Agenda resumida</p>
+                <h2>Agenda próxima</h2>
+                <p>Prazos e compromissos</p>
               </div>
             </div>
             <div class="deadline-list" id="agendaResumo"></div>
@@ -123,7 +139,7 @@
 
       <section class="view" id="view-processos" aria-labelledby="viewTitle">
         <div class="filters-row">
-          <select id="filtroArea" aria-label="Filtrar por area"></select>
+          <select id="filtroArea" aria-label="Filtrar por área"></select>
           <select id="filtroStatus" aria-label="Filtrar por status"></select>
         </div>
         <div class="table-shell">
@@ -132,10 +148,10 @@
               <tr>
                 <th>Processo</th>
                 <th>Cliente</th>
-                <th>Area</th>
+                <th>Área</th>
                 <th>Status</th>
-                <th>Proximo prazo</th>
-                <th>Responsavel</th>
+                <th>Próximo prazo</th>
+                <th>Responsável</th>
               </tr>
             </thead>
             <tbody id="tabelaProcessos"></tbody>
@@ -144,20 +160,39 @@
       </section>
 
       <section class="view" id="view-clientes" aria-labelledby="viewTitle">
+        <div class="section-strip">
+          <div>
+            <h2>Clientes</h2>
+            <p>Cadastro completo para contato, documentos e observações importantes.</p>
+          </div>
+          <button class="ghost-button" type="button" data-open-client>Adicionar cliente</button>
+        </div>
         <div class="client-grid" id="listaClientes"></div>
       </section>
 
       <section class="view" id="view-agenda" aria-labelledby="viewTitle">
-        <div class="calendar-shell">
-          <div class="calendar-header">
-            <button class="icon-button" type="button" id="mesAnterior" title="Mes anterior">‹</button>
-            <strong id="tituloMesAgenda">Agenda</strong>
-            <button class="icon-button" type="button" id="mesProximo" title="Proximo mes">›</button>
-          </div>
-          <div class="calendar-weekdays">
-            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span>
-          </div>
-          <div class="calendar-grid" id="gradeAgenda"></div>
+        <div class="agenda-layout">
+          <section class="calendar-shell">
+            <div class="calendar-header">
+              <button class="icon-button" type="button" id="mesAnterior" title="Mês anterior">‹</button>
+              <strong id="tituloMesAgenda">Agenda</strong>
+              <button class="icon-button" type="button" id="mesProximo" title="Próximo mês">›</button>
+            </div>
+            <div class="calendar-weekdays">
+              <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
+            </div>
+            <div class="calendar-grid" id="gradeAgenda"></div>
+          </section>
+
+          <aside class="panel agenda-side">
+            <div class="panel-header">
+              <div>
+                <h2>Próximos eventos</h2>
+                <p>Lista limpa do que vem primeiro</p>
+              </div>
+            </div>
+            <div class="deadline-list" id="agendaLista"></div>
+          </aside>
         </div>
       </section>
 
@@ -166,8 +201,8 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>Honorarios por processo</h2>
-              <p>Previsao, recebidos e pendencias</p>
+              <h2>Honorários por processo</h2>
+              <p>Previsão, recebidos e pendências</p>
             </div>
           </div>
           <div class="table-shell compact">
@@ -188,44 +223,34 @@
 
       <section class="view" id="view-configuracoes" aria-labelledby="viewTitle">
         <div class="settings-layout">
-          <section class="panel">
-            <div class="panel-header">
-              <div>
-                <h2>Tema</h2>
-                <p>Ajuste visual do sistema</p>
-              </div>
+          <section class="panel settings-hero">
+            <div>
+              <p class="eyebrow">Preferências</p>
+              <h2>Configurações do escritório</h2>
+              <p>Os cadastros abaixo alimentam as listas suspensas usadas ao abrir novos processos.</p>
             </div>
-            <div class="theme-picker" id="temaPicker">
-              <button type="button" data-theme="classico"><span class="swatch wine"></span>Classico</button>
-              <button type="button" data-theme="marinho"><span class="swatch navy"></span>Marinho</button>
-              <button type="button" data-theme="verde"><span class="swatch green"></span>Verde</button>
-            </div>
+            <div class="theme-picker" id="temaPicker"></div>
           </section>
 
           <section class="panel">
             <div class="panel-header">
               <div>
                 <h2>Listas do processo</h2>
-                <p>Status, areas, varas e foruns</p>
+                <p>Status, áreas, varas e fóruns</p>
               </div>
             </div>
-            <div class="settings-grid">
-              <div class="config-list" data-config="status"></div>
-              <div class="config-list" data-config="areas"></div>
-              <div class="config-list" data-config="varas"></div>
-              <div class="config-list" data-config="foruns"></div>
-            </div>
+            <div class="settings-grid" id="settingsLists"></div>
           </section>
 
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2>Usuarios</h2>
-                <p>Perfis que podem entrar no app</p>
+                <h2>Usuários</h2>
+                <p>Perfis que podem acessar o app e receber processos</p>
               </div>
             </div>
             <form class="inline-form" id="formUsuario">
-              <input name="nome" required placeholder="Nome do usuario">
+              <input name="nome" required placeholder="Nome do usuário">
               <input name="email" type="email" placeholder="E-mail">
               <button class="primary-button" type="submit">Adicionar</button>
             </form>
@@ -243,12 +268,12 @@
           <p class="eyebrow">Cadastro</p>
           <h2>Novo processo</h2>
         </div>
-        <button class="icon-button" value="cancel" type="submit" title="Fechar">×</button>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
       </div>
 
       <div class="form-grid">
         <label>
-          <span>Numero do processo</span>
+          <span>Número do processo</span>
           <input name="numero" required placeholder="0000000-00.2026.0.00.0000">
         </label>
         <label>
@@ -256,7 +281,7 @@
           <select name="clienteId" id="processoCliente" required></select>
         </label>
         <label>
-          <span>Area</span>
+          <span>Área</span>
           <select name="area" id="processoArea" required></select>
         </label>
         <label>
@@ -268,19 +293,19 @@
           <select name="vara" id="processoVara" required></select>
         </label>
         <label>
-          <span>Forum</span>
-          <select name="forum" id="processoForum"></select>
+          <span>Fórum</span>
+          <select name="forum" id="processoForum" required></select>
         </label>
         <label>
-          <span>Proximo prazo</span>
+          <span>Próximo prazo</span>
           <input name="prazo" type="date" required>
         </label>
         <label>
-          <span>Responsavel</span>
+          <span>Responsável</span>
           <select name="responsavel" id="processoResponsavel" required></select>
         </label>
         <label>
-          <span>Honorarios</span>
+          <span>Honorários</span>
           <input name="honorarios" type="number" min="0" step="100" placeholder="4500">
         </label>
         <label>
@@ -289,12 +314,12 @@
         </label>
         <label class="span-2">
           <span>Resumo do caso</span>
-          <textarea name="resumo" rows="3" placeholder="Sintese objetiva do caso"></textarea>
+          <textarea name="resumo" rows="3" placeholder="Síntese objetiva do caso"></textarea>
         </label>
       </div>
 
       <div class="modal-actions">
-        <button class="ghost-button" value="cancel" type="submit">Cancelar</button>
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
         <button class="primary-button" value="default" type="submit">Salvar processo</button>
       </div>
     </form>
@@ -307,7 +332,7 @@
           <p class="eyebrow">Cadastro</p>
           <h2>Novo cliente</h2>
         </div>
-        <button class="icon-button" value="cancel" type="submit" title="Fechar">×</button>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
       </div>
       <div class="form-grid">
         <label>
@@ -327,12 +352,12 @@
           <input name="whatsapp" placeholder="(85) 99999-9999">
         </label>
         <label class="span-2">
-          <span>Observacoes</span>
-          <textarea name="observacoes" rows="4" placeholder="Informacoes importantes do cliente"></textarea>
+          <span>Observações</span>
+          <textarea name="observacoes" rows="4" placeholder="Informações importantes sobre o cliente"></textarea>
         </label>
       </div>
       <div class="modal-actions">
-        <button class="ghost-button" value="cancel" type="submit">Cancelar</button>
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
         <button class="primary-button" value="default" type="submit">Salvar cliente</button>
       </div>
     </form>
