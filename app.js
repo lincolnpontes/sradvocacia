@@ -1,10 +1,26 @@
 const APP_VERSION = "1.0.1";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v101";
 
-const state = carregarEstado();
+const ABAS = [
+  { id: "dashboard", label: "Painel" },
+  { id: "processos", label: "Processos" },
+  { id: "clientes", label: "Clientes" },
+  { id: "agenda", label: "Agenda" },
+  { id: "financeiro", label: "Honorários" },
+  { id: "configuracoes", label: "Configurações" }
+];
+
+const CONFIG_META = {
+  status: { titulo: "Status", descricao: "Fases usadas nos processos" },
+  areas: { titulo: "Áreas", descricao: "Ramos de atuação do escritório" },
+  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" }
+};
+
+const state = normalizarEstado(carregarEstado());
 let viewAtual = "dashboard";
 let mesAgenda = new Date();
 let processoAbertoId = null;
+let configAberta = null;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -25,28 +41,34 @@ const els = {
   btnNovoTexto: document.querySelector("#btnNovoTexto"),
   filtroArea: document.querySelector("#filtroArea"),
   filtroStatus: document.querySelector("#filtroStatus"),
+  ordenacaoClientes: document.querySelector("#ordenacaoClientes"),
+  btnModoClientes: document.querySelector("#btnModoClientes"),
+  sidebarToggle: document.querySelector("#sidebarToggle"),
   modalProcesso: document.querySelector("#modalProcesso"),
   modalCliente: document.querySelector("#modalCliente"),
   modalDetalhe: document.querySelector("#modalDetalheProcesso"),
+  modalUsuario: document.querySelector("#modalUsuario"),
+  modalConfig: document.querySelector("#modalConfig"),
   formProcesso: document.querySelector("#formProcesso"),
   formCliente: document.querySelector("#formCliente"),
-  detalheConteudo: document.querySelector("#detalheConteudo")
+  formUsuario: document.querySelector("#formUsuarioDetalhe"),
+  formConfigItem: document.querySelector("#formConfigItem"),
+  detalheConteudo: document.querySelector("#detalheConteudo"),
+  listaConfigModal: document.querySelector("#listaConfigModal")
 };
 
 iniciar();
 
 function iniciar() {
   aplicarTema();
+  aplicarSidebar();
   popularLogin();
   configurarEventos();
   atualizarPerfil();
   renderizarTudo();
 
-  if (state.usuarioAtivoId) {
-    mostrarApp();
-  } else {
-    mostrarLogin();
-  }
+  if (state.usuarioAtivoId) mostrarApp();
+  else mostrarLogin();
 }
 
 function configurarEventos() {
@@ -56,54 +78,72 @@ function configurarEventos() {
   els.brandButton.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      alternarMenuMarca();
+      alternarMenuMarca(event);
     }
   });
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".brand-wrap")) fecharMenuMarca();
   });
+  document.addEventListener("click", fecharDialogo);
+  document.addEventListener("input", aplicarMascara);
+  document.addEventListener("change", atualizarMascaraDocumento);
 
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.addEventListener("click", () => trocarView(button.dataset.view));
   });
-
   document.querySelectorAll("[data-view-shortcut]").forEach((button) => {
     button.addEventListener("click", () => {
       trocarView(button.dataset.viewShortcut);
       fecharMenuMarca();
     });
   });
+  document.querySelectorAll("[data-open-client]").forEach((button) => {
+    button.addEventListener("click", () => abrirModalCliente());
+  });
 
-  document.querySelector("[data-open-client]").addEventListener("click", abrirModalCliente);
+  els.sidebarToggle.addEventListener("click", alternarSidebar);
   els.btnNovo.addEventListener("click", acaoPrincipal);
+  els.btnModoClientes.addEventListener("click", alternarModoClientes);
+  els.ordenacaoClientes.addEventListener("change", () => {
+    state.clienteOrdenacao = els.ordenacaoClientes.value;
+    salvarEstado();
+    renderClientes();
+  });
   document.querySelector("#btnExportar").addEventListener("click", exportarDados);
   document.querySelector("#mesAnterior").addEventListener("click", () => mudarMes(-1));
   document.querySelector("#mesProximo").addEventListener("click", () => mudarMes(1));
   document.querySelector("#btnFecharDetalhe").addEventListener("click", () => els.modalDetalhe.close());
-  document.addEventListener("click", fecharDialogo);
 
   els.busca.addEventListener("input", renderizarTudo);
   els.filtroArea.addEventListener("change", renderizarTudo);
   els.filtroStatus.addEventListener("change", renderizarTudo);
   els.formCliente.addEventListener("submit", salvarCliente);
   els.formProcesso.addEventListener("submit", salvarProcesso);
-  document.querySelector("#formUsuario").addEventListener("submit", salvarUsuario);
-  document.querySelector("#settingsLists").addEventListener("submit", adicionarConfig);
-  document.querySelector("#settingsLists").addEventListener("click", removerConfig);
+  els.formUsuario.addEventListener("submit", salvarUsuario);
+  els.formConfigItem.addEventListener("submit", adicionarItemConfig);
+  document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
+  document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
-  document.querySelector("#listaUsuarios").addEventListener("click", removerUsuario);
+  els.listaConfigModal.addEventListener("click", editarOuExcluirConfig);
   els.detalheConteudo.addEventListener("submit", salvarItemProcesso);
   els.detalheConteudo.addEventListener("click", concluirPrazo);
+  document.querySelector("#btnNovoUsuario").addEventListener("click", () => abrirModalUsuario());
+  document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
 }
 
 function entrar(event) {
   event.preventDefault();
   const usuario = state.usuarios.find((item) => item.id === els.loginUsuario.value);
-  if (!usuario) return;
+  const senha = document.querySelector("#loginSenha").value;
+  if (!usuario || senha !== usuario.senha) {
+    alert("Usuário ou senha inválidos.");
+    return;
+  }
   state.usuarioAtivoId = usuario.id;
   salvarEstado();
   atualizarPerfil();
+  aplicarPermissoes();
   mostrarApp();
 }
 
@@ -122,18 +162,28 @@ function mostrarLogin() {
 function mostrarApp() {
   els.login.classList.add("is-hidden");
   els.app.classList.remove("is-locked");
+  aplicarPermissoes();
 }
 
 function acaoPrincipal() {
-  if (viewAtual === "clientes") {
-    abrirModalCliente();
-    return;
-  }
-  abrirModalProcesso();
+  if (viewAtual === "clientes") abrirModalCliente();
+  else abrirModalProcesso();
 }
 
-function abrirModalCliente() {
+function abrirModalCliente(id = "") {
   els.formCliente.reset();
+  const cliente = id ? obterCliente(id) : null;
+  document.querySelector("#tituloModalCliente").textContent = cliente ? "Editar cliente" : "Novo cliente";
+  els.formCliente.elements.id.value = cliente?.id || "";
+  els.formCliente.nome.value = cliente?.nome || "";
+  els.formCliente.tipoDocumento.value = cliente?.tipoDocumento || inferirTipoDocumento(cliente?.documento || cliente?.cpf || "");
+  els.formCliente.documento.value = formatarDocumento(cliente?.documento || cliente?.cpf || "", els.formCliente.tipoDocumento.value);
+  els.formCliente.email.value = cliente?.email || "";
+  els.formCliente.whatsapp.value = formatarTelefone(cliente?.whatsapp || "");
+  els.formCliente.estadoCivil.value = cliente?.estadoCivil || "";
+  els.formCliente.profissao.value = cliente?.profissao || "";
+  els.formCliente.domicilio.value = cliente?.domicilio || "";
+  els.formCliente.observacoes.value = cliente?.observacoes || "";
   els.modalCliente.showModal();
 }
 
@@ -144,17 +194,42 @@ function abrirModalProcesso() {
   els.modalProcesso.showModal();
 }
 
+function abrirModalUsuario(id = "") {
+  els.formUsuario.reset();
+  const usuario = id ? obterUsuario(id) : null;
+  document.querySelector("#tituloModalUsuario").textContent = usuario ? "Editar usuário" : "Novo usuário";
+  document.querySelector("#btnExcluirUsuario").classList.toggle("is-hidden", !usuario || state.usuarios.length <= 1);
+  els.formUsuario.elements.id.value = usuario?.id || "";
+  els.formUsuario.nome.value = usuario?.nome || "";
+  els.formUsuario.email.value = usuario?.email || "";
+  els.formUsuario.senha.value = usuario?.senha || "";
+  els.formUsuario.cargo.value = usuario?.cargo || "";
+  els.formUsuario.telefone.value = formatarTelefone(usuario?.telefone || "");
+  els.formUsuario.oab.value = usuario?.oab || "";
+  renderPermissoesUsuario(usuario?.permissoes || permissoesPadrao());
+  els.modalUsuario.showModal();
+}
+
 function salvarCliente(event) {
   event.preventDefault();
   const dados = Object.fromEntries(new FormData(els.formCliente));
-  state.clientes.unshift({
-    id: uid(),
+  const atual = dados.id ? obterCliente(dados.id) : null;
+  const cliente = atual || { id: uid(), criadoEm: hojeIso() };
+
+  Object.assign(cliente, {
     nome: dados.nome.trim(),
-    cpf: dados.cpf.trim(),
+    tipoDocumento: dados.tipoDocumento,
+    documento: formatarDocumento(dados.documento, dados.tipoDocumento),
+    cpf: formatarDocumento(dados.documento, dados.tipoDocumento),
     email: dados.email.trim(),
-    whatsapp: dados.whatsapp.trim(),
+    whatsapp: formatarTelefone(dados.whatsapp),
+    estadoCivil: dados.estadoCivil,
+    profissao: dados.profissao.trim(),
+    domicilio: dados.domicilio.trim(),
     observacoes: dados.observacoes.trim()
   });
+
+  if (!atual) state.clientes.unshift(cliente);
   salvarEstado();
   els.modalCliente.close();
   trocarView("clientes");
@@ -169,8 +244,7 @@ function salvarProcesso(event) {
     clienteId: dados.clienteId,
     area: dados.area,
     status: dados.status,
-    vara: dados.vara,
-    forum: dados.forum,
+    orgao: dados.orgao,
     prazo: dados.prazo,
     responsavelId: dados.responsavelId,
     honorarios: Number(dados.honorarios || 0),
@@ -182,15 +256,12 @@ function salvarProcesso(event) {
         data: dados.prazo,
         tipo: "Prazo inicial",
         descricao: "Prazo cadastrado na abertura do processo.",
+        responsavelId: dados.responsavelId,
         concluido: false
       }
     ],
     movimentacoes: [
-      {
-        id: uid(),
-        data: hojeIso(),
-        descricao: "Processo cadastrado no sistema."
-      }
+      { id: uid(), data: hojeIso(), descricao: "Processo cadastrado no sistema." }
     ]
   });
   salvarEstado();
@@ -198,71 +269,105 @@ function salvarProcesso(event) {
   trocarView("processos");
 }
 
-function fecharDialogo(event) {
-  const button = event.target.closest("[data-close-dialog]");
-  if (!button) return;
-  button.closest("dialog")?.close();
-}
-
 function salvarUsuario(event) {
   event.preventDefault();
-  const form = event.currentTarget;
-  const dados = Object.fromEntries(new FormData(form));
-  const nome = dados.nome.trim();
-  if (!nome) return;
-  state.usuarios.push({ id: uid(), nome, email: dados.email.trim() });
-  form.reset();
-  salvarEstado();
-  popularLogin();
-  renderConfiguracoes();
-}
-
-function adicionarConfig(event) {
-  const form = event.target.closest("[data-config-form]");
-  if (!form) return;
-  event.preventDefault();
-  const chave = form.dataset.configForm;
-  const valor = new FormData(form).get("valor").trim();
-  if (valor && !state.configs[chave].includes(valor)) {
-    state.configs[chave].push(valor);
-    salvarEstado();
-    renderizarTudo();
+  const dados = Object.fromEntries(new FormData(els.formUsuario));
+  const permissoes = [...els.formUsuario.querySelectorAll("[name='permissoes']:checked")].map((input) => input.value);
+  if (!permissoes.length) {
+    alert("Escolha pelo menos uma aba para o usuário.");
+    return;
   }
-  form.reset();
-}
 
-function removerConfig(event) {
-  const button = event.target.closest("[data-remove-config]");
-  if (!button) return;
-  const chave = button.dataset.removeConfig;
-  const valor = button.dataset.value;
-  if (state.configs[chave].length <= 1) return;
-  state.configs[chave] = state.configs[chave].filter((item) => item !== valor);
-  salvarEstado();
-  renderizarTudo();
-}
-
-function escolherTema(event) {
-  const button = event.target.closest("[data-theme]");
-  if (!button) return;
-  state.tema = button.dataset.theme;
-  salvarEstado();
-  aplicarTema();
-  renderConfiguracoes();
-}
-
-function removerUsuario(event) {
-  const button = event.target.closest("[data-remove-user]");
-  if (!button || state.usuarios.length <= 1) return;
-  const id = button.dataset.removeUser;
-  state.usuarios = state.usuarios.filter((usuario) => usuario.id !== id);
-  if (state.usuarioAtivoId === id) state.usuarioAtivoId = state.usuarios[0]?.id || null;
-  state.processos.forEach((processo) => {
-    if (processo.responsavelId === id) processo.responsavelId = state.usuarios[0]?.id || "";
+  const atual = dados.id ? obterUsuario(dados.id) : null;
+  const usuario = atual || { id: uid() };
+  Object.assign(usuario, {
+    nome: dados.nome.trim(),
+    email: dados.email.trim(),
+    senha: dados.senha,
+    cargo: dados.cargo.trim(),
+    telefone: formatarTelefone(dados.telefone),
+    oab: dados.oab.trim(),
+    permissoes
   });
+
+  if (!atual) state.usuarios.push(usuario);
   salvarEstado();
   popularLogin();
   atualizarPerfil();
+  aplicarPermissoes();
+  renderConfiguracoes();
+  els.modalUsuario.close();
+}
+
+function excluirUsuarioAberto() {
+  const id = els.formUsuario.elements.id.value;
+  if (!id || state.usuarios.length <= 1) return;
+  const usuario = obterUsuario(id);
+  if (!confirm(`Excluir o usuário "${usuario?.nome}"? Os processos dele serão atribuídos ao primeiro usuário disponível.`)) return;
+
+  state.usuarios = state.usuarios.filter((item) => item.id !== id);
+  const substituto = state.usuarios[0]?.id || "";
+  state.processos.forEach((processo) => {
+    if (processo.responsavelId === id) processo.responsavelId = substituto;
+    processo.prazos.forEach((prazo) => {
+      if (prazo.responsavelId === id) prazo.responsavelId = substituto;
+    });
+  });
+  if (state.usuarioAtivoId === id) state.usuarioAtivoId = substituto;
+  salvarEstado();
+  popularLogin();
+  atualizarPerfil();
+  aplicarPermissoes();
+  renderizarTudo();
+  els.modalUsuario.close();
+}
+
+function adicionarItemConfig(event) {
+  event.preventDefault();
+  const valor = new FormData(els.formConfigItem).get("valor").trim();
+  if (!configAberta || !valor) return;
+  if (!state.configs[configAberta].includes(valor)) state.configs[configAberta].push(valor);
+  els.formConfigItem.reset();
+  salvarEstado();
+  renderConfigModal();
+  renderizarTudo();
+}
+
+function abrirConfig(event) {
+  const button = event.target.closest("[data-open-config]");
+  if (!button) return;
+  configAberta = button.dataset.openConfig;
+  document.querySelector("#tituloModalConfig").textContent = `Editar ${CONFIG_META[configAberta].titulo}`;
+  els.formConfigItem.reset();
+  renderConfigModal();
+  els.modalConfig.showModal();
+}
+
+function editarOuExcluirConfig(event) {
+  const salvar = event.target.closest("[data-save-config]");
+  const excluir = event.target.closest("[data-delete-config]");
+  if (!configAberta || (!salvar && !excluir)) return;
+  const row = event.target.closest("[data-config-row]");
+  const index = Number(row.dataset.configRow);
+  const valorAtual = state.configs[configAberta][index];
+
+  if (salvar) {
+    const novoValor = row.querySelector("input").value.trim();
+    if (!novoValor) return;
+    state.configs[configAberta][index] = novoValor;
+  }
+
+  if (excluir) {
+    if (state.configs[configAberta].length <= 1) {
+      alert("Mantenha pelo menos um item nesta lista.");
+      return;
+    }
+    if (!confirm(`Excluir "${valorAtual}" de ${CONFIG_META[configAberta].titulo}?`)) return;
+    state.configs[configAberta].splice(index, 1);
+  }
+
+  salvarEstado();
+  renderConfigModal();
   renderizarTudo();
 }
 
@@ -280,17 +385,14 @@ function salvarItemProcesso(event) {
       data: dados.data,
       tipo: dados.tipo.trim(),
       descricao: dados.descricao.trim(),
+      responsavelId: dados.responsavelId,
       concluido: false
     });
     processo.prazo = proximoPrazoDoProcesso(processo);
   }
 
   if (form.dataset.detailForm === "movimentacao") {
-    processo.movimentacoes.unshift({
-      id: uid(),
-      data: dados.data,
-      descricao: dados.descricao.trim()
-    });
+    processo.movimentacoes.unshift({ id: uid(), data: dados.data, descricao: dados.descricao.trim() });
   }
 
   form.reset();
@@ -303,8 +405,7 @@ function concluirPrazo(event) {
   const button = event.target.closest("[data-toggle-prazo]");
   if (!button) return;
   const processo = obterProcesso(processoAbertoId);
-  if (!processo) return;
-  const prazo = processo.prazos.find((item) => item.id === button.dataset.togglePrazo);
+  const prazo = processo?.prazos.find((item) => item.id === button.dataset.togglePrazo);
   if (!prazo) return;
   prazo.concluido = !prazo.concluido;
   processo.prazo = proximoPrazoDoProcesso(processo);
@@ -313,7 +414,47 @@ function concluirPrazo(event) {
   renderizarTudo();
 }
 
+function abrirUsuarioOuExcluir(event) {
+  const button = event.target.closest("[data-edit-user]");
+  if (!button) return;
+  abrirModalUsuario(button.dataset.editUser);
+}
+
+function fecharDialogo(event) {
+  const button = event.target.closest("[data-close-dialog]");
+  if (!button) return;
+  button.closest("dialog")?.close();
+}
+
+function aplicarMascara(event) {
+  const input = event.target;
+  if (input.name === "documento") {
+    const tipo = input.closest("form")?.querySelector("[name='tipoDocumento']")?.value || inferirTipoDocumento(input.value);
+    input.value = formatarDocumento(input.value, tipo);
+  }
+  if (input.name === "whatsapp" || input.name === "telefone") input.value = formatarTelefone(input.value);
+}
+
+function atualizarMascaraDocumento(event) {
+  if (event.target.name !== "tipoDocumento") return;
+  const input = event.target.closest("form")?.querySelector("[name='documento']");
+  if (input) input.value = formatarDocumento(input.value, event.target.value);
+}
+
+function alternarModoClientes() {
+  state.clienteModo = state.clienteModo === "lista" ? "cards" : "lista";
+  salvarEstado();
+  renderClientes();
+}
+
+function alternarSidebar() {
+  state.sidebarRecolhida = !state.sidebarRecolhida;
+  salvarEstado();
+  aplicarSidebar();
+}
+
 function trocarView(view) {
+  if (!temAcesso(view)) return;
   viewAtual = view;
   const labels = {
     dashboard: "Painel",
@@ -326,7 +467,7 @@ function trocarView(view) {
 
   els.viewTitle.textContent = labels[view] || "Painel";
   els.btnNovoTexto.textContent = view === "clientes" ? "Novo cliente" : "Novo processo";
-  els.btnNovo.classList.toggle("is-hidden", view === "configuracoes" || view === "agenda");
+  els.btnNovo.classList.toggle("is-hidden", view === "configuracoes" || view === "agenda" || !temAcesso(view));
 
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("is-visible", section.id === `view-${view}`);
@@ -338,6 +479,7 @@ function trocarView(view) {
 }
 
 function renderizarTudo() {
+  aplicarPermissoes();
   popularFiltros();
   renderMetricas();
   renderProcessosDestaque();
@@ -351,8 +493,7 @@ function renderizarTudo() {
 function renderMetricas() {
   const processosAtivos = state.processos.filter((processo) => processo.status !== "Encerrado").length;
   const prazosCriticos = eventosAgenda().filter((evento) => !evento.concluido && diasAte(evento.data) <= 3).length;
-  const recebido = soma(state.processos, "recebido");
-  const pendente = soma(state.processos, "honorarios") - recebido;
+  const pendente = soma(state.processos, "honorarios") - soma(state.processos, "recebido");
 
   document.querySelector("#metricas").innerHTML = [
     metricCard("Processos ativos", processosAtivos, "Carteira em andamento"),
@@ -360,7 +501,6 @@ function renderMetricas() {
     metricCard("Prazos críticos", prazosCriticos, "Vencidos ou até 3 dias"),
     metricCard("A receber", moeda(pendente), "Honorários pendentes")
   ].join("");
-
   els.plantaoResumo.textContent = `${prazosCriticos} prazos críticos`;
 }
 
@@ -378,12 +518,12 @@ function renderProcessosDestaque() {
         <div class="case-top">
           <div>
             <div class="case-title">${escapeHtml(cliente?.nome || "Cliente não informado")}</div>
-            <div class="case-meta">${escapeHtml(processo.numero)} · ${escapeHtml(processo.vara)}</div>
+            <div class="case-meta">Processo ${escapeHtml(processo.numero)} · ${escapeHtml(processo.orgao)}</div>
           </div>
           ${badgePrazo(processo)}
         </div>
         <p>${escapeHtml(processo.resumo || "Sem resumo cadastrado.")}</p>
-        <div class="case-meta">${escapeHtml(processo.area)} · ${escapeHtml(processo.status)} · ${escapeHtml(responsavel?.nome || "")}</div>
+        <div class="case-meta">${escapeHtml(processo.area)} · ${escapeHtml(processo.status)} · Responsável: ${escapeHtml(responsavel?.nome || "")}</div>
       </article>
     `;
   });
@@ -396,8 +536,8 @@ function renderTabelaProcessos() {
     const responsavel = obterUsuario(processo.responsavelId);
     return `
       <tr class="clickable" data-open-process="${processo.id}">
-        <td><strong>${escapeHtml(processo.numero)}</strong><br><span class="case-meta">${escapeHtml(processo.vara)}</span></td>
-        <td>${escapeHtml(cliente?.nome || "")}<br><span class="case-meta">${escapeHtml(cliente?.cpf || "")}</span></td>
+        <td><strong>${escapeHtml(processo.numero)}</strong><br><span class="case-meta">${escapeHtml(processo.orgao)}</span></td>
+        <td>${escapeHtml(cliente?.nome || "")}<br><span class="case-meta">${escapeHtml(cliente?.documento || cliente?.cpf || "")}</span></td>
         <td>${escapeHtml(processo.area)}</td>
         <td>${badgeStatus(processo.status)}</td>
         <td>${dataCurta(processo.prazo)}<br>${badgePrazo(processo)}</td>
@@ -409,35 +549,60 @@ function renderTabelaProcessos() {
 }
 
 function renderClientes() {
-  const termo = normalizar(els.busca.value);
-  const clientes = state.clientes.filter((cliente) => {
-    return !termo || normalizar([cliente.nome, cliente.cpf, cliente.email, cliente.whatsapp, cliente.observacoes].join(" ")).includes(termo);
-  });
+  els.ordenacaoClientes.value = state.clienteOrdenacao;
+  els.btnModoClientes.textContent = state.clienteModo === "lista" ? "Ver em caixas" : "Ver em lista";
+  const clientes = ordenarClientes(filtrarClientes());
+  const container = document.querySelector("#listaClientes");
+  container.className = state.clienteModo === "lista" ? "client-list" : "client-grid";
 
-  document.querySelector("#listaClientes").innerHTML = vazioOu(clientes, (cliente) => {
-    const processos = state.processos.filter((processo) => processo.clienteId === cliente.id);
-    return `
-      <article class="client-card">
-        <div class="client-top">
-          <strong>${escapeHtml(cliente.nome)}</strong>
-          <span class="badge">${processos.length} caso${processos.length !== 1 ? "s" : ""}</span>
-        </div>
-        <div class="client-meta">${escapeHtml(cliente.cpf)}</div>
-        <div class="client-lines">
-          <span>${escapeHtml(cliente.email || "E-mail não informado")}</span>
-          <span>${escapeHtml(cliente.whatsapp || "Whatsapp não informado")}</span>
-        </div>
-        <p>${escapeHtml(cliente.observacoes || "Sem observações.")}</p>
-      </article>
-    `;
-  });
+  if (state.clienteModo === "lista") {
+    container.innerHTML = vazioOu(clientes, cardClienteLinha);
+    vincularAberturaCliente();
+    return;
+  }
+
+  container.innerHTML = vazioOu(clientes, cardClienteCaixa);
+  vincularAberturaCliente();
+}
+
+function cardClienteCaixa(cliente) {
+  const stats = estatisticasCliente(cliente);
+  return `
+    <article class="client-card clickable" data-open-client-id="${cliente.id}">
+      <div class="client-top">
+        <strong>${escapeHtml(cliente.nome)}</strong>
+        <span class="badge">${stats.casos} caso${stats.casos !== 1 ? "s" : ""}</span>
+      </div>
+      <div class="client-meta">${escapeHtml(cliente.tipoDocumento || inferirTipoDocumento(cliente.documento))}: ${escapeHtml(cliente.documento || cliente.cpf || "")}</div>
+      <div class="client-lines">
+        <span>${escapeHtml(cliente.email || "E-mail não informado")}</span>
+        <span>${escapeHtml(cliente.whatsapp || "Whatsapp não informado")}</span>
+        <span>${escapeHtml(cliente.profissao || "Profissão não informada")}</span>
+        <span>${escapeHtml(cliente.domicilio || "Domicílio não informado")}</span>
+      </div>
+      <p>${escapeHtml(cliente.observacoes || "Sem observações.")}</p>
+      <div class="client-meta">Cadastro: ${dataCurta(cliente.criadoEm)} · Próximo prazo: ${stats.proximoPrazo ? dataCurta(stats.proximoPrazo) : "sem prazo"}</div>
+    </article>
+  `;
+}
+
+function cardClienteLinha(cliente) {
+  const stats = estatisticasCliente(cliente);
+  return `
+    <button class="client-row" type="button" data-open-client-id="${cliente.id}">
+      <span><strong>${escapeHtml(cliente.nome)}</strong><small>${escapeHtml(cliente.documento || cliente.cpf || "")}</small></span>
+      <span>${escapeHtml(cliente.whatsapp || "-")}</span>
+      <span>${stats.casos} caso${stats.casos !== 1 ? "s" : ""}</span>
+      <span>${stats.proximoPrazo ? dataCurta(stats.proximoPrazo) : "Sem prazo"}</span>
+      <span>${dataCurta(cliente.criadoEm)}</span>
+    </button>
+  `;
 }
 
 function renderAgenda() {
   const eventos = eventosAgenda().sort((a, b) => new Date(a.data) - new Date(b.data));
   const proximos = eventos.filter((evento) => !evento.concluido).slice(0, 8);
-  const resumo = proximos.slice(0, 6);
-  document.querySelector("#agendaResumo").innerHTML = vazioOu(resumo, cardEvento);
+  document.querySelector("#agendaResumo").innerHTML = vazioOu(proximos.slice(0, 6), cardEvento);
   document.querySelector("#agendaLista").innerHTML = vazioOu(proximos, cardEvento);
   renderCalendario(eventos);
 }
@@ -449,12 +614,10 @@ function renderCalendario(eventos) {
   const totalDias = new Date(ano, mes + 1, 0).getDate();
   const inicio = primeiroDia.getDay();
   const titulo = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(mesAgenda);
-
   document.querySelector("#tituloMesAgenda").textContent = titulo;
 
   const celulas = [];
   for (let i = 0; i < inicio; i++) celulas.push(`<div class="calendar-day empty"></div>`);
-
   for (let dia = 1; dia <= totalDias; dia++) {
     const data = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
     const eventosDia = eventos.filter((evento) => evento.data === data).slice(0, 3);
@@ -471,7 +634,6 @@ function renderCalendario(eventos) {
       </div>
     `);
   }
-
   document.querySelector("#gradeAgenda").innerHTML = celulas.join("");
   vincularAberturaProcesso();
 }
@@ -484,7 +646,11 @@ function cardEvento(evento) {
         <span class="badge ${evento.concluido ? "ok" : diasAte(evento.data) <= 3 ? "gold" : ""}">${escapeHtml(evento.tipo)}</span>
       </div>
       <div>${escapeHtml(evento.cliente)}</div>
-      <div class="deadline-meta">${escapeHtml(evento.processo)} · ${escapeHtml(evento.descricao)}</div>
+      <div class="deadline-meta">
+        Processo: ${escapeHtml(evento.processo)}<br>
+        Responsável: ${escapeHtml(evento.responsavel)}<br>
+        ${escapeHtml(evento.descricao)}
+      </div>
     </article>
   `;
 }
@@ -523,44 +689,38 @@ function renderConfiguracoes() {
 
   document.querySelector("#temaPicker").innerHTML = temas.map((tema) => `
     <button type="button" data-theme="${tema.id}" class="${state.tema === tema.id ? "is-selected" : ""}">
-      <span class="swatch ${tema.amostra}"></span>
-      ${tema.nome}
+      <span class="swatch ${tema.amostra}"></span>${tema.nome}
     </button>
   `).join("");
 
-  const listas = [
-    { chave: "status", titulo: "Status" },
-    { chave: "areas", titulo: "Áreas" },
-    { chave: "varas", titulo: "Varas" },
-    { chave: "foruns", titulo: "Fóruns" }
-  ];
-
-  document.querySelector("#settingsLists").innerHTML = listas.map((lista) => `
-    <section class="config-list">
-      <h3>${lista.titulo}</h3>
-      <form class="inline-form compact-form" data-config-form="${lista.chave}">
-        <input name="valor" required placeholder="Adicionar ${lista.titulo.toLowerCase()}">
-        <button class="ghost-button" type="submit">Adicionar</button>
-      </form>
-      <div class="pill-list">
-        ${state.configs[lista.chave].map((valor) => `
-          <span class="pill">
-            ${escapeHtml(valor)}
-            <button type="button" data-remove-config="${lista.chave}" data-value="${escapeHtml(valor)}" title="Remover">×</button>
-          </span>
-        `).join("")}
-      </div>
-    </section>
+  document.querySelector("#settingsLists").innerHTML = Object.entries(CONFIG_META).map(([chave, meta]) => `
+    <button class="config-card" type="button" data-open-config="${chave}">
+      <span>${meta.titulo}</span>
+      <strong>${state.configs[chave].length}</strong>
+      <small>${meta.descricao}</small>
+    </button>
   `).join("");
 
   document.querySelector("#listaUsuarios").innerHTML = state.usuarios.map((usuario) => `
-    <div class="user-row">
+    <button class="user-row" type="button" data-edit-user="${usuario.id}">
       <span class="user-avatar">${escapeHtml(inicial(usuario.nome))}</span>
-      <div>
+      <span>
         <strong>${escapeHtml(usuario.nome)}</strong>
-        <small>${escapeHtml(usuario.email || "Sem e-mail")}</small>
-      </div>
-      <button class="icon-button subtle" type="button" data-remove-user="${usuario.id}" title="Remover usuário">×</button>
+        <small>${escapeHtml(usuario.cargo || "Cargo não informado")} · ${escapeHtml(usuario.email || "Sem e-mail")}</small>
+        <small>Acessos: ${usuario.permissoes.map((aba) => labelAba(aba)).join(", ")}</small>
+      </span>
+      <span class="edit-hint">Editar</span>
+    </button>
+  `).join("");
+}
+
+function renderConfigModal() {
+  if (!configAberta) return;
+  els.listaConfigModal.innerHTML = state.configs[configAberta].map((valor, index) => `
+    <div class="config-edit-row" data-config-row="${index}">
+      <input value="${escapeHtml(valor)}" aria-label="Editar item">
+      <button class="ghost-button" type="button" data-save-config>Salvar</button>
+      <button class="ghost-button danger-text" type="button" data-delete-config>Excluir</button>
     </div>
   `).join("");
 }
@@ -579,7 +739,11 @@ function abrirDetalheProcesso(id) {
         <div>
           <p class="eyebrow">Cliente</p>
           <h3>${escapeHtml(cliente?.nome || "Cliente não informado")}</h3>
-          <p>${escapeHtml(cliente?.cpf || "")} · ${escapeHtml(cliente?.whatsapp || "Whatsapp não informado")}</p>
+          <div class="detail-chips">
+            <span><strong>Documento</strong>${escapeHtml(cliente?.documento || cliente?.cpf || "")}</span>
+            <span><strong>Whatsapp</strong>${escapeHtml(cliente?.whatsapp || "Não informado")}</span>
+            <span><strong>Domicílio</strong>${escapeHtml(cliente?.domicilio || "Não informado")}</span>
+          </div>
         </div>
         ${badgeStatus(processo.status)}
       </section>
@@ -589,8 +753,7 @@ function abrirDetalheProcesso(id) {
           <h3>Dados do processo</h3>
           <dl>
             <dt>Área</dt><dd>${escapeHtml(processo.area)}</dd>
-            <dt>Vara</dt><dd>${escapeHtml(processo.vara)}</dd>
-            <dt>Fórum</dt><dd>${escapeHtml(processo.forum)}</dd>
+            <dt>Órgão</dt><dd>${escapeHtml(processo.orgao)}</dd>
             <dt>Responsável</dt><dd>${escapeHtml(responsavel?.nome || "")}</dd>
             <dt>Honorários</dt><dd>${moeda(processo.honorarios)}</dd>
           </dl>
@@ -602,6 +765,7 @@ function abrirDetalheProcesso(id) {
           <form class="stack-form" data-detail-form="prazo">
             <input name="data" type="date" required>
             <input name="tipo" required placeholder="Tipo do prazo">
+            <select name="responsavelId" required>${state.usuarios.map((u) => `<option value="${u.id}" ${u.id === processo.responsavelId ? "selected" : ""}>${escapeHtml(u.nome)}</option>`).join("")}</select>
             <textarea name="descricao" rows="3" required placeholder="Descrição"></textarea>
             <button class="primary-button" type="submit">Adicionar prazo</button>
           </form>
@@ -610,15 +774,19 @@ function abrirDetalheProcesso(id) {
         <section>
           <h3>Prazos</h3>
           <div class="mini-list">
-            ${ordenarPorData(processo.prazos).map((prazo) => `
-              <div class="${prazo.concluido ? "is-done" : ""}">
-                <button class="mini-check" type="button" data-toggle-prazo="${prazo.id}" title="Marcar prazo">${prazo.concluido ? "✓" : ""}</button>
-                <div>
-                  <strong>${dataCurta(prazo.data)} · ${escapeHtml(prazo.tipo)}</strong>
-                  <span>${escapeHtml(prazo.descricao)}</span>
+            ${ordenarPorData(processo.prazos).map((prazo) => {
+              const resp = obterUsuario(prazo.responsavelId || processo.responsavelId);
+              return `
+                <div class="${prazo.concluido ? "is-done" : ""}">
+                  <button class="mini-check" type="button" data-toggle-prazo="${prazo.id}" title="Marcar prazo">${prazo.concluido ? "✓" : ""}</button>
+                  <div>
+                    <strong>${dataCurta(prazo.data)} · ${escapeHtml(prazo.tipo)}</strong>
+                    <span>Responsável: ${escapeHtml(resp?.nome || "")}</span>
+                    <span>${escapeHtml(prazo.descricao)}</span>
+                  </div>
                 </div>
-              </div>
-            `).join("") || "<p>Nenhum prazo cadastrado.</p>"}
+              `;
+            }).join("") || "<p>Nenhum prazo cadastrado.</p>"}
           </div>
         </section>
 
@@ -649,10 +817,60 @@ function abrirDetalheProcesso(id) {
   els.modalDetalhe.showModal();
 }
 
+function renderPermissoesUsuario(permissoes) {
+  document.querySelector("#permissoesUsuario").innerHTML = ABAS.map((aba) => `
+    <label>
+      <input type="checkbox" name="permissoes" value="${aba.id}" ${permissoes.includes(aba.id) ? "checked" : ""}>
+      <span>${aba.label}</span>
+    </label>
+  `).join("");
+}
+
+function vincularAberturaCliente() {
+  document.querySelectorAll("[data-open-client-id]").forEach((elemento) => {
+    elemento.onclick = () => abrirModalCliente(elemento.dataset.openClientId);
+  });
+}
+
 function vincularAberturaProcesso() {
   document.querySelectorAll("[data-open-process]").forEach((elemento) => {
     elemento.onclick = () => abrirDetalheProcesso(elemento.dataset.openProcess);
   });
+}
+
+function filtrarClientes() {
+  const termo = normalizar(els.busca.value);
+  return state.clientes.filter((cliente) => {
+    const texto = normalizar([
+      cliente.nome,
+      cliente.documento,
+      cliente.cpf,
+      cliente.email,
+      cliente.whatsapp,
+      cliente.estadoCivil,
+      cliente.profissao,
+      cliente.domicilio,
+      cliente.observacoes
+    ].join(" "));
+    return !termo || texto.includes(termo);
+  });
+}
+
+function ordenarClientes(clientes) {
+  return [...clientes].sort((a, b) => {
+    const statsA = estatisticasCliente(a);
+    const statsB = estatisticasCliente(b);
+    if (state.clienteOrdenacao === "prazo") return compararDatas(statsA.proximoPrazo, statsB.proximoPrazo);
+    if (state.clienteOrdenacao === "cadastro") return compararDatas(b.criadoEm, a.criadoEm);
+    if (state.clienteOrdenacao === "casos") return statsB.casos - statsA.casos;
+    return a.nome.localeCompare(b.nome, "pt-BR");
+  });
+}
+
+function estatisticasCliente(cliente) {
+  const processos = state.processos.filter((processo) => processo.clienteId === cliente.id);
+  const prazos = processos.flatMap((processo) => processo.prazos.filter((prazo) => !prazo.concluido).map((prazo) => prazo.data));
+  return { casos: processos.length, proximoPrazo: prazos.sort()[0] || "" };
 }
 
 function filtrarProcessos() {
@@ -660,18 +878,7 @@ function filtrarProcessos() {
   return state.processos.filter((processo) => {
     const cliente = obterCliente(processo.clienteId);
     const responsavel = obterUsuario(processo.responsavelId);
-    const texto = normalizar([
-      processo.numero,
-      cliente?.nome,
-      cliente?.cpf,
-      processo.area,
-      processo.status,
-      processo.vara,
-      processo.forum,
-      responsavel?.nome,
-      processo.resumo
-    ].join(" "));
-
+    const texto = normalizar([processo.numero, cliente?.nome, cliente?.documento, processo.area, processo.status, processo.orgao, responsavel?.nome, processo.resumo].join(" "));
     const combinaBusca = !termo || texto.includes(termo);
     const combinaArea = !els.filtroArea.value || processo.area === els.filtroArea.value;
     const combinaStatus = !els.filtroStatus.value || processo.status === els.filtroStatus.value;
@@ -682,19 +889,15 @@ function filtrarProcessos() {
 function eventosAgenda() {
   return state.processos.flatMap((processo) => {
     const cliente = obterCliente(processo.clienteId);
-    return processo.prazos.map((prazo) => ({
-      ...prazo,
-      processoId: processo.id,
-      processo: processo.numero,
-      cliente: cliente?.nome || "Cliente não informado"
-    }));
+    return processo.prazos.map((prazo) => {
+      const responsavel = obterUsuario(prazo.responsavelId || processo.responsavelId);
+      return { ...prazo, processoId: processo.id, processo: processo.numero, cliente: cliente?.nome || "Cliente não informado", responsavel: responsavel?.nome || "" };
+    });
   });
 }
 
 function popularLogin() {
-  els.loginUsuario.innerHTML = state.usuarios.map((usuario) => `
-    <option value="${usuario.id}">${escapeHtml(usuario.nome)}</option>
-  `).join("");
+  els.loginUsuario.innerHTML = state.usuarios.map((usuario) => `<option value="${usuario.id}">${escapeHtml(usuario.nome)}</option>`).join("");
 }
 
 function popularFiltros() {
@@ -710,15 +913,12 @@ function popularSelectsProcesso() {
   preencherSelect(document.querySelector("#processoCliente"), state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome })));
   preencherSelect(document.querySelector("#processoArea"), state.configs.areas.map(opcao));
   preencherSelect(document.querySelector("#processoStatus"), state.configs.status.map(opcao));
-  preencherSelect(document.querySelector("#processoVara"), state.configs.varas.map(opcao));
-  preencherSelect(document.querySelector("#processoForum"), state.configs.foruns.map(opcao));
+  preencherSelect(document.querySelector("#processoOrgao"), state.configs.orgaos.map(opcao));
   preencherSelect(document.querySelector("#processoResponsavel"), state.usuarios.map((usuario) => ({ value: usuario.id, label: usuario.nome })));
 }
 
 function preencherSelect(select, opcoes) {
-  select.innerHTML = opcoes.map((item) => `
-    <option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>
-  `).join("");
+  select.innerHTML = opcoes.map((item) => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join("");
 }
 
 function opcao(valor) {
@@ -755,116 +955,187 @@ function aplicarTema() {
   document.body.dataset.theme = state.tema || "classico";
 }
 
+function aplicarSidebar() {
+  document.body.classList.toggle("sidebar-collapsed", !!state.sidebarRecolhida);
+  els.sidebarToggle.textContent = state.sidebarRecolhida ? "›" : "‹";
+  els.sidebarToggle.title = state.sidebarRecolhida ? "Expandir menu" : "Recolher menu";
+  els.sidebarToggle.setAttribute("aria-label", els.sidebarToggle.title);
+}
+
+function aplicarPermissoes() {
+  const usuario = usuarioAtual();
+  const permissoes = usuario?.permissoes || permissoesPadrao();
+  document.querySelectorAll("[data-view]").forEach((button) => {
+    button.classList.toggle("is-hidden", !permissoes.includes(button.dataset.view));
+  });
+  document.querySelectorAll("[data-view-shortcut]").forEach((button) => {
+    button.classList.toggle("is-hidden", !permissoes.includes(button.dataset.viewShortcut));
+  });
+  if (!permissoes.includes(viewAtual)) trocarView(permissoes[0] || "dashboard");
+}
+
+function temAcesso(view) {
+  return (usuarioAtual()?.permissoes || permissoesPadrao()).includes(view);
+}
+
+function usuarioAtual() {
+  return obterUsuario(state.usuarioAtivoId) || state.usuarios[0];
+}
+
 function carregarEstado() {
   const salvo = localStorage.getItem(STORAGE_KEY);
   if (!salvo) return criarEstadoPadrao();
-
   try {
-    const parsed = JSON.parse(salvo);
-    const padrao = criarEstadoPadrao();
-    return {
-      ...padrao,
-      ...parsed,
-      configs: { ...padrao.configs, ...(parsed.configs || {}) }
-    };
+    return JSON.parse(salvo);
   } catch {
     return criarEstadoPadrao();
   }
 }
 
+function normalizarEstado(raw) {
+  const padrao = criarEstadoPadrao();
+  const estado = { ...padrao, ...raw };
+  estado.configs = {
+    status: raw.configs?.status || padrao.configs.status,
+    areas: raw.configs?.areas || padrao.configs.areas,
+    orgaos: raw.configs?.orgaos || [...(raw.configs?.varas || []), ...(raw.configs?.foruns || [])] || padrao.configs.orgaos
+  };
+  if (!estado.configs.orgaos.length) estado.configs.orgaos = padrao.configs.orgaos;
+  estado.clienteModo = estado.clienteModo || "cards";
+  estado.clienteOrdenacao = estado.clienteOrdenacao || "nome";
+  estado.sidebarRecolhida = !!estado.sidebarRecolhida;
+  estado.usuarios = (estado.usuarios || padrao.usuarios).map((usuario, index) => ({
+    id: usuario.id || uid(),
+    nome: usuario.nome || `Usuário ${index + 1}`,
+    email: usuario.email || "",
+    senha: usuario.senha || "1234",
+    cargo: usuario.cargo || "",
+    telefone: formatarTelefone(usuario.telefone || ""),
+    oab: usuario.oab || "",
+    permissoes: usuario.permissoes?.length ? usuario.permissoes : permissoesPadrao()
+  }));
+  estado.clientes = (estado.clientes || []).map((cliente) => ({
+    id: cliente.id || uid(),
+    criadoEm: cliente.criadoEm || hojeIso(),
+    nome: cliente.nome || cliente.cliente || "",
+    tipoDocumento: cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || ""),
+    documento: formatarDocumento(cliente.documento || cliente.cpf || "", cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || "")),
+    cpf: formatarDocumento(cliente.documento || cliente.cpf || "", cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || "")),
+    email: cliente.email || "",
+    whatsapp: formatarTelefone(cliente.whatsapp || ""),
+    estadoCivil: cliente.estadoCivil || "",
+    profissao: cliente.profissao || "",
+    domicilio: cliente.domicilio || "",
+    observacoes: cliente.observacoes || ""
+  }));
+  estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
+  salvarEstadoNormalizado(estado);
+  return estado;
+}
+
+function normalizarProcesso(processo, estado) {
+  let clienteId = processo.clienteId;
+  if (!clienteId && processo.cliente) {
+    let cliente = estado.clientes.find((item) => item.nome === processo.cliente);
+    if (!cliente) {
+      cliente = { id: uid(), criadoEm: hojeIso(), nome: processo.cliente, tipoDocumento: inferirTipoDocumento(processo.documento || ""), documento: formatarDocumento(processo.documento || "", inferirTipoDocumento(processo.documento || "")), cpf: processo.documento || "", email: "", whatsapp: "", estadoCivil: "", profissao: "", domicilio: "", observacoes: "" };
+      estado.clientes.push(cliente);
+    }
+    clienteId = cliente.id;
+  }
+  const responsavelId = processo.responsavelId || estado.usuarios.find((u) => u.nome === processo.responsavel)?.id || estado.usuarios[0]?.id || "";
+  const orgao = processo.orgao || [processo.vara, processo.forum].filter(Boolean).join(" · ") || estado.configs.orgaos[0];
+  const prazos = (processo.prazos?.length ? processo.prazos : [{ id: uid(), data: processo.prazo || hojeIso(), tipo: "Prazo", descricao: "Prazo principal", concluido: false }]).map((prazo) => ({
+    id: prazo.id || uid(),
+    data: prazo.data || hojeIso(),
+    tipo: prazo.tipo || "Prazo",
+    descricao: prazo.descricao || "",
+    responsavelId: prazo.responsavelId || responsavelId,
+    concluido: !!prazo.concluido
+  }));
+  return {
+    id: processo.id || uid(),
+    numero: processo.numero || "",
+    clienteId,
+    area: processo.area || estado.configs.areas[0],
+    status: processo.status || estado.configs.status[0],
+    orgao,
+    prazo: processo.prazo || proximoPrazoLista(prazos),
+    responsavelId,
+    honorarios: Number(processo.honorarios || 0),
+    recebido: Number(processo.recebido || 0),
+    resumo: processo.resumo || "",
+    prazos,
+    movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), descricao: "Registro importado da versão anterior." }]).map((mov) => ({ id: mov.id || uid(), data: mov.data || hojeIso(), descricao: mov.descricao || "" }))
+  };
+}
+
 function criarEstadoPadrao() {
   const usuarios = [
-    { id: uid(), nome: "Letícia Ramos", email: "leticia@sradvocacia.com" },
-    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com" }
+    { id: uid(), nome: "Letícia Ramos", email: "leticia@sradvocacia.com", senha: "1234", cargo: "Advogada", telefone: "(85) 99999-1000", oab: "OAB/CE 00000", permissoes: permissoesPadrao() },
+    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com", senha: "1234", cargo: "Advogado", telefone: "(85) 99999-2000", oab: "OAB/CE 00001", permissoes: ["dashboard", "processos", "clientes", "agenda", "financeiro"] }
   ];
-
   const clientes = [
-    { id: uid(), nome: "Mariana Azevedo", cpf: "184.552.930-10", email: "mariana@email.com", whatsapp: "(85) 99991-1030", observacoes: "Prefere contato por Whatsapp no fim da tarde." },
-    { id: uid(), nome: "Nobre Serviços LTDA", cpf: "22.981.440/0001-70", email: "juridico@nobre.com", whatsapp: "(85) 98822-4410", observacoes: "Cliente empresarial com demandas trabalhistas recorrentes." },
-    { id: uid(), nome: "Paulo Henrique Sales", cpf: "039.118.260-54", email: "paulo@email.com", whatsapp: "(85) 99777-2600", observacoes: "Solicita relatórios mensais do caso." },
-    { id: uid(), nome: "Clínica Aurora", cpf: "31.550.020/0001-88", email: "financeiro@aurora.com", whatsapp: "(85) 98888-0201", observacoes: "Enviar boletos para o financeiro." }
+    { id: uid(), criadoEm: "2026-05-01", nome: "Mariana Azevedo", tipoDocumento: "CPF", documento: "184.552.930-10", cpf: "184.552.930-10", email: "mariana@email.com", whatsapp: "(85) 99991-1030", estadoCivil: "Casado(a)", profissao: "Arquiteta", domicilio: "Fortaleza/CE", observacoes: "Prefere contato por Whatsapp no fim da tarde." },
+    { id: uid(), criadoEm: "2026-04-20", nome: "Nobre Serviços LTDA", tipoDocumento: "CNPJ", documento: "22.981.440/0001-70", cpf: "22.981.440/0001-70", email: "juridico@nobre.com", whatsapp: "(85) 98822-4410", estadoCivil: "", profissao: "Pessoa jurídica", domicilio: "Fortaleza/CE", observacoes: "Cliente empresarial com demandas trabalhistas recorrentes." },
+    { id: uid(), criadoEm: "2026-04-12", nome: "Paulo Henrique Sales", tipoDocumento: "CPF", documento: "039.118.260-54", cpf: "039.118.260-54", email: "paulo@email.com", whatsapp: "(85) 99777-2600", estadoCivil: "Solteiro(a)", profissao: "Engenheiro", domicilio: "Maracanaú/CE", observacoes: "Solicita relatórios mensais do caso." },
+    { id: uid(), criadoEm: "2026-05-08", nome: "Clínica Aurora", tipoDocumento: "CNPJ", documento: "31.550.020/0001-88", cpf: "31.550.020/0001-88", email: "financeiro@aurora.com", whatsapp: "(85) 98888-0201", estadoCivil: "", profissao: "Pessoa jurídica", domicilio: "Fortaleza/CE", observacoes: "Enviar boletos para o financeiro." }
   ];
-
   return {
     usuarioAtivoId: null,
     tema: "classico",
+    clienteModo: "cards",
+    clienteOrdenacao: "nome",
+    sidebarRecolhida: false,
     usuarios,
     configs: {
       status: ["Ativo", "Aguardando audiência", "Recurso", "Suspenso", "Encerrado"],
       areas: ["Cível", "Trabalhista", "Família", "Empresarial", "Previdenciário"],
-      varas: ["1ª Vara Cível de Fortaleza", "2ª Vara Empresarial de Fortaleza", "3ª Vara de Família de Fortaleza", "12ª Vara do Trabalho de Fortaleza"],
-      foruns: ["Fórum Clóvis Beviláqua", "TRT 7ª Região", "Justiça Federal do Ceará", "Fórum de Maracanaú"]
+      orgaos: ["1ª Vara Cível de Fortaleza", "2ª Vara Empresarial de Fortaleza", "3ª Vara de Família de Fortaleza", "12ª Vara do Trabalho de Fortaleza", "Fórum Clóvis Beviláqua", "TRT 7ª Região", "Justiça Federal do Ceará"]
     },
     clientes,
     processos: [
-      {
-        id: uid(),
-        numero: "0804126-31.2026.8.06.0001",
-        clienteId: clientes[0].id,
-        area: "Família",
-        status: "Aguardando audiência",
-        vara: "3ª Vara de Família de Fortaleza",
-        forum: "Fórum Clóvis Beviláqua",
-        prazo: "2026-05-22",
-        responsavelId: usuarios[0].id,
-        honorarios: 6200,
-        recebido: 3200,
-        resumo: "Ação de guarda com pedido de regulamentação de convivência.",
-        prazos: [
-          { id: uid(), data: "2026-05-22", tipo: "Audiência", descricao: "Audiência de conciliação.", concluido: false },
-          { id: uid(), data: "2026-05-29", tipo: "Manifestação", descricao: "Juntar documentos complementares.", concluido: false }
-        ],
-        movimentacoes: [
-          { id: uid(), data: "2026-05-18", descricao: "Concluso para decisão sobre tutela provisória." },
-          { id: uid(), data: "2026-05-12", descricao: "Contestação apresentada pela parte contrária." }
-        ]
-      },
-      {
-        id: uid(),
-        numero: "0009824-78.2025.5.07.0012",
-        clienteId: clientes[1].id,
-        area: "Trabalhista",
-        status: "Ativo",
-        vara: "12ª Vara do Trabalho de Fortaleza",
-        forum: "TRT 7ª Região",
-        prazo: "2026-05-27",
-        responsavelId: usuarios[1].id,
-        honorarios: 9800,
-        recebido: 6800,
-        resumo: "Defesa em reclamação trabalhista com perícia técnica designada.",
-        prazos: [
-          { id: uid(), data: "2026-05-27", tipo: "Perícia", descricao: "Acompanhar perícia técnica.", concluido: false }
-        ],
-        movimentacoes: [
-          { id: uid(), data: "2026-05-15", descricao: "Perito nomeado e honorários periciais arbitrados." }
-        ]
-      },
-      {
-        id: uid(),
-        numero: "3001142-59.2026.8.06.0117",
-        clienteId: clientes[2].id,
-        area: "Cível",
-        status: "Recurso",
-        vara: "1ª Vara Cível de Fortaleza",
-        forum: "Fórum Clóvis Beviláqua",
-        prazo: "2026-06-02",
-        responsavelId: usuarios[0].id,
-        honorarios: 7500,
-        recebido: 7500,
-        resumo: "Apelação em ação indenizatória por vício em imóvel.",
-        prazos: [
-          { id: uid(), data: "2026-06-02", tipo: "Contrarrazões", descricao: "Protocolar contrarrazões.", concluido: false }
-        ],
-        movimentacoes: [
-          { id: uid(), data: "2026-05-20", descricao: "Recurso de apelação recebido no duplo efeito." }
-        ]
-      }
+      processoPadrao("0804126-31.2026.8.06.0001", clientes[0].id, "Família", "Aguardando audiência", "3ª Vara de Família de Fortaleza", "2026-05-22", usuarios[0].id, 6200, 3200, "Ação de guarda com pedido de regulamentação de convivência.", [
+        { data: "2026-05-22", tipo: "Audiência", descricao: "Audiência de conciliação.", responsavelId: usuarios[0].id },
+        { data: "2026-05-29", tipo: "Manifestação", descricao: "Juntar documentos complementares.", responsavelId: usuarios[0].id }
+      ]),
+      processoPadrao("0009824-78.2025.5.07.0012", clientes[1].id, "Trabalhista", "Ativo", "12ª Vara do Trabalho de Fortaleza", "2026-05-27", usuarios[1].id, 9800, 6800, "Defesa em reclamação trabalhista com perícia técnica designada.", [
+        { data: "2026-05-27", tipo: "Perícia", descricao: "Acompanhar perícia técnica.", responsavelId: usuarios[1].id }
+      ]),
+      processoPadrao("3001142-59.2026.8.06.0117", clientes[2].id, "Cível", "Recurso", "1ª Vara Cível de Fortaleza", "2026-06-02", usuarios[0].id, 7500, 7500, "Apelação em ação indenizatória por vício em imóvel.", [
+        { data: "2026-06-02", tipo: "Contrarrazões", descricao: "Protocolar contrarrazões.", responsavelId: usuarios[0].id }
+      ])
+    ]
+  };
+}
+
+function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsavelId, honorarios, recebido, resumo, prazos) {
+  return {
+    id: uid(),
+    numero,
+    clienteId,
+    area,
+    status,
+    orgao,
+    prazo,
+    responsavelId,
+    honorarios,
+    recebido,
+    resumo,
+    prazos: prazos.map((item) => ({ id: uid(), concluido: false, ...item })),
+    movimentacoes: [
+      { id: uid(), data: "2026-05-18", descricao: "Movimentação registrada e conferida pela equipe." },
+      { id: uid(), data: "2026-05-12", descricao: "Documentos anexados ao acompanhamento interno." }
     ]
   };
 }
 
 function salvarEstado() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function salvarEstadoNormalizado(estado) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
 }
 
 function obterCliente(id) {
@@ -880,10 +1151,11 @@ function obterProcesso(id) {
 }
 
 function proximoPrazoDoProcesso(processo) {
-  const pendentes = processo.prazos
-    .filter((prazo) => !prazo.concluido)
-    .sort((a, b) => new Date(a.data) - new Date(b.data));
-  return pendentes[0]?.data || processo.prazos[0]?.data || hojeIso();
+  return proximoPrazoLista(processo.prazos.filter((prazo) => !prazo.concluido)) || processo.prazo || hojeIso();
+}
+
+function proximoPrazoLista(prazos) {
+  return [...(prazos || [])].sort((a, b) => new Date(a.data) - new Date(b.data))[0]?.data || "";
 }
 
 function ordenarPorData(lista) {
@@ -922,6 +1194,44 @@ function exportarDados() {
   URL.revokeObjectURL(url);
 }
 
+function formatarDocumento(valor, tipo = "CPF") {
+  const digitos = apenasDigitos(valor).slice(0, tipo === "CNPJ" ? 14 : 11);
+  if (tipo === "CNPJ") {
+    return digitos
+      .replace(/^(\d{2})(\d)/, "$1.$2")
+      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
+      .replace(/\.(\d{3})(\d)/, ".$1/$2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return digitos
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+
+function formatarTelefone(valor) {
+  const digitos = apenasDigitos(valor).slice(0, 11);
+  if (digitos.length <= 10) {
+    return digitos.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return digitos.replace(/^(\d{2})(\d)/, "($1) $2").replace(/(\d{5})(\d)/, "$1-$2");
+}
+
+function apenasDigitos(valor) {
+  return String(valor || "").replace(/\D/g, "");
+}
+
+function inferirTipoDocumento(valor) {
+  return apenasDigitos(valor).length > 11 ? "CNPJ" : "CPF";
+}
+
+function compararDatas(a, b) {
+  if (!a && !b) return 0;
+  if (!a) return 1;
+  if (!b) return -1;
+  return new Date(a) - new Date(b);
+}
+
 function hojeIso() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -956,6 +1266,14 @@ function inicial(nome) {
 
 function uid() {
   return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function permissoesPadrao() {
+  return ABAS.map((aba) => aba.id);
+}
+
+function labelAba(id) {
+  return ABAS.find((aba) => aba.id === id)?.label || id;
 }
 
 function vazioOu(lista, render) {

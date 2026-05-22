@@ -32,6 +32,7 @@
 
   <div class="app-shell is-locked" id="appShell">
     <aside class="sidebar" aria-label="Navegação principal">
+      <button class="sidebar-toggle" id="sidebarToggle" type="button" title="Recolher menu" aria-label="Recolher menu">‹</button>
       <div class="brand-wrap">
         <button class="brand" id="brandButton" type="button" aria-haspopup="true" aria-expanded="false">
           <span class="brand-mark" id="usuarioInicial" aria-hidden="true">L</span>
@@ -163,9 +164,18 @@
         <div class="section-strip">
           <div>
             <h2>Clientes</h2>
-            <p>Cadastro completo para contato, documentos e observações importantes.</p>
+            <p>Cadastro completo para contato, documento, domicílio e dados pessoais úteis ao processo.</p>
           </div>
-          <button class="ghost-button" type="button" data-open-client>Adicionar cliente</button>
+          <div class="strip-actions">
+            <select id="ordenacaoClientes" aria-label="Filtrar e ordenar clientes">
+              <option value="nome">Nome</option>
+              <option value="prazo">Próximo prazo</option>
+              <option value="cadastro">Tempo de cadastro</option>
+              <option value="casos">Número de casos</option>
+            </select>
+            <button class="ghost-button" id="btnModoClientes" type="button">Ver em lista</button>
+            <button class="primary-button" type="button" data-open-client>Adicionar cliente</button>
+          </div>
         </div>
         <div class="client-grid" id="listaClientes"></div>
       </section>
@@ -192,6 +202,10 @@
               </div>
             </div>
             <div class="deadline-list" id="agendaLista"></div>
+            <div class="integration-note">
+              <strong>Google Agenda</strong>
+              <span>Integração possível com login Google e API. O app local mantém a agenda interna pronta para essa próxima etapa.</span>
+            </div>
           </aside>
         </div>
       </section>
@@ -236,7 +250,7 @@
             <div class="panel-header">
               <div>
                 <h2>Listas do processo</h2>
-                <p>Status, áreas, varas e fóruns</p>
+                <p>Status, áreas e varas/fóruns em janelas próprias</p>
               </div>
             </div>
             <div class="settings-grid" id="settingsLists"></div>
@@ -246,14 +260,10 @@
             <div class="panel-header">
               <div>
                 <h2>Usuários</h2>
-                <p>Perfis que podem acessar o app e receber processos</p>
+                <p>Perfis, senha e permissões de acesso por aba</p>
               </div>
+              <button class="ghost-button" type="button" id="btnNovoUsuario">Novo usuário</button>
             </div>
-            <form class="inline-form" id="formUsuario">
-              <input name="nome" required placeholder="Nome do usuário">
-              <input name="email" type="email" placeholder="E-mail">
-              <button class="primary-button" type="submit">Adicionar</button>
-            </form>
             <div class="user-list" id="listaUsuarios"></div>
           </section>
         </div>
@@ -289,12 +299,8 @@
           <select name="status" id="processoStatus" required></select>
         </label>
         <label>
-          <span>Vara</span>
-          <select name="vara" id="processoVara" required></select>
-        </label>
-        <label>
-          <span>Fórum</span>
-          <select name="forum" id="processoForum" required></select>
+          <span>Vara/Fórum</span>
+          <select name="orgao" id="processoOrgao" required></select>
         </label>
         <label>
           <span>Próximo prazo</span>
@@ -302,7 +308,7 @@
         </label>
         <label>
           <span>Responsável</span>
-          <select name="responsavel" id="processoResponsavel" required></select>
+          <select name="responsavelId" id="processoResponsavel" required></select>
         </label>
         <label>
           <span>Honorários</span>
@@ -327,10 +333,11 @@
 
   <dialog id="modalCliente">
     <form method="dialog" class="modal-card" id="formCliente">
+      <input type="hidden" name="id">
       <div class="modal-header">
         <div>
           <p class="eyebrow">Cadastro</p>
-          <h2>Novo cliente</h2>
+          <h2 id="tituloModalCliente">Novo cliente</h2>
         </div>
         <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
       </div>
@@ -340,8 +347,14 @@
           <input name="nome" required placeholder="Nome completo">
         </label>
         <label>
-          <span>CPF</span>
-          <input name="cpf" required placeholder="000.000.000-00">
+          <span>Documento</span>
+          <div class="split-input">
+            <select name="tipoDocumento" aria-label="Tipo de documento">
+              <option>CPF</option>
+              <option>CNPJ</option>
+            </select>
+            <input name="documento" required inputmode="numeric" placeholder="000.000.000-00">
+          </div>
         </label>
         <label>
           <span>E-mail</span>
@@ -349,7 +362,26 @@
         </label>
         <label>
           <span>Whatsapp</span>
-          <input name="whatsapp" placeholder="(85) 99999-9999">
+          <input name="whatsapp" inputmode="numeric" placeholder="(85) 99999-9999">
+        </label>
+        <label>
+          <span>Estado civil</span>
+          <select name="estadoCivil">
+            <option value="">Não informado</option>
+            <option>Solteiro(a)</option>
+            <option>Casado(a)</option>
+            <option>Divorciado(a)</option>
+            <option>Viúvo(a)</option>
+            <option>União estável</option>
+          </select>
+        </label>
+        <label>
+          <span>Profissão</span>
+          <input name="profissao" placeholder="Profissão">
+        </label>
+        <label class="span-2">
+          <span>Domicílio</span>
+          <input name="domicilio" placeholder="Endereço, cidade/UF">
         </label>
         <label class="span-2">
           <span>Observações</span>
@@ -361,6 +393,73 @@
         <button class="primary-button" value="default" type="submit">Salvar cliente</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="modalUsuario">
+    <form method="dialog" class="modal-card" id="formUsuarioDetalhe">
+      <input type="hidden" name="id">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Usuário</p>
+          <h2 id="tituloModalUsuario">Novo usuário</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Nome</span>
+          <input name="nome" required placeholder="Nome do usuário">
+        </label>
+        <label>
+          <span>E-mail</span>
+          <input name="email" type="email" placeholder="usuario@email.com">
+        </label>
+        <label>
+          <span>Senha</span>
+          <input name="senha" type="password" required placeholder="Senha de acesso">
+        </label>
+        <label>
+          <span>Cargo</span>
+          <input name="cargo" placeholder="Advogado(a), Assistente...">
+        </label>
+        <label>
+          <span>Telefone</span>
+          <input name="telefone" inputmode="numeric" placeholder="(85) 99999-9999">
+        </label>
+        <label>
+          <span>OAB</span>
+          <input name="oab" placeholder="OAB/CE 00000">
+        </label>
+        <fieldset class="span-2 permission-box">
+          <legend>Abas liberadas</legend>
+          <div id="permissoesUsuario"></div>
+        </fieldset>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button danger-text" id="btnExcluirUsuario" type="button">Excluir usuário</button>
+        <div class="modal-actions-right">
+          <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Salvar usuário</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalConfig">
+    <div class="modal-card config-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Configuração</p>
+          <h2 id="tituloModalConfig">Editar lista</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <form class="inline-form config-add-form" id="formConfigItem">
+        <input name="valor" required placeholder="Novo item">
+        <button class="primary-button" type="submit">Adicionar</button>
+      </form>
+      <div class="config-edit-list" id="listaConfigModal"></div>
+    </div>
   </dialog>
 
   <dialog id="modalDetalheProcesso">
