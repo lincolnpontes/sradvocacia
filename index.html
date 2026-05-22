@@ -4,19 +4,46 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#5a1d2b">
-  <title>Lexora Advocacia</title>
+  <title>SR Advocacia - Gestao Juridica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app-shell">
-    <aside class="sidebar" aria-label="Navegação principal">
-      <div class="brand">
-        <div class="brand-mark" aria-hidden="true">L</div>
+  <section class="login-screen" id="loginScreen">
+    <form class="login-card" id="formLogin">
+      <div class="login-brand">
+        <div class="brand-mark large" aria-hidden="true">S</div>
         <div>
-          <strong>Lexora</strong>
-          <span>Gestão jurídica</span>
+          <p class="eyebrow">SR Advocacia</p>
+          <h1>Gestao Juridica</h1>
         </div>
+      </div>
+      <label>
+        <span>Usuario</span>
+        <select id="loginUsuario" required></select>
+      </label>
+      <label>
+        <span>Senha</span>
+        <input id="loginSenha" type="password" placeholder="Digite qualquer senha" required>
+      </label>
+      <button class="primary-button full" type="submit">Entrar</button>
+      <small>Versao 1.0.1 - acesso local do escritorio</small>
+    </form>
+  </section>
+
+  <div class="app-shell is-locked" id="appShell">
+    <aside class="sidebar" aria-label="Navegacao principal">
+      <div class="brand brand-action" id="brandMenuButton" role="button" tabindex="0" aria-haspopup="true" aria-expanded="false">
+        <div class="brand-mark" id="usuarioInicial" aria-hidden="true">S</div>
+        <div>
+          <strong>SR Advocacia</strong>
+          <span>Gestao Juridica</span>
+        </div>
+      </div>
+
+      <div class="brand-menu" id="brandMenu">
+        <button type="button" data-view-shortcut="configuracoes">Configuracoes</button>
+        <button type="button" id="btnSair">Sair do perfil</button>
       </div>
 
       <nav class="nav-list">
@@ -34,25 +61,25 @@
         </button>
         <button class="nav-item" type="button" data-view="agenda">
           <span class="nav-icon" aria-hidden="true">□</span>
-          <span>Prazos</span>
+          <span>Agenda</span>
         </button>
         <button class="nav-item" type="button" data-view="financeiro">
           <span class="nav-icon" aria-hidden="true">R$</span>
-          <span>Honorários</span>
+          <span>Honorarios</span>
         </button>
       </nav>
 
       <div class="sidebar-card">
-        <span>Plantão</span>
-        <strong id="plantaoNome">Dra. Letícia</strong>
-        <small id="plantaoResumo">3 prazos críticos hoje</small>
+        <span>Perfil ativo</span>
+        <strong id="plantaoNome">SR Advocacia</strong>
+        <small id="plantaoResumo">Nenhum prazo critico</small>
       </div>
     </aside>
 
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Escritório de Advocacia</p>
+          <p class="eyebrow" id="topEyebrow">Escritorio de Advocacia</p>
           <h1 id="viewTitle">Painel</h1>
         </div>
         <div class="topbar-actions">
@@ -63,20 +90,19 @@
           <button class="icon-button" id="btnExportar" type="button" title="Exportar dados">⇩</button>
           <button class="primary-button" id="btnNovo" type="button">
             <span aria-hidden="true">+</span>
-            <span>Novo processo</span>
+            <span id="btnNovoTexto">Novo processo</span>
           </button>
         </div>
       </header>
 
       <section class="view is-visible" id="view-dashboard" aria-labelledby="viewTitle">
         <div class="metrics-grid" id="metricas"></div>
-
         <div class="content-grid">
           <section class="panel panel-wide">
             <div class="panel-header">
               <div>
                 <h2>Processos em destaque</h2>
-                <p>Movimentações recentes e risco de prazo</p>
+                <p>Movimentacoes recentes e risco de prazo</p>
               </div>
               <button class="ghost-button" type="button" data-view-shortcut="processos">Ver todos</button>
             </div>
@@ -86,8 +112,8 @@
           <section class="panel">
             <div class="panel-header">
               <div>
-                <h2>Agenda</h2>
-                <p>Próximos compromissos</p>
+                <h2>Proximos prazos</h2>
+                <p>Agenda resumida</p>
               </div>
             </div>
             <div class="deadline-list" id="agendaResumo"></div>
@@ -97,21 +123,8 @@
 
       <section class="view" id="view-processos" aria-labelledby="viewTitle">
         <div class="filters-row">
-          <select id="filtroArea" aria-label="Filtrar por área">
-            <option value="">Todas as áreas</option>
-            <option>Cível</option>
-            <option>Trabalhista</option>
-            <option>Família</option>
-            <option>Empresarial</option>
-            <option>Previdenciário</option>
-          </select>
-          <select id="filtroStatus" aria-label="Filtrar por status">
-            <option value="">Todos os status</option>
-            <option>Ativo</option>
-            <option>Aguardando audiência</option>
-            <option>Recurso</option>
-            <option>Encerrado</option>
-          </select>
+          <select id="filtroArea" aria-label="Filtrar por area"></select>
+          <select id="filtroStatus" aria-label="Filtrar por status"></select>
         </div>
         <div class="table-shell">
           <table>
@@ -119,10 +132,10 @@
               <tr>
                 <th>Processo</th>
                 <th>Cliente</th>
-                <th>Área</th>
+                <th>Area</th>
                 <th>Status</th>
-                <th>Próximo prazo</th>
-                <th>Responsável</th>
+                <th>Proximo prazo</th>
+                <th>Responsavel</th>
               </tr>
             </thead>
             <tbody id="tabelaProcessos"></tbody>
@@ -135,7 +148,17 @@
       </section>
 
       <section class="view" id="view-agenda" aria-labelledby="viewTitle">
-        <div class="timeline" id="linhaTempo"></div>
+        <div class="calendar-shell">
+          <div class="calendar-header">
+            <button class="icon-button" type="button" id="mesAnterior" title="Mes anterior">‹</button>
+            <strong id="tituloMesAgenda">Agenda</strong>
+            <button class="icon-button" type="button" id="mesProximo" title="Proximo mes">›</button>
+          </div>
+          <div class="calendar-weekdays">
+            <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sab</span>
+          </div>
+          <div class="calendar-grid" id="gradeAgenda"></div>
+        </div>
       </section>
 
       <section class="view" id="view-financeiro" aria-labelledby="viewTitle">
@@ -143,8 +166,8 @@
         <section class="panel">
           <div class="panel-header">
             <div>
-              <h2>Honorários por processo</h2>
-              <p>Previsão, recebidos e pendências</p>
+              <h2>Honorarios por processo</h2>
+              <p>Previsao, recebidos e pendencias</p>
             </div>
           </div>
           <div class="table-shell compact">
@@ -162,6 +185,54 @@
           </div>
         </section>
       </section>
+
+      <section class="view" id="view-configuracoes" aria-labelledby="viewTitle">
+        <div class="settings-layout">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Tema</h2>
+                <p>Ajuste visual do sistema</p>
+              </div>
+            </div>
+            <div class="theme-picker" id="temaPicker">
+              <button type="button" data-theme="classico"><span class="swatch wine"></span>Classico</button>
+              <button type="button" data-theme="marinho"><span class="swatch navy"></span>Marinho</button>
+              <button type="button" data-theme="verde"><span class="swatch green"></span>Verde</button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Listas do processo</h2>
+                <p>Status, areas, varas e foruns</p>
+              </div>
+            </div>
+            <div class="settings-grid">
+              <div class="config-list" data-config="status"></div>
+              <div class="config-list" data-config="areas"></div>
+              <div class="config-list" data-config="varas"></div>
+              <div class="config-list" data-config="foruns"></div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Usuarios</h2>
+                <p>Perfis que podem entrar no app</p>
+              </div>
+            </div>
+            <form class="inline-form" id="formUsuario">
+              <input name="nome" required placeholder="Nome do usuario">
+              <input name="email" type="email" placeholder="E-mail">
+              <button class="primary-button" type="submit">Adicionar</button>
+            </form>
+            <div class="user-list" id="listaUsuarios"></div>
+          </section>
+        </div>
+      </section>
     </main>
   </div>
 
@@ -177,50 +248,39 @@
 
       <div class="form-grid">
         <label>
-          <span>Número do processo</span>
+          <span>Numero do processo</span>
           <input name="numero" required placeholder="0000000-00.2026.0.00.0000">
         </label>
         <label>
           <span>Cliente</span>
-          <input name="cliente" required placeholder="Nome do cliente">
+          <select name="clienteId" id="processoCliente" required></select>
         </label>
         <label>
-          <span>CPF/CNPJ</span>
-          <input name="documento" placeholder="000.000.000-00">
-        </label>
-        <label>
-          <span>Área</span>
-          <select name="area" required>
-            <option>Cível</option>
-            <option>Trabalhista</option>
-            <option>Família</option>
-            <option>Empresarial</option>
-            <option>Previdenciário</option>
-          </select>
-        </label>
-        <label>
-          <span>Vara/Comarca</span>
-          <input name="vara" required placeholder="2ª Vara Cível de Fortaleza">
+          <span>Area</span>
+          <select name="area" id="processoArea" required></select>
         </label>
         <label>
           <span>Status</span>
-          <select name="status" required>
-            <option>Ativo</option>
-            <option>Aguardando audiência</option>
-            <option>Recurso</option>
-            <option>Encerrado</option>
-          </select>
+          <select name="status" id="processoStatus" required></select>
         </label>
         <label>
-          <span>Próximo prazo</span>
+          <span>Vara</span>
+          <select name="vara" id="processoVara" required></select>
+        </label>
+        <label>
+          <span>Forum</span>
+          <select name="forum" id="processoForum"></select>
+        </label>
+        <label>
+          <span>Proximo prazo</span>
           <input name="prazo" type="date" required>
         </label>
         <label>
-          <span>Responsável</span>
-          <input name="responsavel" required placeholder="Dra. Letícia">
+          <span>Responsavel</span>
+          <select name="responsavel" id="processoResponsavel" required></select>
         </label>
         <label>
-          <span>Honorários</span>
+          <span>Honorarios</span>
           <input name="honorarios" type="number" min="0" step="100" placeholder="4500">
         </label>
         <label>
@@ -229,7 +289,7 @@
         </label>
         <label class="span-2">
           <span>Resumo do caso</span>
-          <textarea name="resumo" rows="3" placeholder="Síntese objetiva do caso"></textarea>
+          <textarea name="resumo" rows="3" placeholder="Sintese objetiva do caso"></textarea>
         </label>
       </div>
 
@@ -238,6 +298,57 @@
         <button class="primary-button" value="default" type="submit">Salvar processo</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="modalCliente">
+    <form method="dialog" class="modal-card" id="formCliente">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Cadastro</p>
+          <h2>Novo cliente</h2>
+        </div>
+        <button class="icon-button" value="cancel" type="submit" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Nome completo</span>
+          <input name="nome" required placeholder="Nome completo">
+        </label>
+        <label>
+          <span>CPF</span>
+          <input name="cpf" required placeholder="000.000.000-00">
+        </label>
+        <label>
+          <span>E-mail</span>
+          <input name="email" type="email" placeholder="cliente@email.com">
+        </label>
+        <label>
+          <span>Whatsapp</span>
+          <input name="whatsapp" placeholder="(85) 99999-9999">
+        </label>
+        <label class="span-2">
+          <span>Observacoes</span>
+          <textarea name="observacoes" rows="4" placeholder="Informacoes importantes do cliente"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button" value="cancel" type="submit">Cancelar</button>
+        <button class="primary-button" value="default" type="submit">Salvar cliente</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalDetalheProcesso">
+    <div class="modal-card detail-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Processo</p>
+          <h2 id="detalheTitulo">Detalhes</h2>
+        </div>
+        <button class="icon-button" id="btnFecharDetalhe" type="button" title="Fechar">×</button>
+      </div>
+      <div id="detalheConteudo"></div>
+    </div>
   </dialog>
 
   <script src="app.js"></script>
