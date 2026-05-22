@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#5a1d2b">
+  <title>Lexora Advocacia</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegação principal">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">L</div>
+        <div>
+          <strong>Lexora</strong>
+          <span>Gestão jurídica</span>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item is-active" type="button" data-view="dashboard">
+          <span class="nav-icon" aria-hidden="true">▦</span>
+          <span>Painel</span>
+        </button>
+        <button class="nav-item" type="button" data-view="processos">
+          <span class="nav-icon" aria-hidden="true">§</span>
+          <span>Processos</span>
+        </button>
+        <button class="nav-item" type="button" data-view="clientes">
+          <span class="nav-icon" aria-hidden="true">◉</span>
+          <span>Clientes</span>
+        </button>
+        <button class="nav-item" type="button" data-view="agenda">
+          <span class="nav-icon" aria-hidden="true">□</span>
+          <span>Prazos</span>
+        </button>
+        <button class="nav-item" type="button" data-view="financeiro">
+          <span class="nav-icon" aria-hidden="true">R$</span>
+          <span>Honorários</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-card">
+        <span>Plantão</span>
+        <strong id="plantaoNome">Dra. Letícia</strong>
+        <small id="plantaoResumo">3 prazos críticos hoje</small>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Escritório de Advocacia</p>
+          <h1 id="viewTitle">Painel</h1>
+        </div>
+        <div class="topbar-actions">
+          <label class="search-box">
+            <span aria-hidden="true">⌕</span>
+            <input id="buscaGlobal" type="search" placeholder="Buscar cliente, processo, vara..." autocomplete="off">
+          </label>
+          <button class="icon-button" id="btnExportar" type="button" title="Exportar dados">⇩</button>
+          <button class="primary-button" id="btnNovo" type="button">
+            <span aria-hidden="true">+</span>
+            <span>Novo processo</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="view is-visible" id="view-dashboard" aria-labelledby="viewTitle">
+        <div class="metrics-grid" id="metricas"></div>
+
+        <div class="content-grid">
+          <section class="panel panel-wide">
+            <div class="panel-header">
+              <div>
+                <h2>Processos em destaque</h2>
+                <p>Movimentações recentes e risco de prazo</p>
+              </div>
+              <button class="ghost-button" type="button" data-view-shortcut="processos">Ver todos</button>
+            </div>
+            <div class="case-list" id="processosDestaque"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>Agenda</h2>
+                <p>Próximos compromissos</p>
+              </div>
+            </div>
+            <div class="deadline-list" id="agendaResumo"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="view" id="view-processos" aria-labelledby="viewTitle">
+        <div class="filters-row">
+          <select id="filtroArea" aria-label="Filtrar por área">
+            <option value="">Todas as áreas</option>
+            <option>Cível</option>
+            <option>Trabalhista</option>
+            <option>Família</option>
+            <option>Empresarial</option>
+            <option>Previdenciário</option>
+          </select>
+          <select id="filtroStatus" aria-label="Filtrar por status">
+            <option value="">Todos os status</option>
+            <option>Ativo</option>
+            <option>Aguardando audiência</option>
+            <option>Recurso</option>
+            <option>Encerrado</option>
+          </select>
+        </div>
+        <div class="table-shell">
+          <table>
+            <thead>
+              <tr>
+                <th>Processo</th>
+                <th>Cliente</th>
+                <th>Área</th>
+                <th>Status</th>
+                <th>Próximo prazo</th>
+                <th>Responsável</th>
+              </tr>
+            </thead>
+            <tbody id="tabelaProcessos"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="view" id="view-clientes" aria-labelledby="viewTitle">
+        <div class="client-grid" id="listaClientes"></div>
+      </section>
+
+      <section class="view" id="view-agenda" aria-labelledby="viewTitle">
+        <div class="timeline" id="linhaTempo"></div>
+      </section>
+
+      <section class="view" id="view-financeiro" aria-labelledby="viewTitle">
+        <div class="finance-grid" id="financeiroResumo"></div>
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>Honorários por processo</h2>
+              <p>Previsão, recebidos e pendências</p>
+            </div>
+          </div>
+          <div class="table-shell compact">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Contrato</th>
+                  <th>Recebido</th>
+                  <th>Pendente</th>
+                </tr>
+              </thead>
+              <tbody id="tabelaFinanceiro"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="modalProcesso">
+    <form method="dialog" class="modal-card" id="formProcesso">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Cadastro</p>
+          <h2>Novo processo</h2>
+        </div>
+        <button class="icon-button" value="cancel" type="submit" title="Fechar">×</button>
+      </div>
+
+      <div class="form-grid">
+        <label>
+          <span>Número do processo</span>
+          <input name="numero" required placeholder="0000000-00.2026.0.00.0000">
+        </label>
+        <label>
+          <span>Cliente</span>
+          <input name="cliente" required placeholder="Nome do cliente">
+        </label>
+        <label>
+          <span>CPF/CNPJ</span>
+          <input name="documento" placeholder="000.000.000-00">
+        </label>
+        <label>
+          <span>Área</span>
+          <select name="area" required>
+            <option>Cível</option>
+            <option>Trabalhista</option>
+            <option>Família</option>
+            <option>Empresarial</option>
+            <option>Previdenciário</option>
+          </select>
+        </label>
+        <label>
+          <span>Vara/Comarca</span>
+          <input name="vara" required placeholder="2ª Vara Cível de Fortaleza">
+        </label>
+        <label>
+          <span>Status</span>
+          <select name="status" required>
+            <option>Ativo</option>
+            <option>Aguardando audiência</option>
+            <option>Recurso</option>
+            <option>Encerrado</option>
+          </select>
+        </label>
+        <label>
+          <span>Próximo prazo</span>
+          <input name="prazo" type="date" required>
+        </label>
+        <label>
+          <span>Responsável</span>
+          <input name="responsavel" required placeholder="Dra. Letícia">
+        </label>
+        <label>
+          <span>Honorários</span>
+          <input name="honorarios" type="number" min="0" step="100" placeholder="4500">
+        </label>
+        <label>
+          <span>Recebido</span>
+          <input name="recebido" type="number" min="0" step="100" placeholder="1500">
+        </label>
+        <label class="span-2">
+          <span>Resumo do caso</span>
+          <textarea name="resumo" rows="3" placeholder="Síntese objetiva do caso"></textarea>
+        </label>
+      </div>
+
+      <div class="modal-actions">
+        <button class="ghost-button" value="cancel" type="submit">Cancelar</button>
+        <button class="primary-button" value="default" type="submit">Salvar processo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
