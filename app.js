@@ -1,21 +1,20 @@
-const APP_VERSION = "1.0.2";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v102";
+const APP_VERSION = "1.0.3";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v103";
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 
 const ABAS = [
-  { id: "dashboard", label: "Painel inicial e indicadores" },
-  { id: "processos", label: "Processos e acompanhamento jurídico" },
-  { id: "clientes", label: "Clientes e qualificação cadastral" },
-  { id: "agenda", label: "Agenda de prazos e compromissos" },
-  { id: "financeiro", label: "Honorários e recebimentos" },
-  { id: "configuracoes", label: "Configurações administrativas" }
+  { id: "dashboard", label: "Painel" },
+  { id: "processos", label: "Processos" },
+  { id: "clientes", label: "Clientes" },
+  { id: "agenda", label: "Agenda" },
+  { id: "financeiro", label: "Honorários" },
+  { id: "configuracoes", label: "Configurações" }
 ];
 
 const CONFIG_META = {
   status: { titulo: "Status", descricao: "Fases usadas nos processos" },
   areas: { titulo: "Áreas", descricao: "Ramos de atuação do escritório" },
-  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" },
-  avancadas: { titulo: "Avançadas", descricao: "Integrações, atualização e Apps Script" }
+  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" }
 };
 
 const state = normalizarEstado(carregarEstado());
@@ -55,6 +54,7 @@ const els = {
   modalUsuario: document.querySelector("#modalUsuario"),
   modalConfig: document.querySelector("#modalConfig"),
   modalAvancadas: document.querySelector("#modalAvancadas"),
+  modalRecebimento: document.querySelector("#modalRecebimento"),
   formProcesso: document.querySelector("#formProcesso"),
   processoClienteBusca: document.querySelector("#processoClienteBusca"),
   processoClienteId: document.querySelector("#processoClienteId"),
@@ -63,8 +63,11 @@ const els = {
   formUsuario: document.querySelector("#formUsuarioDetalhe"),
   formConfigItem: document.querySelector("#formConfigItem"),
   formAvancadas: document.querySelector("#formAvancadas"),
+  formRecebimento: document.querySelector("#formRecebimento"),
   detalheConteudo: document.querySelector("#detalheConteudo"),
-  listaConfigModal: document.querySelector("#listaConfigModal")
+  listaConfigModal: document.querySelector("#listaConfigModal"),
+  recebimentoResumo: document.querySelector("#recebimentoResumo"),
+  recebimentoHistorico: document.querySelector("#recebimentoHistorico")
 };
 
 iniciar();
@@ -84,6 +87,7 @@ function iniciar() {
 
 function configurarEventos() {
   els.formLogin.addEventListener("submit", entrar);
+  bloquearZoom();
   document.querySelector("#btnSair").addEventListener("click", sair);
   els.brandButton.addEventListener("click", alternarMenuMarca);
   els.brandButton.addEventListener("keydown", (event) => {
@@ -137,6 +141,7 @@ function configurarEventos() {
   els.formUsuario.addEventListener("submit", salvarUsuario);
   els.formConfigItem.addEventListener("submit", adicionarItemConfig);
   els.formAvancadas.addEventListener("submit", salvarAvancadas);
+  els.formRecebimento.addEventListener("submit", salvarRecebimento);
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -146,7 +151,10 @@ function configurarEventos() {
   document.querySelector("#btnNovoUsuario").addEventListener("click", () => abrirModalUsuario());
   document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
   document.querySelector("#btnForceUpdateConfig").addEventListener("click", forcarAtualizacao);
-  document.addEventListener("click", marcarHonorarioRecebido);
+  document.querySelector("#btnAbrirAvancadas").addEventListener("click", abrirModalAvancadas);
+  document.querySelector("#btnQuitarSaldo").addEventListener("click", preencherSaldoRecebimento);
+  document.querySelector("#btnDesfazerRecebimento").addEventListener("click", desfazerUltimoRecebimento);
+  document.addEventListener("click", abrirRecebimentoPorBotao);
   document.addEventListener("click", selecionarClienteSugerido);
 }
 
@@ -379,10 +387,6 @@ function abrirConfig(event) {
   const button = event.target.closest("[data-open-config]");
   if (!button) return;
   configAberta = button.dataset.openConfig;
-  if (configAberta === "avancadas") {
-    abrirModalAvancadas();
-    return;
-  }
   document.querySelector("#tituloModalConfig").textContent = `Editar ${CONFIG_META[configAberta].titulo}`;
   els.formConfigItem.reset();
   renderConfigModal();
@@ -470,6 +474,23 @@ function fecharDialogo(event) {
   const button = event.target.closest("[data-close-dialog]");
   if (!button) return;
   button.closest("dialog")?.close();
+}
+
+function bloquearZoom() {
+  const bloquearRoda = (event) => {
+    if (event.ctrlKey) event.preventDefault();
+  };
+  const bloquearTecla = (event) => {
+    const tecla = event.key.toLowerCase();
+    if ((event.ctrlKey || event.metaKey) && ["+", "-", "=", "0"].includes(tecla)) {
+      event.preventDefault();
+    }
+  };
+  window.addEventListener("wheel", bloquearRoda, { passive: false, capture: true });
+  document.addEventListener("wheel", bloquearRoda, { passive: false, capture: true });
+  window.addEventListener("keydown", bloquearTecla, { capture: true });
+  document.addEventListener("keydown", bloquearTecla, { capture: true });
+  window.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
 }
 
 function aplicarMascara(event) {
@@ -762,8 +783,8 @@ function renderFinanceiro() {
         <td>${moeda(processo.recebido)}</td>
         <td>${moeda((processo.honorarios || 0) - (processo.recebido || 0))}</td>
         <td>
-          <button class="ghost-button table-action" type="button" data-mark-paid="${processo.id}">
-            Marcar recebido
+          <button class="ghost-button table-action" type="button" data-open-receipt="${processo.id}">
+            Gerenciar
           </button>
         </td>
       </tr>
@@ -773,7 +794,8 @@ function renderFinanceiro() {
 
 function renderConfiguracoes() {
   const temas = [
-    { id: "classico", nome: "Clássico", amostra: "wine" },
+    { id: "classico", nome: "Clássico", amostra: "charcoal" },
+    { id: "vinho", nome: "Vinho", amostra: "wine" },
     { id: "marinho", nome: "Marinho", amostra: "navy" },
     { id: "verde", nome: "Verde", amostra: "green" }
   ];
@@ -787,7 +809,7 @@ function renderConfiguracoes() {
   document.querySelector("#settingsLists").innerHTML = Object.entries(CONFIG_META).map(([chave, meta]) => `
     <button class="config-card" type="button" data-open-config="${chave}">
       <span>${meta.titulo}</span>
-      <strong>${chave === "avancadas" ? "URL" : state.configs[chave].length}</strong>
+      <strong>${state.configs[chave].length}</strong>
       <small>${meta.descricao}</small>
     </button>
   `).join("");
@@ -825,6 +847,7 @@ function abrirDetalheProcesso(id) {
   const responsavel = obterUsuario(processo.responsavelId);
   const tipoDocumento = cliente?.tipoDocumento || inferirTipoDocumento(cliente?.documento || cliente?.cpf || "");
   const saldoHonorarios = Math.max(0, (processo.honorarios || 0) - (processo.recebido || 0));
+  const whatsappUrl = urlWhatsApp(cliente?.whatsapp || "");
   document.querySelector("#detalheTitulo").textContent = processo.numero;
   els.detalheConteudo.innerHTML = `
     <div class="process-detail">
@@ -834,7 +857,7 @@ function abrirDetalheProcesso(id) {
           <h3>${escapeHtml(cliente?.nome || "Cliente não informado")}</h3>
           <div class="detail-chips">
             <span><strong>${escapeHtml(tipoDocumento || "CPF/CNPJ")}</strong>${escapeHtml(cliente?.documento || cliente?.cpf || "")}</span>
-            <span><strong>Whatsapp</strong>${escapeHtml(cliente?.whatsapp || "Não informado")}</span>
+            <span class="chip-with-action"><strong>Whatsapp</strong>${escapeHtml(cliente?.whatsapp || "Não informado")}${whatsappUrl ? `<a class="whatsapp-action" href="${whatsappUrl}" target="_blank" rel="noopener" title="Abrir WhatsApp">Abrir</a>` : ""}</span>
             <span><strong>${tipoDocumento === "CNPJ" ? "Sede" : "Domicílio"}</strong>${escapeHtml(cliente?.domicilio || "Não informado")}</span>
           </div>
         </div>
@@ -845,7 +868,7 @@ function abrirDetalheProcesso(id) {
         <span><strong>${moeda(processo.honorarios)}</strong><small>Honorários contratados</small></span>
         <span><strong>${moeda(processo.recebido)}</strong><small>Recebido</small></span>
         <span><strong>${moeda(saldoHonorarios)}</strong><small>Pendente</small></span>
-        <button class="ghost-button" type="button" data-mark-paid="${processo.id}">Marcar honorário recebido</button>
+        <button class="ghost-button" type="button" data-open-receipt="${processo.id}">Gerenciar recebimento</button>
       </section>
 
       <div class="detail-board">
@@ -962,14 +985,105 @@ function selecionarClienteSugerido(event) {
   els.clienteSugestoes.classList.remove("is-open");
 }
 
-function marcarHonorarioRecebido(event) {
-  const botao = event.target.closest("[data-mark-paid]");
+function abrirRecebimentoPorBotao(event) {
+  const botao = event.target.closest("[data-open-receipt]");
   if (!botao) return;
   event.preventDefault();
-  const processo = obterProcesso(botao.dataset.markPaid);
+  abrirModalRecebimento(botao.dataset.openReceipt);
+}
+
+function abrirModalRecebimento(id) {
+  const processo = obterProcesso(id);
   if (!processo) return;
-  processo.recebido = Number(processo.honorarios || 0);
+  const cliente = obterCliente(processo.clienteId);
+  const saldo = saldoHonorarios(processo);
+  els.formRecebimento.reset();
+  els.formRecebimento.processoId.value = processo.id;
+  els.formRecebimento.data.value = hojeIso();
+  els.formRecebimento.valor.value = saldo > 0 ? saldo.toFixed(2) : "";
+  els.recebimentoResumo.innerHTML = `
+    <article>
+      <span>Cliente</span>
+      <strong>${escapeHtml(cliente?.nome || "Cliente não informado")}</strong>
+      <small>${escapeHtml(processo.numero)}</small>
+    </article>
+    <article>
+      <span>Contratado</span>
+      <strong>${moeda(processo.honorarios)}</strong>
+      <small>Honorários do processo</small>
+    </article>
+    <article>
+      <span>Recebido</span>
+      <strong>${moeda(processo.recebido)}</strong>
+      <small>${(processo.recebimentos || []).length} lançamento${(processo.recebimentos || []).length !== 1 ? "s" : ""}</small>
+    </article>
+    <article>
+      <span>Pendente</span>
+      <strong>${moeda(saldo)}</strong>
+      <small>Saldo atual</small>
+    </article>
+  `;
+  renderHistoricoRecebimentos(processo);
+  if (!els.modalRecebimento.open) els.modalRecebimento.showModal();
+}
+
+function renderHistoricoRecebimentos(processo) {
+  const recebimentos = processo.recebimentos || [];
+  els.recebimentoHistorico.innerHTML = recebimentos.length ? `
+    <h3>Histórico de recebimentos</h3>
+    <div class="receipt-list">
+      ${[...recebimentos].reverse().map((item) => `
+        <div>
+          <strong>${moeda(item.valor)}</strong>
+          <span>${dataCurta(item.data)} · ${escapeHtml(item.forma)} · Nota: ${labelNotaFiscal(item.notaFiscal)}</span>
+          ${item.observacoes ? `<small>${escapeHtml(item.observacoes)}</small>` : ""}
+        </div>
+      `).join("")}
+    </div>
+  ` : `<div class="empty-state compact"><strong>Nenhum recebimento lançado</strong><span>Registre Pix, dinheiro, transferência ou outra forma de pagamento.</span></div>`;
+}
+
+function salvarRecebimento(event) {
+  event.preventDefault();
+  const dados = Object.fromEntries(new FormData(els.formRecebimento));
+  const processo = obterProcesso(dados.processoId);
+  if (!processo) return;
+  const valor = Number(String(dados.valor || "0").replace(",", "."));
+  if (valor <= 0) {
+    alert("Informe um valor recebido maior que zero.");
+    return;
+  }
+  processo.recebimentos = processo.recebimentos || [];
+  processo.recebimentos.push({
+    id: uid(),
+    valor,
+    data: dados.data || hojeIso(),
+    forma: dados.forma,
+    notaFiscal: dados.notaFiscal,
+    observacoes: dados.observacoes.trim()
+  });
+  recalcularRecebido(processo);
   salvarEstado();
+  els.modalRecebimento.close();
+  renderizarTudo();
+  if (processoAbertoId === processo.id) abrirDetalheProcesso(processo.id);
+}
+
+function preencherSaldoRecebimento() {
+  const processo = obterProcesso(els.formRecebimento.processoId.value);
+  if (!processo) return;
+  const saldo = saldoHonorarios(processo);
+  els.formRecebimento.valor.value = saldo > 0 ? saldo.toFixed(2) : "";
+}
+
+function desfazerUltimoRecebimento() {
+  const processo = obterProcesso(els.formRecebimento.processoId.value);
+  if (!processo || !(processo.recebimentos || []).length) return;
+  if (!confirm("Desfazer o último recebimento deste processo?")) return;
+  processo.recebimentos.pop();
+  recalcularRecebido(processo);
+  salvarEstado();
+  abrirModalRecebimento(processo.id);
   renderizarTudo();
   if (processoAbertoId === processo.id) abrirDetalheProcesso(processo.id);
 }
@@ -1131,7 +1245,7 @@ function forcarAtualizacao() {
 
 function aplicarSidebar() {
   document.body.classList.toggle("sidebar-collapsed", !!state.sidebarRecolhida);
-  els.sidebarToggle.textContent = state.sidebarRecolhida ? "›" : "‹";
+  els.sidebarToggle.textContent = "";
   els.sidebarToggle.title = state.sidebarRecolhida ? "Expandir menu" : "Recolher menu";
   els.sidebarToggle.setAttribute("aria-label", els.sidebarToggle.title);
 }
@@ -1258,6 +1372,19 @@ function normalizarProcesso(processo, estado) {
     responsavelId: prazo.responsavelId || responsavelId,
     concluido: !!prazo.concluido
   }));
+  const recebimentos = (processo.recebimentos?.length
+    ? processo.recebimentos
+    : Number(processo.recebido || 0) > 0
+      ? [{ id: uid(), valor: Number(processo.recebido || 0), data: processo.recebidoEm || hojeIso(), forma: "Registro anterior", notaFiscal: "nao", observacoes: "Valor migrado do controle anterior." }]
+      : []
+  ).map((recebimento) => ({
+    id: recebimento.id || uid(),
+    valor: Number(recebimento.valor || 0),
+    data: recebimento.data || hojeIso(),
+    forma: recebimento.forma || "Pix",
+    notaFiscal: recebimento.notaFiscal || "nao",
+    observacoes: recebimento.observacoes || ""
+  }));
   return {
     id: processo.id || uid(),
     numero: migrarTextoParaPb(processo.numero || ""),
@@ -1268,7 +1395,8 @@ function normalizarProcesso(processo, estado) {
     prazo: processo.prazo || proximoPrazoLista(prazos),
     responsavelId,
     honorarios: Number(processo.honorarios || 0),
-    recebido: Number(processo.recebido || 0),
+    recebido: soma(recebimentos, "valor"),
+    recebimentos,
     resumo: migrarTextoParaPb(processo.resumo || ""),
     prazos,
     movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), descricao: "Registro importado da versão anterior." }]).map((mov) => ({ id: mov.id || uid(), data: mov.data || hojeIso(), descricao: migrarTextoParaPb(mov.descricao || "") }))
@@ -1391,6 +1519,30 @@ function metricCard(label, value, caption) {
 
 function financeCard(label, value, caption) {
   return `<article class="finance-card"><span>${label}</span><strong>${moeda(value)}</strong><p>${caption}</p></article>`;
+}
+
+function recalcularRecebido(processo) {
+  processo.recebido = soma(processo.recebimentos || [], "valor");
+}
+
+function saldoHonorarios(processo) {
+  return Math.max(0, Number(processo.honorarios || 0) - Number(processo.recebido || 0));
+}
+
+function labelNotaFiscal(status) {
+  const labels = {
+    sim: "emitir",
+    nao: "não precisa agora",
+    emitida: "emitida"
+  };
+  return labels[status] || status || "não informado";
+}
+
+function urlWhatsApp(valor) {
+  const digitos = apenasDigitos(valor);
+  if (!digitos) return "";
+  const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
+  return `https://wa.me/${numero}`;
 }
 
 function exportarDados() {

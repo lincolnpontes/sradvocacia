@@ -11,7 +11,7 @@
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
     <form class="login-card" id="formLogin">
-      <img class="login-logo" src="logo.jpeg" alt="SR Advocacia">
+      <img class="login-logo" src="logo.jpg" alt="SR Advocacia">
       <p class="eyebrow">SR Advocacia</p>
       <h1 id="loginTitle">Gestão Jurídica</h1>
       <p class="login-copy">Acesse o painel do escritório para acompanhar clientes, processos, prazos e movimentações.</p>
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <button class="ghost-button full login-refresh" id="btnForceUpdateLogin" type="button">Forçar atualização</button>
-      <small>Versão 1.0.2</small>
+      <small>Versão 1.0.3</small>
     </form>
   </section>
 
@@ -77,11 +77,11 @@
           <span>Clientes</span>
         </button>
         <button class="nav-item" type="button" data-view="agenda">
-          <span class="nav-icon" aria-hidden="true">📅︎</span>
+          <span class="nav-icon emoji-theme" aria-hidden="true">📅︎</span>
           <span>Agenda</span>
         </button>
         <button class="nav-item" type="button" data-view="financeiro">
-          <span class="nav-icon" aria-hidden="true">💲︎</span>
+          <span class="nav-icon emoji-theme" aria-hidden="true">💲︎</span>
           <span>Honorários</span>
         </button>
       </nav>
@@ -95,10 +95,10 @@
 
     <main class="workspace">
       <header class="topbar">
-        <div>
-          <img class="top-logo" src="logo.jpeg" alt="SR Advocacia">
+        <div class="topbar-title">
           <h1 id="viewTitle">Painel</h1>
         </div>
+        <img class="top-logo" src="logo.jpg" alt="SR Advocacia">
         <div class="topbar-actions">
           <label class="search-box" id="topSearchBox">
             <span aria-hidden="true">⌕</span>
@@ -267,6 +267,16 @@
               <button class="ghost-button" type="button" id="btnNovoUsuario">Novo usuário</button>
             </div>
             <div class="user-list" id="listaUsuarios"></div>
+          </section>
+
+          <section class="panel advanced-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Configurações avançadas</h2>
+                <p>Integrações, atualização e parâmetros técnicos</p>
+              </div>
+              <button class="ghost-button" type="button" id="btnAbrirAvancadas">Abrir avançadas</button>
+            </div>
           </section>
         </div>
       </section>
@@ -524,6 +534,64 @@
         <div class="modal-actions-right">
           <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
           <button class="primary-button" type="submit">Salvar avançadas</button>
+        </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalRecebimento">
+    <form method="dialog" class="modal-card finance-modal" id="formRecebimento">
+      <input type="hidden" name="processoId">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Honorários</p>
+          <h2>Recebimento</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+
+      <div id="recebimentoResumo" class="receipt-summary"></div>
+      <div id="recebimentoHistorico" class="receipt-history"></div>
+
+      <div class="form-grid">
+        <label>
+          <span>Valor recebido</span>
+          <input name="valor" type="number" min="0" step="0.01" required placeholder="0,00">
+        </label>
+        <label>
+          <span>Data do recebimento</span>
+          <input name="data" type="date" required>
+        </label>
+        <label>
+          <span>Forma de pagamento</span>
+          <select name="forma" required>
+            <option>Pix</option>
+            <option>Dinheiro</option>
+            <option>Transferência</option>
+            <option>Cartão</option>
+            <option>Boleto</option>
+            <option>Outro</option>
+          </select>
+        </label>
+        <label>
+          <span>Nota fiscal</span>
+          <select name="notaFiscal">
+            <option value="nao">Não precisa emitir agora</option>
+            <option value="sim">Emitir nota fiscal</option>
+            <option value="emitida">Nota fiscal já emitida</option>
+          </select>
+        </label>
+        <label class="span-2">
+          <span>Observações</span>
+          <textarea name="observacoes" rows="3" placeholder="Comprovante, parcela, observação interna..."></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button danger-text" id="btnDesfazerRecebimento" type="button">Desfazer último</button>
+        <div class="modal-actions-right">
+          <button class="ghost-button" id="btnQuitarSaldo" type="button">Preencher saldo</button>
+          <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Registrar recebimento</button>
         </div>
       </div>
     </form>
