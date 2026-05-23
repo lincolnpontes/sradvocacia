@@ -6,15 +6,15 @@
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
     <form class="login-card" id="formLogin">
       <img class="login-logo" src="logo.jpg" alt="SR Advocacia">
-      <p class="eyebrow">SR Advocacia</p>
-      <h1 id="loginTitle">Gestão Jurídica</h1>
-      <p class="login-copy">Acesse o painel do escritório para acompanhar clientes, processos, prazos e movimentações.</p>
+      <h1 id="loginTitle" class="sr-only">SR Advocacia</h1>
 
       <label>
         <span>Usuário</span>
@@ -26,8 +26,10 @@
       </label>
 
       <button class="primary-button full" type="submit">Entrar</button>
-      <button class="ghost-button full login-refresh" id="btnForceUpdateLogin" type="button">Forçar atualização</button>
-      <small>Versão 1.0.3</small>
+      <div class="login-version">
+        <small>Versão 1.0.4</small>
+        <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
+      </div>
     </form>
   </section>
 
@@ -76,6 +78,10 @@
           <span class="nav-icon" aria-hidden="true">◉</span>
           <span>Clientes</span>
         </button>
+        <button class="nav-item" type="button" data-view="atendimentos">
+          <span class="nav-icon emoji-theme pencil-icon" aria-hidden="true">✏︎</span>
+          <span>Atendimentos</span>
+        </button>
         <button class="nav-item" type="button" data-view="agenda">
           <span class="nav-icon emoji-theme" aria-hidden="true">📅︎</span>
           <span>Agenda</span>
@@ -96,9 +102,9 @@
     <main class="workspace">
       <header class="topbar">
         <div class="topbar-title">
+          <img class="top-logo" src="logo.jpg" alt="SR Advocacia">
           <h1 id="viewTitle">Painel</h1>
         </div>
-        <img class="top-logo" src="logo.jpg" alt="SR Advocacia">
         <div class="topbar-actions">
           <label class="search-box" id="topSearchBox">
             <span aria-hidden="true">⌕</span>
@@ -179,6 +185,73 @@
           </div>
         </div>
         <div class="client-grid" id="listaClientes"></div>
+      </section>
+
+      <section class="view" id="view-atendimentos" aria-labelledby="viewTitle">
+        <div class="attendance-layout">
+          <section class="panel attendance-editor-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Registro de atendimento</h2>
+                <p>Rascunho automático, versões anteriores e conversão em processo</p>
+              </div>
+              <button class="ghost-button" type="button" id="btnNovoAtendimento">Novo atendimento</button>
+            </div>
+            <form id="formAtendimento" class="attendance-form">
+              <input type="hidden" name="id">
+              <div class="form-grid">
+                <label>
+                  <span>Cliente</span>
+                  <select name="clienteId" id="atendimentoCliente" required></select>
+                </label>
+                <label>
+                  <span>Área</span>
+                  <select name="area" id="atendimentoArea" required></select>
+                </label>
+                <label>
+                  <span>Responsável</span>
+                  <select name="responsavelId" id="atendimentoResponsavel" required></select>
+                </label>
+                <label>
+                  <span>Data</span>
+                  <input name="data" type="datetime-local" id="atendimentoData" required>
+                </label>
+                <label class="span-2">
+                  <span>Assunto</span>
+                  <input name="assunto" id="atendimentoAssunto" required placeholder="Ex.: reunião inicial, retorno, análise de documentos">
+                </label>
+              </div>
+              <div class="editor-shell">
+                <div class="editor-toolbar" id="editorToolbar">
+                  <button type="button" data-editor-command="bold" title="Negrito"><strong>B</strong></button>
+                  <button type="button" data-editor-command="underline" title="Sublinhar"><u>U</u></button>
+                  <button type="button" data-editor-command="insertUnorderedList" title="Marcadores">•</button>
+                  <button type="button" data-editor-command="backColor" data-editor-value="#fff0b8" title="Destacar">HL</button>
+                  <button type="button" data-editor-command="fontSize" data-editor-value="3" title="Letra normal">A</button>
+                  <button type="button" data-editor-command="fontSize" data-editor-value="5" title="Aumentar letra">A+</button>
+                </div>
+                <div class="attendance-editor" id="atendimentoEditor" contenteditable="true" role="textbox" aria-label="Notas do atendimento"></div>
+              </div>
+              <div class="attendance-savebar">
+                <span id="atendimentoStatus">Rascunho pronto</span>
+                <div>
+                  <button class="ghost-button" type="button" id="btnAtendimentoProcesso">Transformar em processo</button>
+                  <button class="primary-button" type="submit">Salvar atendimento</button>
+                </div>
+              </div>
+            </form>
+          </section>
+          <aside class="panel attendance-side">
+            <div class="panel-header">
+              <div>
+                <h2>Atendimentos salvos</h2>
+                <p>Histórico por cliente e processo</p>
+              </div>
+            </div>
+            <div id="listaAtendimentos" class="attendance-list"></div>
+            <div id="versoesAtendimento" class="version-list"></div>
+          </aside>
+        </div>
       </section>
 
       <section class="view" id="view-agenda" aria-labelledby="viewTitle">
@@ -551,12 +624,17 @@
       </div>
 
       <div id="recebimentoResumo" class="receipt-summary"></div>
+      <div id="notasPendentes" class="invoice-pending"></div>
       <div id="recebimentoHistorico" class="receipt-history"></div>
 
       <div class="form-grid">
         <label>
           <span>Valor recebido</span>
-          <input name="valor" type="number" min="0" step="0.01" required placeholder="0,00">
+          <input name="valor" type="number" min="0" step="0.01" placeholder="0,00">
+        </label>
+        <label>
+          <span>Desconto concedido</span>
+          <input name="desconto" type="number" min="0" step="0.01" placeholder="0,00">
         </label>
         <label>
           <span>Data do recebimento</span>
@@ -576,10 +654,14 @@
         <label>
           <span>Nota fiscal</span>
           <select name="notaFiscal">
-            <option value="nao">Não precisa emitir agora</option>
+            <option value="nao">Não precisa emitir</option>
             <option value="sim">Emitir nota fiscal</option>
             <option value="emitida">Nota fiscal já emitida</option>
           </select>
+        </label>
+        <label>
+          <span>Motivo do desconto</span>
+          <input name="motivoDesconto" placeholder="Ex.: acordo, cortesia, ajuste contratual">
         </label>
         <label class="span-2">
           <span>Observações</span>
@@ -587,11 +669,10 @@
         </label>
       </div>
       <div class="modal-actions">
-        <button class="ghost-button danger-text" id="btnDesfazerRecebimento" type="button">Desfazer último</button>
+        <span></span>
         <div class="modal-actions-right">
-          <button class="ghost-button" id="btnQuitarSaldo" type="button">Preencher saldo</button>
           <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
-          <button class="primary-button" type="submit">Registrar recebimento</button>
+          <button class="primary-button" type="submit">Registrar</button>
         </div>
       </div>
     </form>

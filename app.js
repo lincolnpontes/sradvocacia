@@ -1,11 +1,12 @@
-const APP_VERSION = "1.0.3";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v103";
+const APP_VERSION = "1.0.4";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v104";
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 
 const ABAS = [
   { id: "dashboard", label: "Painel" },
   { id: "processos", label: "Processos" },
   { id: "clientes", label: "Clientes" },
+  { id: "atendimentos", label: "Atendimentos" },
   { id: "agenda", label: "Agenda" },
   { id: "financeiro", label: "Honorários" },
   { id: "configuracoes", label: "Configurações" }
@@ -22,6 +23,8 @@ let viewAtual = "dashboard";
 let mesAgenda = new Date();
 let processoAbertoId = null;
 let configAberta = null;
+let atendimentoAbertoId = "";
+let atendimentoAlterado = false;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -64,10 +67,21 @@ const els = {
   formConfigItem: document.querySelector("#formConfigItem"),
   formAvancadas: document.querySelector("#formAvancadas"),
   formRecebimento: document.querySelector("#formRecebimento"),
+  formAtendimento: document.querySelector("#formAtendimento"),
+  atendimentoCliente: document.querySelector("#atendimentoCliente"),
+  atendimentoArea: document.querySelector("#atendimentoArea"),
+  atendimentoResponsavel: document.querySelector("#atendimentoResponsavel"),
+  atendimentoData: document.querySelector("#atendimentoData"),
+  atendimentoAssunto: document.querySelector("#atendimentoAssunto"),
+  atendimentoEditor: document.querySelector("#atendimentoEditor"),
+  atendimentoStatus: document.querySelector("#atendimentoStatus"),
+  listaAtendimentos: document.querySelector("#listaAtendimentos"),
+  versoesAtendimento: document.querySelector("#versoesAtendimento"),
   detalheConteudo: document.querySelector("#detalheConteudo"),
   listaConfigModal: document.querySelector("#listaConfigModal"),
   recebimentoResumo: document.querySelector("#recebimentoResumo"),
-  recebimentoHistorico: document.querySelector("#recebimentoHistorico")
+  recebimentoHistorico: document.querySelector("#recebimentoHistorico"),
+  notasPendentes: document.querySelector("#notasPendentes")
 };
 
 iniciar();
@@ -142,6 +156,11 @@ function configurarEventos() {
   els.formConfigItem.addEventListener("submit", adicionarItemConfig);
   els.formAvancadas.addEventListener("submit", salvarAvancadas);
   els.formRecebimento.addEventListener("submit", salvarRecebimento);
+  els.formAtendimento.addEventListener("submit", salvarAtendimento);
+  els.formAtendimento.addEventListener("input", marcarAtendimentoAlterado);
+  els.formAtendimento.addEventListener("change", marcarAtendimentoAlterado);
+  els.atendimentoEditor.addEventListener("input", marcarAtendimentoAlterado);
+  document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -152,10 +171,12 @@ function configurarEventos() {
   document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
   document.querySelector("#btnForceUpdateConfig").addEventListener("click", forcarAtualizacao);
   document.querySelector("#btnAbrirAvancadas").addEventListener("click", abrirModalAvancadas);
-  document.querySelector("#btnQuitarSaldo").addEventListener("click", preencherSaldoRecebimento);
-  document.querySelector("#btnDesfazerRecebimento").addEventListener("click", desfazerUltimoRecebimento);
+  document.querySelector("#btnNovoAtendimento").addEventListener("click", novoAtendimento);
+  document.querySelector("#btnAtendimentoProcesso").addEventListener("click", transformarAtendimentoEmProcesso);
+  els.listaAtendimentos.addEventListener("click", abrirAtendimentoDaLista);
   document.addEventListener("click", abrirRecebimentoPorBotao);
   document.addEventListener("click", selecionarClienteSugerido);
+  setInterval(salvarRascunhoAtendimento, 10000);
 }
 
 function entrar(event) {
@@ -299,6 +320,9 @@ function salvarProcesso(event) {
     responsavelId: dados.responsavelId,
     honorarios: Number(dados.honorarios || 0),
     recebido: Number(dados.recebido || 0),
+    recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "" }] : [],
+    descontos: [],
+    atendimentos: [],
     resumo: dados.resumo.trim(),
     prazos: [
       {
@@ -545,6 +569,7 @@ function trocarView(view) {
     dashboard: "Painel",
     processos: "Processos",
     clientes: "Clientes",
+    atendimentos: "Atendimentos",
     agenda: "Agenda",
     financeiro: "Honorários",
     configuracoes: "Configurações"
@@ -584,6 +609,7 @@ function renderizarTudo() {
   renderProcessosDestaque();
   renderTabelaProcessos();
   renderClientes();
+  renderAtendimentos();
   renderAgenda();
   renderFinanceiro();
   renderConfiguracoes();
@@ -592,14 +618,14 @@ function renderizarTudo() {
 function renderMetricas() {
   const processosAtivos = state.processos.filter((processo) => processo.status !== "Encerrado").length;
   const prazosCriticos = eventosAgenda().filter((evento) => !evento.concluido && diasAte(evento.data) <= 3).length;
-  const pendente = soma(state.processos, "honorarios") - soma(state.processos, "recebido");
-
-  document.querySelector("#metricas").innerHTML = [
+  const pendente = state.processos.reduce((total, processo) => total + saldoHonorarios(processo), 0);
+  const cards = [
     metricCard("Processos ativos", processosAtivos, "Carteira em andamento"),
     metricCard("Clientes", state.clientes.length, "Cadastros no escritório"),
-    metricCard("Prazos críticos", prazosCriticos, "Vencidos ou até 3 dias"),
-    metricCard("A receber", moeda(pendente), "Honorários pendentes")
-  ].join("");
+    metricCard("Prazos críticos", prazosCriticos, "Vencidos ou até 3 dias")
+  ];
+  if (temAcesso("financeiro")) cards.push(metricCard("A receber", moeda(pendente), "Honorários pendentes"));
+  document.querySelector("#metricas").innerHTML = cards.join("");
   els.plantaoResumo.textContent = `${prazosCriticos} prazos críticos`;
 }
 
@@ -706,6 +732,197 @@ function cardClienteLinha(cliente) {
   `;
 }
 
+function renderAtendimentos() {
+  preencherSelect(els.atendimentoCliente, state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome })));
+  preencherSelect(els.atendimentoArea, state.configs.areas.map(opcao));
+  preencherSelect(els.atendimentoResponsavel, state.usuarios.map((usuario) => ({ value: usuario.id, label: usuario.nome })));
+  if (!atendimentoAbertoId && !els.formAtendimento.elements.id.value) carregarRascunhoAtendimento();
+  els.listaAtendimentos.innerHTML = vazioOu(state.atendimentos, (atendimento) => {
+    const cliente = obterCliente(atendimento.clienteId);
+    const responsavel = obterUsuario(atendimento.responsavelId);
+    return `
+      <button class="attendance-item" type="button" data-open-attendance="${atendimento.id}">
+        <strong>${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
+        <span>${escapeHtml(cliente?.nome || "Cliente não informado")} · ${escapeHtml(atendimento.area)} · ${dataHoraCurta(atendimento.data)}</span>
+        <small>Responsável: ${escapeHtml(responsavel?.nome || "")}${atendimento.processoId ? " · Vinculado a processo" : ""}</small>
+      </button>
+    `;
+  });
+  renderVersoesAtendimento(atendimentoAberto());
+}
+
+function novoAtendimento() {
+  atendimentoAbertoId = "";
+  atendimentoAlterado = false;
+  els.formAtendimento.reset();
+  els.formAtendimento.elements.id.value = "";
+  els.atendimentoData.value = agoraLocalInput();
+  if (state.clientes[0]) els.atendimentoCliente.value = state.clientes[0].id;
+  if (state.configs.areas[0]) els.atendimentoArea.value = state.configs.areas[0];
+  if (usuarioAtual()) els.atendimentoResponsavel.value = usuarioAtual().id;
+  els.atendimentoEditor.innerHTML = modeloAtendimento();
+  els.atendimentoStatus.textContent = "Novo atendimento";
+  renderVersoesAtendimento(null);
+}
+
+function marcarAtendimentoAlterado() {
+  atendimentoAlterado = true;
+  els.atendimentoStatus.textContent = "Alterações em rascunho";
+}
+
+function salvarRascunhoAtendimento() {
+  if (viewAtual !== "atendimentos" || !atendimentoAlterado) return;
+  const rascunho = dadosAtendimentoDoFormulario();
+  if (!rascunho.conteudoHtml.trim()) return;
+  state.rascunhoAtendimento = manterTresVersoes(state.rascunhoAtendimento || {}, rascunho);
+  Object.assign(state.rascunhoAtendimento, rascunho, { salvoEm: new Date().toISOString() });
+  atendimentoAlterado = false;
+  els.atendimentoStatus.textContent = `Rascunho salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  salvarEstado();
+}
+
+function salvarAtendimento(event) {
+  event.preventDefault();
+  const dados = dadosAtendimentoDoFormulario();
+  if (!dados.conteudoHtml.trim()) {
+    alert("Digite as anotações do atendimento antes de salvar.");
+    return;
+  }
+  let atendimento = dados.id ? state.atendimentos.find((item) => item.id === dados.id) : null;
+  if (!atendimento) {
+    atendimento = { id: uid(), criadoEm: hojeIso(), versoes: [] };
+    state.atendimentos.unshift(atendimento);
+  } else {
+    atendimento.versoes = manterTresVersoes(atendimento, { ...atendimento }).versoes;
+  }
+  Object.assign(atendimento, dados, { atualizadoEm: new Date().toISOString() });
+  atendimentoAbertoId = atendimento.id;
+  els.formAtendimento.elements.id.value = atendimento.id;
+  state.rascunhoAtendimento = null;
+  atendimentoAlterado = false;
+  salvarEstado();
+  renderAtendimentos();
+  els.atendimentoStatus.textContent = "Atendimento salvo";
+}
+
+function dadosAtendimentoDoFormulario() {
+  const dados = Object.fromEntries(new FormData(els.formAtendimento));
+  return {
+    id: dados.id || "",
+    clienteId: dados.clienteId,
+    area: dados.area,
+    responsavelId: dados.responsavelId,
+    data: dados.data || agoraLocalInput(),
+    assunto: dados.assunto.trim(),
+    conteudoHtml: els.atendimentoEditor.innerHTML
+  };
+}
+
+function abrirAtendimentoDaLista(event) {
+  const botao = event.target.closest("[data-open-attendance]");
+  if (!botao) return;
+  const atendimento = state.atendimentos.find((item) => item.id === botao.dataset.openAttendance);
+  if (!atendimento) return;
+  preencherFormularioAtendimento(atendimento);
+}
+
+function preencherFormularioAtendimento(atendimento) {
+  atendimentoAbertoId = atendimento.id || "";
+  els.formAtendimento.elements.id.value = atendimento.id || "";
+  els.atendimentoCliente.value = atendimento.clienteId || state.clientes[0]?.id || "";
+  els.atendimentoArea.value = atendimento.area || state.configs.areas[0] || "";
+  els.atendimentoResponsavel.value = atendimento.responsavelId || usuarioAtual()?.id || "";
+  els.atendimentoData.value = atendimento.data || agoraLocalInput();
+  els.formAtendimento.assunto.value = atendimento.assunto || "";
+  els.atendimentoEditor.innerHTML = atendimento.conteudoHtml || modeloAtendimento();
+  atendimentoAlterado = false;
+  els.atendimentoStatus.textContent = atendimento.id ? "Atendimento carregado" : "Rascunho carregado";
+  renderVersoesAtendimento(atendimento);
+}
+
+function carregarRascunhoAtendimento() {
+  if (state.rascunhoAtendimento?.conteudoHtml) preencherFormularioAtendimento(state.rascunhoAtendimento);
+  else novoAtendimento();
+}
+
+function renderVersoesAtendimento(atendimento) {
+  const versoes = atendimento?.versoes || [];
+  els.versoesAtendimento.innerHTML = versoes.length ? `
+    <h3>Últimas versões</h3>
+    ${versoes.map((versao) => `
+      <article>
+        <strong>${escapeHtml(versao.assunto || "Versão anterior")}</strong>
+        <span>${dataHoraCurta(versao.salvoEm || versao.atualizadoEm || versao.data)}</span>
+      </article>
+    `).join("")}
+  ` : "";
+}
+
+function manterTresVersoes(entidade, versao) {
+  const versoes = [resumoVersaoAtendimento(versao), ...(entidade.versoes || [])].filter((item) => item.conteudoHtml);
+  return { ...entidade, versoes: versoes.slice(0, 3) };
+}
+
+function resumoVersaoAtendimento(item) {
+  return {
+    id: item.id || uid(),
+    assunto: item.assunto || "",
+    conteudoHtml: item.conteudoHtml || "",
+    salvoEm: new Date().toISOString()
+  };
+}
+
+function aplicarComandoEditor(event) {
+  const botao = event.target.closest("[data-editor-command]");
+  if (!botao) return;
+  event.preventDefault();
+  els.atendimentoEditor.focus();
+  document.execCommand(botao.dataset.editorCommand, false, botao.dataset.editorValue || null);
+  marcarAtendimentoAlterado();
+}
+
+function transformarAtendimentoEmProcesso() {
+  const dados = dadosAtendimentoDoFormulario();
+  let atendimento = dados.id ? state.atendimentos.find((item) => item.id === dados.id) : null;
+  if (!atendimento || atendimentoAlterado) {
+    salvarAtendimento(new Event("submit"));
+    atendimento = state.atendimentos.find((item) => item.id === atendimentoAbertoId);
+  }
+  if (!atendimento) return;
+  if (atendimento.processoId && obterProcesso(atendimento.processoId)) {
+    abrirDetalheProcesso(atendimento.processoId);
+    return;
+  }
+  const processo = {
+    id: uid(),
+    numero: `A distribuir - ${dataCurta(hojeIso())}`,
+    clienteId: atendimento.clienteId,
+    area: atendimento.area,
+    status: "Ativo",
+    orgao: state.configs.orgaos[0],
+    prazo: somarDiasIso(hojeIso(), 7),
+    responsavelId: atendimento.responsavelId,
+    honorarios: 0,
+    recebido: 0,
+    recebimentos: [],
+    descontos: [],
+    resumo: atendimento.assunto,
+    atendimentos: [atendimento.id],
+    prazos: [{ id: uid(), data: somarDiasIso(hojeIso(), 7), tipo: "Providência inicial", descricao: "Avaliar documentação e definir estratégia após atendimento.", responsavelId: atendimento.responsavelId, concluido: false }],
+    movimentacoes: [{ id: uid(), data: hojeIso(), descricao: "Processo criado a partir de atendimento." }]
+  };
+  state.processos.unshift(processo);
+  atendimento.processoId = processo.id;
+  salvarEstado();
+  renderizarTudo();
+  trocarView("processos");
+  abrirDetalheProcesso(processo.id);
+}
+
+function modeloAtendimento() {
+  return `<p><strong>Resumo da reunião:</strong></p><p><br></p><p><strong>Documentos apresentados:</strong></p><ul><li></li></ul><p><strong>Orientação jurídica:</strong></p><p><br></p><p><strong>Próximas providências:</strong></p><ul><li></li></ul>`;
+}
+
 function renderAgenda() {
   const eventos = eventosAgenda().sort((a, b) => new Date(a.data) - new Date(b.data));
   const proximos = eventos.filter((evento) => !evento.concluido).slice(0, 8);
@@ -766,10 +983,12 @@ function renderFinanceiro() {
   const lista = filtrarProcessosFinanceiro();
   const total = soma(lista, "honorarios");
   const recebido = soma(lista, "recebido");
-  const pendente = total - recebido;
+  const descontos = lista.reduce((valor, processo) => valor + totalDescontos(processo), 0);
+  const pendente = lista.reduce((valor, processo) => valor + saldoHonorarios(processo), 0);
 
   document.querySelector("#financeiroResumo").innerHTML = [
     financeCard("Contratado", total, "Total em honorários"),
+    financeCard("Descontos", descontos, "Ajustes concedidos"),
     financeCard("Recebido", recebido, "Entradas registradas"),
     financeCard("Pendente", pendente, "Valores a receber")
   ].join("");
@@ -781,7 +1000,7 @@ function renderFinanceiro() {
         <td>${escapeHtml(cliente?.nome || "")}<br><span class="case-meta">${escapeHtml(processo.numero)}</span></td>
         <td>${moeda(processo.honorarios)}</td>
         <td>${moeda(processo.recebido)}</td>
-        <td>${moeda((processo.honorarios || 0) - (processo.recebido || 0))}</td>
+        <td>${moeda(saldoHonorarios(processo))}</td>
         <td>
           <button class="ghost-button table-action" type="button" data-open-receipt="${processo.id}">
             Gerenciar
@@ -846,7 +1065,7 @@ function abrirDetalheProcesso(id) {
   const cliente = obterCliente(processo.clienteId);
   const responsavel = obterUsuario(processo.responsavelId);
   const tipoDocumento = cliente?.tipoDocumento || inferirTipoDocumento(cliente?.documento || cliente?.cpf || "");
-  const saldoHonorarios = Math.max(0, (processo.honorarios || 0) - (processo.recebido || 0));
+  const saldoAtual = saldoHonorarios(processo);
   const whatsappUrl = urlWhatsApp(cliente?.whatsapp || "");
   document.querySelector("#detalheTitulo").textContent = processo.numero;
   els.detalheConteudo.innerHTML = `
@@ -866,8 +1085,9 @@ function abrirDetalheProcesso(id) {
 
       <section class="detail-finance">
         <span><strong>${moeda(processo.honorarios)}</strong><small>Honorários contratados</small></span>
+        <span><strong>${moeda(totalDescontos(processo))}</strong><small>Descontos</small></span>
         <span><strong>${moeda(processo.recebido)}</strong><small>Recebido</small></span>
-        <span><strong>${moeda(saldoHonorarios)}</strong><small>Pendente</small></span>
+        <span><strong>${moeda(saldoAtual)}</strong><small>Pendente</small></span>
         <button class="ghost-button" type="button" data-open-receipt="${processo.id}">Gerenciar recebimento</button>
       </section>
 
@@ -931,6 +1151,19 @@ function abrirDetalheProcesso(id) {
                 <p>${escapeHtml(mov.descricao)}</p>
               </article>
             `).join("") || "<p>Nenhuma movimentação cadastrada.</p>"}
+          </div>
+        </section>
+
+        <section class="detail-panel detail-movements">
+          <h3>Atendimentos vinculados</h3>
+          <div class="attendance-linked-list">
+            ${atendimentosDoProcesso(processo).map((atendimento) => `
+              <article>
+                <strong>${escapeHtml(atendimento.assunto || "Atendimento")}</strong>
+                <span>${dataHoraCurta(atendimento.data)} · ${escapeHtml(obterUsuario(atendimento.responsavelId)?.nome || "")}</span>
+                <div>${atendimento.conteudoHtml || ""}</div>
+              </article>
+            `).join("") || "<p>Nenhum atendimento vinculado a este processo.</p>"}
           </div>
         </section>
       </div>
@@ -1000,7 +1233,7 @@ function abrirModalRecebimento(id) {
   els.formRecebimento.reset();
   els.formRecebimento.processoId.value = processo.id;
   els.formRecebimento.data.value = hojeIso();
-  els.formRecebimento.valor.value = saldo > 0 ? saldo.toFixed(2) : "";
+  els.formRecebimento.valor.value = "";
   els.recebimentoResumo.innerHTML = `
     <article>
       <span>Cliente</span>
@@ -1018,18 +1251,36 @@ function abrirModalRecebimento(id) {
       <small>${(processo.recebimentos || []).length} lançamento${(processo.recebimentos || []).length !== 1 ? "s" : ""}</small>
     </article>
     <article>
+      <span>Descontos</span>
+      <strong>${moeda(totalDescontos(processo))}</strong>
+      <small>${(processo.descontos || []).length} ajuste${(processo.descontos || []).length !== 1 ? "s" : ""}</small>
+    </article>
+    <article>
       <span>Pendente</span>
       <strong>${moeda(saldo)}</strong>
       <small>Saldo atual</small>
     </article>
   `;
+  renderNotasPendentes(processo);
   renderHistoricoRecebimentos(processo);
   if (!els.modalRecebimento.open) els.modalRecebimento.showModal();
 }
 
+function renderNotasPendentes(processo) {
+  const pendentes = (processo.recebimentos || []).filter((item) => item.notaFiscal === "sim");
+  const titulo = pendentes.length === 1 ? "1 nota fiscal pendente" : `${pendentes.length} notas fiscais pendentes`;
+  els.notasPendentes.innerHTML = `
+    <div class="invoice-box">
+      <strong>${titulo}</strong>
+      ${pendentes.length ? `<div>${pendentes.map((item) => `<span>${dataCurta(item.data)} · ${moeda(item.valor)} · ${escapeHtml(item.forma)}</span>`).join("")}</div>` : "<small>Nenhuma nota fiscal pendente neste processo.</small>"}
+    </div>
+  `;
+}
+
 function renderHistoricoRecebimentos(processo) {
   const recebimentos = processo.recebimentos || [];
-  els.recebimentoHistorico.innerHTML = recebimentos.length ? `
+  const descontos = processo.descontos || [];
+  els.recebimentoHistorico.innerHTML = (recebimentos.length || descontos.length) ? `
     <h3>Histórico de recebimentos</h3>
     <div class="receipt-list">
       ${[...recebimentos].reverse().map((item) => `
@@ -1039,8 +1290,15 @@ function renderHistoricoRecebimentos(processo) {
           ${item.observacoes ? `<small>${escapeHtml(item.observacoes)}</small>` : ""}
         </div>
       `).join("")}
+      ${[...descontos].reverse().map((item) => `
+        <div class="discount-row">
+          <strong>-${moeda(item.valor)}</strong>
+          <span>${dataCurta(item.data)} · Desconto concedido</span>
+          ${item.motivo ? `<small>${escapeHtml(item.motivo)}</small>` : ""}
+        </div>
+      `).join("")}
     </div>
-  ` : `<div class="empty-state compact"><strong>Nenhum recebimento lançado</strong><span>Registre Pix, dinheiro, transferência ou outra forma de pagamento.</span></div>`;
+  ` : `<div class="empty-state compact"><strong>Nenhum recebimento lançado</strong><span>Registre pagamento, desconto e situação da nota fiscal.</span></div>`;
 }
 
 function salvarRecebimento(event) {
@@ -1049,19 +1307,31 @@ function salvarRecebimento(event) {
   const processo = obterProcesso(dados.processoId);
   if (!processo) return;
   const valor = Number(String(dados.valor || "0").replace(",", "."));
-  if (valor <= 0) {
-    alert("Informe um valor recebido maior que zero.");
+  const desconto = Number(String(dados.desconto || "0").replace(",", "."));
+  if (valor <= 0 && desconto <= 0) {
+    alert("Informe um valor recebido ou um desconto.");
     return;
   }
   processo.recebimentos = processo.recebimentos || [];
-  processo.recebimentos.push({
-    id: uid(),
-    valor,
-    data: dados.data || hojeIso(),
-    forma: dados.forma,
-    notaFiscal: dados.notaFiscal,
-    observacoes: dados.observacoes.trim()
-  });
+  processo.descontos = processo.descontos || [];
+  if (valor > 0) {
+    processo.recebimentos.push({
+      id: uid(),
+      valor,
+      data: dados.data || hojeIso(),
+      forma: dados.forma,
+      notaFiscal: dados.notaFiscal,
+      observacoes: dados.observacoes.trim()
+    });
+  }
+  if (desconto > 0) {
+    processo.descontos.push({
+      id: uid(),
+      valor: desconto,
+      data: dados.data || hojeIso(),
+      motivo: dados.motivoDesconto.trim() || dados.observacoes.trim()
+    });
+  }
   recalcularRecebido(processo);
   salvarEstado();
   els.modalRecebimento.close();
@@ -1221,7 +1491,7 @@ function atualizarPerfil() {
   els.usuarioInicial.textContent = letra;
   els.popoverInicial.textContent = letra;
   els.popoverNome.textContent = usuario?.nome || "SR Advocacia";
-  els.popoverEmail.textContent = usuario?.email || "Perfil local";
+  els.popoverEmail.textContent = usuario?.cargo || "Perfil local";
   els.plantaoNome.textContent = usuario?.nome || "SR Advocacia";
 }
 
@@ -1346,10 +1616,33 @@ function normalizarEstado(raw) {
     domicilio: migrarTextoParaPb(cliente.domicilio || ""),
     observacoes: cliente.observacoes || ""
   }));
+  estado.atendimentos = (estado.atendimentos || []).map(normalizarAtendimento);
+  estado.rascunhoAtendimento = raw.rascunhoAtendimento ? normalizarAtendimento(raw.rascunhoAtendimento) : null;
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
   estado.usuarioAtivoId = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
   salvarEstadoNormalizado(estado);
   return estado;
+}
+
+function normalizarAtendimento(atendimento = {}) {
+  return {
+    id: atendimento.id || "",
+    criadoEm: atendimento.criadoEm || hojeIso(),
+    atualizadoEm: atendimento.atualizadoEm || atendimento.salvoEm || "",
+    clienteId: atendimento.clienteId || "",
+    area: atendimento.area || "",
+    responsavelId: atendimento.responsavelId || "",
+    data: atendimento.data || agoraLocalInput(),
+    assunto: atendimento.assunto || "",
+    conteudoHtml: atendimento.conteudoHtml || "",
+    processoId: atendimento.processoId || "",
+    versoes: (atendimento.versoes || []).slice(0, 3).map((versao) => ({
+      id: versao.id || uid(),
+      assunto: versao.assunto || "",
+      conteudoHtml: versao.conteudoHtml || "",
+      salvoEm: versao.salvoEm || hojeIso()
+    }))
+  };
 }
 
 function normalizarProcesso(processo, estado) {
@@ -1385,6 +1678,12 @@ function normalizarProcesso(processo, estado) {
     notaFiscal: recebimento.notaFiscal || "nao",
     observacoes: recebimento.observacoes || ""
   }));
+  const descontos = (processo.descontos || []).map((desconto) => ({
+    id: desconto.id || uid(),
+    valor: Number(desconto.valor || 0),
+    data: desconto.data || hojeIso(),
+    motivo: desconto.motivo || ""
+  }));
   return {
     id: processo.id || uid(),
     numero: migrarTextoParaPb(processo.numero || ""),
@@ -1397,8 +1696,10 @@ function normalizarProcesso(processo, estado) {
     honorarios: Number(processo.honorarios || 0),
     recebido: soma(recebimentos, "valor"),
     recebimentos,
+    descontos,
     resumo: migrarTextoParaPb(processo.resumo || ""),
     prazos,
+    atendimentos: processo.atendimentos || [],
     movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), descricao: "Registro importado da versão anterior." }]).map((mov) => ({ id: mov.id || uid(), data: mov.data || hojeIso(), descricao: migrarTextoParaPb(mov.descricao || "") }))
   };
 }
@@ -1406,7 +1707,7 @@ function normalizarProcesso(processo, estado) {
 function criarEstadoPadrao() {
   const usuarios = [
     { id: uid(), nome: "Letícia Ramos", email: "leticia@sradvocacia.com", senha: "1234", cargo: "Advogada", telefone: "(83) 99999-1000", oab: "OAB/PB 00000", permissoes: permissoesPadrao() },
-    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com", senha: "1234", cargo: "Advogado", telefone: "(83) 99999-2000", oab: "OAB/PB 00001", permissoes: ["dashboard", "processos", "clientes", "agenda", "financeiro"] }
+    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com", senha: "1234", cargo: "Advogado", telefone: "(83) 99999-2000", oab: "OAB/PB 00001", permissoes: ["dashboard", "processos", "clientes", "atendimentos", "agenda", "financeiro"] }
   ];
   const clientes = [
     { id: uid(), criadoEm: "2026-05-01", nome: "Mariana Azevedo", tipoDocumento: "CPF", documento: "184.552.930-10", cpf: "184.552.930-10", email: "mariana@email.com", whatsapp: "(83) 99991-1030", estadoCivil: "Casado(a)", profissao: "Arquiteta", nacionalidade: "Brasileira", rg: "3.245.810 SSP/PB", nascimento: "1988-08-14", domicilio: "João Pessoa/PB", observacoes: "Prefere contato por Whatsapp no fim da tarde." },
@@ -1420,6 +1721,7 @@ function criarEstadoPadrao() {
     clienteModo: "cards",
     clienteOrdenacao: "nome",
     sidebarRecolhida: false,
+    rascunhoAtendimento: null,
     avancadas: {
       googleScriptUrl: "",
       observacoesTecnicas: ""
@@ -1431,6 +1733,7 @@ function criarEstadoPadrao() {
       orgaos: ["1ª Vara Cível de João Pessoa", "2ª Vara Empresarial de João Pessoa", "3ª Vara de Família de João Pessoa", "12ª Vara do Trabalho de João Pessoa", "Fórum Cível Des. Mário Moacyr Porto", "TRT 13ª Região", "Justiça Federal da Paraíba"]
     },
     clientes,
+    atendimentos: [],
     processos: [
       processoPadrao("0804126-31.2026.8.15.2001", clientes[0].id, "Família", "Aguardando audiência", "3ª Vara de Família de João Pessoa", "2026-05-22", usuarios[0].id, 6200, 3200, "Ação de guarda com pedido de regulamentação de convivência.", [
         { data: "2026-05-22", tipo: "Audiência", descricao: "Audiência de conciliação.", responsavelId: usuarios[0].id },
@@ -1458,7 +1761,10 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
     responsavelId,
     honorarios,
     recebido,
+    recebimentos: recebido > 0 ? [{ id: uid(), valor: recebido, data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "" }] : [],
+    descontos: [],
     resumo,
+    atendimentos: [],
     prazos: prazos.map((item) => ({ id: uid(), concluido: false, ...item })),
     movimentacoes: [
       { id: uid(), data: "2026-05-18", descricao: "Movimentação registrada e conferida pela equipe." },
@@ -1485,6 +1791,17 @@ function obterUsuario(id) {
 
 function obterProcesso(id) {
   return state.processos.find((processo) => processo.id === id);
+}
+
+function atendimentoAberto() {
+  return state.atendimentos.find((atendimento) => atendimento.id === atendimentoAbertoId) || state.rascunhoAtendimento;
+}
+
+function atendimentosDoProcesso(processo) {
+  const vinculados = new Set(processo.atendimentos || []);
+  return state.atendimentos
+    .filter((atendimento) => atendimento.processoId === processo.id || vinculados.has(atendimento.id))
+    .sort((a, b) => new Date(b.data) - new Date(a.data));
 }
 
 function proximoPrazoDoProcesso(processo) {
@@ -1526,13 +1843,17 @@ function recalcularRecebido(processo) {
 }
 
 function saldoHonorarios(processo) {
-  return Math.max(0, Number(processo.honorarios || 0) - Number(processo.recebido || 0));
+  return Math.max(0, Number(processo.honorarios || 0) - totalDescontos(processo) - Number(processo.recebido || 0));
+}
+
+function totalDescontos(processo) {
+  return soma(processo.descontos || [], "valor");
 }
 
 function labelNotaFiscal(status) {
   const labels = {
     sim: "emitir",
-    nao: "não precisa agora",
+    nao: "não precisa emitir",
     emitida: "emitida"
   };
   return labels[status] || status || "não informado";
@@ -1597,16 +1918,41 @@ function hojeIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function agoraLocalInput() {
+  const agora = new Date();
+  agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
+  return agora.toISOString().slice(0, 16);
+}
+
+function somarDiasIso(data, dias) {
+  const base = new Date(`${String(data).slice(0, 10)}T00:00:00`);
+  base.setDate(base.getDate() + dias);
+  return base.toISOString().slice(0, 10);
+}
+
 function diasAte(data) {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
-  const alvo = new Date(`${data}T00:00:00`);
+  const alvo = new Date(`${String(data).slice(0, 10)}T00:00:00`);
   return Math.round((alvo - hoje) / 86400000);
 }
 
 function dataCurta(data) {
   if (!data) return "Sem data";
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${data}T00:00:00`));
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${String(data).slice(0, 10)}T00:00:00`));
+}
+
+function dataHoraCurta(data) {
+  if (!data) return "Sem data";
+  const valor = String(data);
+  const alvo = valor.includes("T") ? new Date(valor) : new Date(`${valor}T00:00:00`);
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(alvo);
 }
 
 function moeda(valor) {
