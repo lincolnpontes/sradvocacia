@@ -2,8 +2,8 @@
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#5a1d2b">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="style.css">
@@ -11,7 +11,7 @@
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
     <form class="login-card" id="formLogin">
-      <div class="login-mark" aria-hidden="true">SR</div>
+      <img class="login-logo" src="logo.jpeg" alt="SR Advocacia">
       <p class="eyebrow">SR Advocacia</p>
       <h1 id="loginTitle">Gestão Jurídica</h1>
       <p class="login-copy">Acesse o painel do escritório para acompanhar clientes, processos, prazos e movimentações.</p>
@@ -26,7 +26,8 @@
       </label>
 
       <button class="primary-button full" type="submit">Entrar</button>
-      <small>Versão 1.0.1</small>
+      <button class="ghost-button full login-refresh" id="btnForceUpdateLogin" type="button">Forçar atualização</button>
+      <small>Versão 1.0.2</small>
     </form>
   </section>
 
@@ -76,11 +77,11 @@
           <span>Clientes</span>
         </button>
         <button class="nav-item" type="button" data-view="agenda">
-          <span class="nav-icon" aria-hidden="true">□</span>
+          <span class="nav-icon" aria-hidden="true">📅︎</span>
           <span>Agenda</span>
         </button>
         <button class="nav-item" type="button" data-view="financeiro">
-          <span class="nav-icon" aria-hidden="true">R$</span>
+          <span class="nav-icon" aria-hidden="true">💲︎</span>
           <span>Honorários</span>
         </button>
       </nav>
@@ -95,19 +96,19 @@
     <main class="workspace">
       <header class="topbar">
         <div>
-          <p class="eyebrow">Escritório de Advocacia</p>
+          <img class="top-logo" src="logo.jpeg" alt="SR Advocacia">
           <h1 id="viewTitle">Painel</h1>
         </div>
         <div class="topbar-actions">
-          <label class="search-box">
+          <label class="search-box" id="topSearchBox">
             <span aria-hidden="true">⌕</span>
             <input id="buscaGlobal" type="search" placeholder="Buscar cliente, processo, vara..." autocomplete="off">
           </label>
-          <button class="icon-button" id="btnExportar" type="button" title="Exportar dados">⇩</button>
           <button class="primary-button" id="btnNovo" type="button">
             <span aria-hidden="true">+</span>
             <span id="btnNovoTexto">Novo processo</span>
           </button>
+          <button class="ghost-button" id="btnForceUpdateTop" type="button">Forçar atualização</button>
         </div>
       </header>
 
@@ -167,7 +168,7 @@
             <p>Cadastro completo para contato, documento, domicílio e dados pessoais úteis ao processo.</p>
           </div>
           <div class="strip-actions">
-            <select id="ordenacaoClientes" aria-label="Filtrar e ordenar clientes">
+            <select id="ordenacaoClientes" aria-label="Ordenar clientes">
               <option value="nome">Nome</option>
               <option value="prazo">Próximo prazo</option>
               <option value="cadastro">Tempo de cadastro</option>
@@ -227,6 +228,7 @@
                   <th>Contrato</th>
                   <th>Recebido</th>
                   <th>Pendente</th>
+                  <th>Ação</th>
                 </tr>
               </thead>
               <tbody id="tabelaFinanceiro"></tbody>
@@ -288,7 +290,11 @@
         </label>
         <label>
           <span>Cliente</span>
-          <select name="clienteId" id="processoCliente" required></select>
+          <div class="autocomplete-field">
+            <input id="processoClienteBusca" autocomplete="off" required placeholder="Digite o nome do cliente">
+            <input type="hidden" name="clienteId" id="processoClienteId">
+            <div class="suggestion-list" id="clienteSugestoes"></div>
+          </div>
         </label>
         <label>
           <span>Área</span>
@@ -343,11 +349,11 @@
       </div>
       <div class="form-grid">
         <label>
-          <span>Nome completo</span>
+          <span id="labelNomeCliente">Nome completo</span>
           <input name="nome" required placeholder="Nome completo">
         </label>
         <label>
-          <span>Documento</span>
+          <span id="labelDocumentoCliente">CPF</span>
           <div class="split-input">
             <select name="tipoDocumento" aria-label="Tipo de documento">
               <option>CPF</option>
@@ -362,9 +368,9 @@
         </label>
         <label>
           <span>Whatsapp</span>
-          <input name="whatsapp" inputmode="numeric" placeholder="(85) 99999-9999">
+          <input name="whatsapp" inputmode="numeric" placeholder="(83) 99999-9999">
         </label>
-        <label>
+        <label data-pessoa="pf">
           <span>Estado civil</span>
           <select name="estadoCivil">
             <option value="">Não informado</option>
@@ -375,13 +381,45 @@
             <option>União estável</option>
           </select>
         </label>
-        <label>
+        <label data-pessoa="pf">
           <span>Profissão</span>
           <input name="profissao" placeholder="Profissão">
         </label>
+        <label data-pessoa="pf">
+          <span>Nacionalidade</span>
+          <input name="nacionalidade" placeholder="Brasileiro(a)">
+        </label>
+        <label data-pessoa="pf">
+          <span>RG</span>
+          <input name="rg" placeholder="Registro geral">
+        </label>
+        <label data-pessoa="pf">
+          <span>Data de nascimento</span>
+          <input name="nascimento" type="date">
+        </label>
+        <label data-pessoa="pj">
+          <span>Nome fantasia</span>
+          <input name="nomeFantasia" placeholder="Nome fantasia">
+        </label>
+        <label data-pessoa="pj">
+          <span>Inscrição estadual</span>
+          <input name="inscricaoEstadual" placeholder="Inscrição estadual">
+        </label>
+        <label data-pessoa="pj">
+          <span>Representante legal</span>
+          <input name="representante" placeholder="Nome do representante">
+        </label>
+        <label data-pessoa="pj">
+          <span>CPF do representante</span>
+          <input name="representanteCpf" inputmode="numeric" placeholder="000.000.000-00">
+        </label>
+        <label data-pessoa="pj">
+          <span>Cargo do representante</span>
+          <input name="representanteCargo" placeholder="Sócio administrador, diretor...">
+        </label>
         <label class="span-2">
-          <span>Domicílio</span>
-          <input name="domicilio" placeholder="Endereço, cidade/UF">
+          <span id="labelDomicilioCliente">Domicílio</span>
+          <input name="domicilio" placeholder="Endereço, João Pessoa/PB">
         </label>
         <label class="span-2">
           <span>Observações</span>
@@ -424,11 +462,11 @@
         </label>
         <label>
           <span>Telefone</span>
-          <input name="telefone" inputmode="numeric" placeholder="(85) 99999-9999">
+          <input name="telefone" inputmode="numeric" placeholder="(83) 99999-9999">
         </label>
         <label>
           <span>OAB</span>
-          <input name="oab" placeholder="OAB/CE 00000">
+          <input name="oab" placeholder="OAB/PB 00000">
         </label>
         <fieldset class="span-2 permission-box">
           <legend>Abas liberadas</legend>
@@ -460,6 +498,35 @@
       </form>
       <div class="config-edit-list" id="listaConfigModal"></div>
     </div>
+  </dialog>
+
+  <dialog id="modalAvancadas">
+    <form method="dialog" class="modal-card config-modal" id="formAvancadas">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Configurações</p>
+          <h2>Avançadas</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label class="span-2">
+          <span>URL do Google Apps Script</span>
+          <input name="googleScriptUrl" type="url" placeholder="https://script.google.com/macros/s/...">
+        </label>
+        <label class="span-2">
+          <span>Observações técnicas</span>
+          <textarea name="observacoesTecnicas" rows="3" placeholder="Anotações sobre integração, agenda e backup"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button" id="btnForceUpdateConfig" type="button">Forçar atualização</button>
+        <div class="modal-actions-right">
+          <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+          <button class="primary-button" type="submit">Salvar avançadas</button>
+        </div>
+      </div>
+    </form>
   </dialog>
 
   <dialog id="modalDetalheProcesso">

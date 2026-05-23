@@ -1,19 +1,21 @@
-const APP_VERSION = "1.0.1";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v101";
+const APP_VERSION = "1.0.2";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v102";
+const SESSION_KEY = "sr-advocacia-usuario-ativo";
 
 const ABAS = [
-  { id: "dashboard", label: "Painel" },
-  { id: "processos", label: "Processos" },
-  { id: "clientes", label: "Clientes" },
-  { id: "agenda", label: "Agenda" },
-  { id: "financeiro", label: "Honorários" },
-  { id: "configuracoes", label: "Configurações" }
+  { id: "dashboard", label: "Painel inicial e indicadores" },
+  { id: "processos", label: "Processos e acompanhamento jurídico" },
+  { id: "clientes", label: "Clientes e qualificação cadastral" },
+  { id: "agenda", label: "Agenda de prazos e compromissos" },
+  { id: "financeiro", label: "Honorários e recebimentos" },
+  { id: "configuracoes", label: "Configurações administrativas" }
 ];
 
 const CONFIG_META = {
   status: { titulo: "Status", descricao: "Fases usadas nos processos" },
   areas: { titulo: "Áreas", descricao: "Ramos de atuação do escritório" },
-  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" }
+  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" },
+  avancadas: { titulo: "Avançadas", descricao: "Integrações, atualização e Apps Script" }
 };
 
 const state = normalizarEstado(carregarEstado());
@@ -39,6 +41,9 @@ const els = {
   busca: document.querySelector("#buscaGlobal"),
   btnNovo: document.querySelector("#btnNovo"),
   btnNovoTexto: document.querySelector("#btnNovoTexto"),
+  topSearchBox: document.querySelector("#topSearchBox"),
+  btnForceUpdateTop: document.querySelector("#btnForceUpdateTop"),
+  btnForceUpdateLogin: document.querySelector("#btnForceUpdateLogin"),
   filtroArea: document.querySelector("#filtroArea"),
   filtroStatus: document.querySelector("#filtroStatus"),
   ordenacaoClientes: document.querySelector("#ordenacaoClientes"),
@@ -49,10 +54,15 @@ const els = {
   modalDetalhe: document.querySelector("#modalDetalheProcesso"),
   modalUsuario: document.querySelector("#modalUsuario"),
   modalConfig: document.querySelector("#modalConfig"),
+  modalAvancadas: document.querySelector("#modalAvancadas"),
   formProcesso: document.querySelector("#formProcesso"),
+  processoClienteBusca: document.querySelector("#processoClienteBusca"),
+  processoClienteId: document.querySelector("#processoClienteId"),
+  clienteSugestoes: document.querySelector("#clienteSugestoes"),
   formCliente: document.querySelector("#formCliente"),
   formUsuario: document.querySelector("#formUsuarioDetalhe"),
   formConfigItem: document.querySelector("#formConfigItem"),
+  formAvancadas: document.querySelector("#formAvancadas"),
   detalheConteudo: document.querySelector("#detalheConteudo"),
   listaConfigModal: document.querySelector("#listaConfigModal")
 };
@@ -65,6 +75,7 @@ function iniciar() {
   popularLogin();
   configurarEventos();
   atualizarPerfil();
+  atualizarAcoesTopo();
   renderizarTudo();
 
   if (state.usuarioAtivoId) mostrarApp();
@@ -110,7 +121,8 @@ function configurarEventos() {
     salvarEstado();
     renderClientes();
   });
-  document.querySelector("#btnExportar").addEventListener("click", exportarDados);
+  els.btnForceUpdateTop.addEventListener("click", forcarAtualizacao);
+  els.btnForceUpdateLogin.addEventListener("click", forcarAtualizacao);
   document.querySelector("#mesAnterior").addEventListener("click", () => mudarMes(-1));
   document.querySelector("#mesProximo").addEventListener("click", () => mudarMes(1));
   document.querySelector("#btnFecharDetalhe").addEventListener("click", () => els.modalDetalhe.close());
@@ -120,8 +132,11 @@ function configurarEventos() {
   els.filtroStatus.addEventListener("change", renderizarTudo);
   els.formCliente.addEventListener("submit", salvarCliente);
   els.formProcesso.addEventListener("submit", salvarProcesso);
+  els.processoClienteBusca.addEventListener("input", renderSugestoesCliente);
+  els.processoClienteBusca.addEventListener("focus", renderSugestoesCliente);
   els.formUsuario.addEventListener("submit", salvarUsuario);
   els.formConfigItem.addEventListener("submit", adicionarItemConfig);
+  els.formAvancadas.addEventListener("submit", salvarAvancadas);
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -130,6 +145,9 @@ function configurarEventos() {
   els.detalheConteudo.addEventListener("click", concluirPrazo);
   document.querySelector("#btnNovoUsuario").addEventListener("click", () => abrirModalUsuario());
   document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
+  document.querySelector("#btnForceUpdateConfig").addEventListener("click", forcarAtualizacao);
+  document.addEventListener("click", marcarHonorarioRecebido);
+  document.addEventListener("click", selecionarClienteSugerido);
 }
 
 function entrar(event) {
@@ -141,6 +159,7 @@ function entrar(event) {
     return;
   }
   state.usuarioAtivoId = usuario.id;
+  sessionStorage.setItem(SESSION_KEY, usuario.id);
   salvarEstado();
   atualizarPerfil();
   aplicarPermissoes();
@@ -149,6 +168,7 @@ function entrar(event) {
 
 function sair() {
   state.usuarioAtivoId = null;
+  sessionStorage.removeItem(SESSION_KEY);
   salvarEstado();
   fecharMenuMarca();
   mostrarLogin();
@@ -166,8 +186,7 @@ function mostrarApp() {
 }
 
 function acaoPrincipal() {
-  if (viewAtual === "clientes") abrirModalCliente();
-  else abrirModalProcesso();
+  abrirModalProcesso();
 }
 
 function abrirModalCliente(id = "") {
@@ -182,14 +201,24 @@ function abrirModalCliente(id = "") {
   els.formCliente.whatsapp.value = formatarTelefone(cliente?.whatsapp || "");
   els.formCliente.estadoCivil.value = cliente?.estadoCivil || "";
   els.formCliente.profissao.value = cliente?.profissao || "";
+  els.formCliente.nacionalidade.value = cliente?.nacionalidade || "";
+  els.formCliente.rg.value = cliente?.rg || "";
+  els.formCliente.nascimento.value = cliente?.nascimento || "";
+  els.formCliente.nomeFantasia.value = cliente?.nomeFantasia || "";
+  els.formCliente.inscricaoEstadual.value = cliente?.inscricaoEstadual || "";
+  els.formCliente.representante.value = cliente?.representante || "";
+  els.formCliente.representanteCpf.value = formatarDocumento(cliente?.representanteCpf || "", "CPF");
+  els.formCliente.representanteCargo.value = cliente?.representanteCargo || "";
   els.formCliente.domicilio.value = cliente?.domicilio || "";
   els.formCliente.observacoes.value = cliente?.observacoes || "";
+  atualizarCamposClientePorTipo();
   els.modalCliente.showModal();
 }
 
 function abrirModalProcesso() {
   els.formProcesso.reset();
   popularSelectsProcesso();
+  prepararAutocompleteCliente();
   els.formProcesso.prazo.value = hojeIso();
   els.modalProcesso.showModal();
 }
@@ -225,6 +254,14 @@ function salvarCliente(event) {
     whatsapp: formatarTelefone(dados.whatsapp),
     estadoCivil: dados.estadoCivil,
     profissao: dados.profissao.trim(),
+    nacionalidade: dados.nacionalidade?.trim() || "",
+    rg: dados.rg?.trim() || "",
+    nascimento: dados.nascimento || "",
+    nomeFantasia: dados.nomeFantasia?.trim() || "",
+    inscricaoEstadual: dados.inscricaoEstadual?.trim() || "",
+    representante: dados.representante?.trim() || "",
+    representanteCpf: formatarDocumento(dados.representanteCpf || "", "CPF"),
+    representanteCargo: dados.representanteCargo?.trim() || "",
     domicilio: dados.domicilio.trim(),
     observacoes: dados.observacoes.trim()
   });
@@ -238,6 +275,11 @@ function salvarCliente(event) {
 function salvarProcesso(event) {
   event.preventDefault();
   const dados = Object.fromEntries(new FormData(els.formProcesso));
+  if (!dados.clienteId || !obterCliente(dados.clienteId)) {
+    alert("Selecione um cliente da lista sugerida antes de salvar o processo.");
+    els.processoClienteBusca.focus();
+    return;
+  }
   state.processos.unshift({
     id: uid(),
     numero: dados.numero.trim(),
@@ -337,6 +379,10 @@ function abrirConfig(event) {
   const button = event.target.closest("[data-open-config]");
   if (!button) return;
   configAberta = button.dataset.openConfig;
+  if (configAberta === "avancadas") {
+    abrirModalAvancadas();
+    return;
+  }
   document.querySelector("#tituloModalConfig").textContent = `Editar ${CONFIG_META[configAberta].titulo}`;
   els.formConfigItem.reset();
   renderConfigModal();
@@ -397,8 +443,8 @@ function salvarItemProcesso(event) {
 
   form.reset();
   salvarEstado();
-  abrirDetalheProcesso(processo.id);
   renderizarTudo();
+  abrirDetalheProcesso(processo.id);
 }
 
 function concluirPrazo(event) {
@@ -432,6 +478,7 @@ function aplicarMascara(event) {
     const tipo = input.closest("form")?.querySelector("[name='tipoDocumento']")?.value || inferirTipoDocumento(input.value);
     input.value = formatarDocumento(input.value, tipo);
   }
+  if (input.name === "representanteCpf") input.value = formatarDocumento(input.value, "CPF");
   if (input.name === "whatsapp" || input.name === "telefone") input.value = formatarTelefone(input.value);
 }
 
@@ -439,6 +486,23 @@ function atualizarMascaraDocumento(event) {
   if (event.target.name !== "tipoDocumento") return;
   const input = event.target.closest("form")?.querySelector("[name='documento']");
   if (input) input.value = formatarDocumento(input.value, event.target.value);
+  atualizarCamposClientePorTipo();
+}
+
+function atualizarCamposClientePorTipo() {
+  const tipo = els.formCliente?.tipoDocumento?.value || "CPF";
+  const pessoaJuridica = tipo === "CNPJ";
+  const labelNome = document.querySelector("#labelNomeCliente");
+  const labelDocumento = document.querySelector("#labelDocumentoCliente");
+  const labelDomicilio = document.querySelector("#labelDomicilioCliente");
+  const inputDocumento = els.formCliente?.querySelector("[name='documento']");
+  if (labelNome) labelNome.textContent = pessoaJuridica ? "Razão social" : "Nome completo";
+  if (labelDocumento) labelDocumento.textContent = pessoaJuridica ? "CNPJ" : "CPF";
+  if (labelDomicilio) labelDomicilio.textContent = pessoaJuridica ? "Sede" : "Domicílio";
+  if (inputDocumento) inputDocumento.placeholder = pessoaJuridica ? "00.000.000/0000-00" : "000.000.000-00";
+  els.formCliente?.querySelectorAll("[data-pessoa]").forEach((campo) => {
+    campo.classList.toggle("is-hidden", campo.dataset.pessoa === "pf" ? pessoaJuridica : !pessoaJuridica);
+  });
 }
 
 function alternarModoClientes() {
@@ -466,8 +530,7 @@ function trocarView(view) {
   };
 
   els.viewTitle.textContent = labels[view] || "Painel";
-  els.btnNovoTexto.textContent = view === "clientes" ? "Novo cliente" : "Novo processo";
-  els.btnNovo.classList.toggle("is-hidden", view === "configuracoes" || view === "agenda" || !temAcesso(view));
+  atualizarAcoesTopo(view);
 
   document.querySelectorAll(".view").forEach((section) => {
     section.classList.toggle("is-visible", section.id === `view-${view}`);
@@ -476,6 +539,21 @@ function trocarView(view) {
     button.classList.toggle("is-active", button.dataset.view === view);
   });
   renderizarTudo();
+}
+
+function atualizarAcoesTopo(view = viewAtual) {
+  const mostrarBusca = ["processos", "clientes", "financeiro"].includes(view);
+  els.topSearchBox.classList.toggle("is-hidden", !mostrarBusca);
+  els.btnNovo.classList.toggle("is-hidden", view !== "processos");
+  els.btnForceUpdateTop.classList.add("is-hidden");
+  els.btnNovoTexto.textContent = "Novo processo";
+
+  const placeholders = {
+    processos: "Buscar cliente, processo...",
+    clientes: "Buscar cliente pelo nome...",
+    financeiro: "Buscar cliente pelo nome..."
+  };
+  els.busca.placeholder = placeholders[view] || "Buscar";
 }
 
 function renderizarTudo() {
@@ -556,7 +634,15 @@ function renderClientes() {
   container.className = state.clienteModo === "lista" ? "client-list" : "client-grid";
 
   if (state.clienteModo === "lista") {
-    container.innerHTML = vazioOu(clientes, cardClienteLinha);
+    container.innerHTML = clientes.length
+      ? `<div class="client-row client-head">
+          <span>Cliente</span>
+          <span>Contato</span>
+          <span>Casos</span>
+          <span>Próximo prazo</span>
+          <span>Cadastro</span>
+        </div>${clientes.map(cardClienteLinha).join("")}`
+      : vazioOu(clientes, cardClienteLinha);
     vincularAberturaCliente();
     return;
   }
@@ -656,7 +742,7 @@ function cardEvento(evento) {
 }
 
 function renderFinanceiro() {
-  const lista = filtrarProcessos();
+  const lista = filtrarProcessosFinanceiro();
   const total = soma(lista, "honorarios");
   const recebido = soma(lista, "recebido");
   const pendente = total - recebido;
@@ -675,6 +761,11 @@ function renderFinanceiro() {
         <td>${moeda(processo.honorarios)}</td>
         <td>${moeda(processo.recebido)}</td>
         <td>${moeda((processo.honorarios || 0) - (processo.recebido || 0))}</td>
+        <td>
+          <button class="ghost-button table-action" type="button" data-mark-paid="${processo.id}">
+            Marcar recebido
+          </button>
+        </td>
       </tr>
     `;
   });
@@ -696,7 +787,7 @@ function renderConfiguracoes() {
   document.querySelector("#settingsLists").innerHTML = Object.entries(CONFIG_META).map(([chave, meta]) => `
     <button class="config-card" type="button" data-open-config="${chave}">
       <span>${meta.titulo}</span>
-      <strong>${state.configs[chave].length}</strong>
+      <strong>${chave === "avancadas" ? "URL" : state.configs[chave].length}</strong>
       <small>${meta.descricao}</small>
     </button>
   `).join("");
@@ -732,6 +823,8 @@ function abrirDetalheProcesso(id) {
 
   const cliente = obterCliente(processo.clienteId);
   const responsavel = obterUsuario(processo.responsavelId);
+  const tipoDocumento = cliente?.tipoDocumento || inferirTipoDocumento(cliente?.documento || cliente?.cpf || "");
+  const saldoHonorarios = Math.max(0, (processo.honorarios || 0) - (processo.recebido || 0));
   document.querySelector("#detalheTitulo").textContent = processo.numero;
   els.detalheConteudo.innerHTML = `
     <div class="process-detail">
@@ -740,27 +833,34 @@ function abrirDetalheProcesso(id) {
           <p class="eyebrow">Cliente</p>
           <h3>${escapeHtml(cliente?.nome || "Cliente não informado")}</h3>
           <div class="detail-chips">
-            <span><strong>Documento</strong>${escapeHtml(cliente?.documento || cliente?.cpf || "")}</span>
+            <span><strong>${escapeHtml(tipoDocumento || "CPF/CNPJ")}</strong>${escapeHtml(cliente?.documento || cliente?.cpf || "")}</span>
             <span><strong>Whatsapp</strong>${escapeHtml(cliente?.whatsapp || "Não informado")}</span>
-            <span><strong>Domicílio</strong>${escapeHtml(cliente?.domicilio || "Não informado")}</span>
+            <span><strong>${tipoDocumento === "CNPJ" ? "Sede" : "Domicílio"}</strong>${escapeHtml(cliente?.domicilio || "Não informado")}</span>
           </div>
         </div>
         ${badgeStatus(processo.status)}
       </section>
 
-      <div class="detail-grid">
-        <section>
+      <section class="detail-finance">
+        <span><strong>${moeda(processo.honorarios)}</strong><small>Honorários contratados</small></span>
+        <span><strong>${moeda(processo.recebido)}</strong><small>Recebido</small></span>
+        <span><strong>${moeda(saldoHonorarios)}</strong><small>Pendente</small></span>
+        <button class="ghost-button" type="button" data-mark-paid="${processo.id}">Marcar honorário recebido</button>
+      </section>
+
+      <div class="detail-board">
+        <section class="detail-panel detail-main">
           <h3>Dados do processo</h3>
           <dl>
             <dt>Área</dt><dd>${escapeHtml(processo.area)}</dd>
-            <dt>Órgão</dt><dd>${escapeHtml(processo.orgao)}</dd>
+            <dt>Vara/Fórum</dt><dd>${escapeHtml(processo.orgao)}</dd>
             <dt>Responsável</dt><dd>${escapeHtml(responsavel?.nome || "")}</dd>
-            <dt>Honorários</dt><dd>${moeda(processo.honorarios)}</dd>
+            <dt>Próximo prazo</dt><dd>${dataCurta(processo.prazo)}</dd>
           </dl>
           <p>${escapeHtml(processo.resumo || "Sem resumo cadastrado.")}</p>
         </section>
 
-        <section>
+        <section class="detail-panel detail-form-card">
           <h3>Novo prazo</h3>
           <form class="stack-form" data-detail-form="prazo">
             <input name="data" type="date" required>
@@ -771,7 +871,16 @@ function abrirDetalheProcesso(id) {
           </form>
         </section>
 
-        <section>
+        <section class="detail-panel detail-form-card">
+          <h3>Nova movimentação</h3>
+          <form class="stack-form" data-detail-form="movimentacao">
+            <input name="data" type="date" required value="${hojeIso()}">
+            <textarea name="descricao" rows="4" required placeholder="Descrição da movimentação"></textarea>
+            <button class="primary-button" type="submit">Adicionar movimentação</button>
+          </form>
+        </section>
+
+        <section class="detail-panel">
           <h3>Prazos</h3>
           <div class="mini-list">
             ${ordenarPorData(processo.prazos).map((prazo) => {
@@ -790,16 +899,7 @@ function abrirDetalheProcesso(id) {
           </div>
         </section>
 
-        <section>
-          <h3>Nova movimentação</h3>
-          <form class="stack-form" data-detail-form="movimentacao">
-            <input name="data" type="date" required value="${hojeIso()}">
-            <textarea name="descricao" rows="4" required placeholder="Descrição da movimentação"></textarea>
-            <button class="primary-button" type="submit">Adicionar movimentação</button>
-          </form>
-        </section>
-
-        <section class="span-2">
+        <section class="detail-panel detail-movements">
           <h3>Movimentações</h3>
           <div class="timeline-list">
             ${ordenarPorData(processo.movimentacoes).reverse().map((mov) => `
@@ -814,7 +914,7 @@ function abrirDetalheProcesso(id) {
     </div>
   `;
 
-  els.modalDetalhe.showModal();
+  if (!els.modalDetalhe.open) els.modalDetalhe.showModal();
 }
 
 function renderPermissoesUsuario(permissoes) {
@@ -824,6 +924,72 @@ function renderPermissoesUsuario(permissoes) {
       <span>${aba.label}</span>
     </label>
   `).join("");
+}
+
+function prepararAutocompleteCliente() {
+  els.processoClienteBusca.value = "";
+  els.processoClienteId.value = "";
+  els.clienteSugestoes.innerHTML = "";
+  els.clienteSugestoes.classList.remove("is-open");
+}
+
+function renderSugestoesCliente() {
+  const termo = normalizar(els.processoClienteBusca.value);
+  els.processoClienteId.value = "";
+  const clientes = state.clientes
+    .filter((cliente) => !termo || normalizar(cliente.nome).includes(termo))
+    .slice(0, 8);
+
+  els.clienteSugestoes.innerHTML = clientes.map((cliente) => `
+    <button type="button" data-pick-client="${cliente.id}">
+      <strong>${escapeHtml(cliente.nome)}</strong>
+      <span>${escapeHtml(cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || ""))}: ${escapeHtml(cliente.documento || cliente.cpf || "")}</span>
+    </button>
+  `).join("") || `<p>Nenhum cliente encontrado.</p>`;
+  els.clienteSugestoes.classList.add("is-open");
+}
+
+function selecionarClienteSugerido(event) {
+  const opcao = event.target.closest("[data-pick-client]");
+  if (!opcao) {
+    if (!event.target.closest(".autocomplete-field")) els.clienteSugestoes?.classList.remove("is-open");
+    return;
+  }
+  const cliente = obterCliente(opcao.dataset.pickClient);
+  if (!cliente) return;
+  els.processoClienteBusca.value = cliente.nome;
+  els.processoClienteId.value = cliente.id;
+  els.clienteSugestoes.classList.remove("is-open");
+}
+
+function marcarHonorarioRecebido(event) {
+  const botao = event.target.closest("[data-mark-paid]");
+  if (!botao) return;
+  event.preventDefault();
+  const processo = obterProcesso(botao.dataset.markPaid);
+  if (!processo) return;
+  processo.recebido = Number(processo.honorarios || 0);
+  salvarEstado();
+  renderizarTudo();
+  if (processoAbertoId === processo.id) abrirDetalheProcesso(processo.id);
+}
+
+function abrirModalAvancadas() {
+  els.formAvancadas.googleScriptUrl.value = state.avancadas?.googleScriptUrl || "";
+  els.formAvancadas.observacoesTecnicas.value = state.avancadas?.observacoesTecnicas || "";
+  els.modalAvancadas.showModal();
+}
+
+function salvarAvancadas(event) {
+  event.preventDefault();
+  const dados = Object.fromEntries(new FormData(els.formAvancadas));
+  state.avancadas = {
+    googleScriptUrl: dados.googleScriptUrl.trim(),
+    observacoesTecnicas: dados.observacoesTecnicas.trim()
+  };
+  salvarEstado();
+  els.modalAvancadas.close();
+  renderConfiguracoes();
 }
 
 function vincularAberturaCliente() {
@@ -840,20 +1006,7 @@ function vincularAberturaProcesso() {
 
 function filtrarClientes() {
   const termo = normalizar(els.busca.value);
-  return state.clientes.filter((cliente) => {
-    const texto = normalizar([
-      cliente.nome,
-      cliente.documento,
-      cliente.cpf,
-      cliente.email,
-      cliente.whatsapp,
-      cliente.estadoCivil,
-      cliente.profissao,
-      cliente.domicilio,
-      cliente.observacoes
-    ].join(" "));
-    return !termo || texto.includes(termo);
-  });
+  return state.clientes.filter((cliente) => !termo || normalizar(cliente.nome).includes(termo));
 }
 
 function ordenarClientes(clientes) {
@@ -886,6 +1039,14 @@ function filtrarProcessos() {
   });
 }
 
+function filtrarProcessosFinanceiro() {
+  const termo = normalizar(els.busca.value);
+  return state.processos.filter((processo) => {
+    const cliente = obterCliente(processo.clienteId);
+    return !termo || normalizar(cliente?.nome || "").includes(termo);
+  });
+}
+
 function eventosAgenda() {
   return state.processos.flatMap((processo) => {
     const cliente = obterCliente(processo.clienteId);
@@ -910,7 +1071,6 @@ function popularFiltros() {
 }
 
 function popularSelectsProcesso() {
-  preencherSelect(document.querySelector("#processoCliente"), state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome })));
   preencherSelect(document.querySelector("#processoArea"), state.configs.areas.map(opcao));
   preencherSelect(document.querySelector("#processoStatus"), state.configs.status.map(opcao));
   preencherSelect(document.querySelector("#processoOrgao"), state.configs.orgaos.map(opcao));
@@ -955,6 +1115,20 @@ function aplicarTema() {
   document.body.dataset.theme = state.tema || "classico";
 }
 
+function escolherTema(event) {
+  const botao = event.target.closest("[data-theme]");
+  if (!botao) return;
+  state.tema = botao.dataset.theme;
+  salvarEstado();
+  aplicarTema();
+  renderConfiguracoes();
+}
+
+function forcarAtualizacao() {
+  const separador = window.location.href.includes("?") ? "&" : "?";
+  window.location.href = `${window.location.href.split("#")[0]}${separador}v=${Date.now()}`;
+}
+
 function aplicarSidebar() {
   document.body.classList.toggle("sidebar-collapsed", !!state.sidebarRecolhida);
   els.sidebarToggle.textContent = state.sidebarRecolhida ? "›" : "‹";
@@ -992,15 +1166,37 @@ function carregarEstado() {
   }
 }
 
+function migrarTextoParaPb(valor = "") {
+  return String(valor)
+    .replaceAll("Fortaleza/CE", "João Pessoa/PB")
+    .replaceAll("Maracanaú/CE", "Cabedelo/PB")
+    .replaceAll("Ceará", "Paraíba")
+    .replaceAll("Fortaleza", "João Pessoa")
+    .replaceAll("Fórum Clóvis Beviláqua", "Fórum Cível Des. Mário Moacyr Porto")
+    .replaceAll("TRT 7ª Região", "TRT 13ª Região")
+    .replaceAll("8.06", "8.15")
+    .replaceAll("5.07", "5.13")
+    .replaceAll("(85)", "(83)")
+    .replaceAll("OAB/CE", "OAB/PB");
+}
+
 function normalizarEstado(raw) {
+  raw = raw || {};
   const padrao = criarEstadoPadrao();
   const estado = { ...padrao, ...raw };
+  const orgaosSalvos = raw.configs?.orgaos || [...(raw.configs?.varas || []), ...(raw.configs?.foruns || [])];
   estado.configs = {
     status: raw.configs?.status || padrao.configs.status,
     areas: raw.configs?.areas || padrao.configs.areas,
-    orgaos: raw.configs?.orgaos || [...(raw.configs?.varas || []), ...(raw.configs?.foruns || [])] || padrao.configs.orgaos
+    orgaos: orgaosSalvos.length ? orgaosSalvos.map(migrarTextoParaPb) : padrao.configs.orgaos
   };
   if (!estado.configs.orgaos.length) estado.configs.orgaos = padrao.configs.orgaos;
+  estado.configs.status = estado.configs.status.map(migrarTextoParaPb);
+  estado.configs.areas = estado.configs.areas.map(migrarTextoParaPb);
+  estado.avancadas = {
+    googleScriptUrl: raw.avancadas?.googleScriptUrl || "",
+    observacoesTecnicas: raw.avancadas?.observacoesTecnicas || ""
+  };
   estado.clienteModo = estado.clienteModo || "cards";
   estado.clienteOrdenacao = estado.clienteOrdenacao || "nome";
   estado.sidebarRecolhida = !!estado.sidebarRecolhida;
@@ -1010,8 +1206,8 @@ function normalizarEstado(raw) {
     email: usuario.email || "",
     senha: usuario.senha || "1234",
     cargo: usuario.cargo || "",
-    telefone: formatarTelefone(usuario.telefone || ""),
-    oab: usuario.oab || "",
+    telefone: formatarTelefone(migrarTextoParaPb(usuario.telefone || "")),
+    oab: migrarTextoParaPb(usuario.oab || ""),
     permissoes: usuario.permissoes?.length ? usuario.permissoes : permissoesPadrao()
   }));
   estado.clientes = (estado.clientes || []).map((cliente) => ({
@@ -1022,13 +1218,22 @@ function normalizarEstado(raw) {
     documento: formatarDocumento(cliente.documento || cliente.cpf || "", cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || "")),
     cpf: formatarDocumento(cliente.documento || cliente.cpf || "", cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || "")),
     email: cliente.email || "",
-    whatsapp: formatarTelefone(cliente.whatsapp || ""),
+    whatsapp: formatarTelefone(migrarTextoParaPb(cliente.whatsapp || "")),
     estadoCivil: cliente.estadoCivil || "",
     profissao: cliente.profissao || "",
-    domicilio: cliente.domicilio || "",
+    nacionalidade: cliente.nacionalidade || "Brasileiro(a)",
+    rg: cliente.rg || "",
+    nascimento: cliente.nascimento || "",
+    nomeFantasia: cliente.nomeFantasia || "",
+    inscricaoEstadual: cliente.inscricaoEstadual || "",
+    representante: cliente.representante || "",
+    representanteCpf: formatarDocumento(cliente.representanteCpf || "", "CPF"),
+    representanteCargo: cliente.representanteCargo || "",
+    domicilio: migrarTextoParaPb(cliente.domicilio || ""),
     observacoes: cliente.observacoes || ""
   }));
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
+  estado.usuarioAtivoId = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
   salvarEstadoNormalizado(estado);
   return estado;
 }
@@ -1038,48 +1243,48 @@ function normalizarProcesso(processo, estado) {
   if (!clienteId && processo.cliente) {
     let cliente = estado.clientes.find((item) => item.nome === processo.cliente);
     if (!cliente) {
-      cliente = { id: uid(), criadoEm: hojeIso(), nome: processo.cliente, tipoDocumento: inferirTipoDocumento(processo.documento || ""), documento: formatarDocumento(processo.documento || "", inferirTipoDocumento(processo.documento || "")), cpf: processo.documento || "", email: "", whatsapp: "", estadoCivil: "", profissao: "", domicilio: "", observacoes: "" };
+      cliente = { id: uid(), criadoEm: hojeIso(), nome: processo.cliente, tipoDocumento: inferirTipoDocumento(processo.documento || ""), documento: formatarDocumento(processo.documento || "", inferirTipoDocumento(processo.documento || "")), cpf: processo.documento || "", email: "", whatsapp: "", estadoCivil: "", profissao: "", nacionalidade: "Brasileiro(a)", rg: "", nascimento: "", nomeFantasia: "", inscricaoEstadual: "", representante: "", representanteCpf: "", representanteCargo: "", domicilio: "", observacoes: "" };
       estado.clientes.push(cliente);
     }
     clienteId = cliente.id;
   }
   const responsavelId = processo.responsavelId || estado.usuarios.find((u) => u.nome === processo.responsavel)?.id || estado.usuarios[0]?.id || "";
-  const orgao = processo.orgao || [processo.vara, processo.forum].filter(Boolean).join(" · ") || estado.configs.orgaos[0];
+  const orgao = migrarTextoParaPb(processo.orgao || [processo.vara, processo.forum].filter(Boolean).join(" · ") || estado.configs.orgaos[0]);
   const prazos = (processo.prazos?.length ? processo.prazos : [{ id: uid(), data: processo.prazo || hojeIso(), tipo: "Prazo", descricao: "Prazo principal", concluido: false }]).map((prazo) => ({
     id: prazo.id || uid(),
     data: prazo.data || hojeIso(),
     tipo: prazo.tipo || "Prazo",
-    descricao: prazo.descricao || "",
+    descricao: migrarTextoParaPb(prazo.descricao || ""),
     responsavelId: prazo.responsavelId || responsavelId,
     concluido: !!prazo.concluido
   }));
   return {
     id: processo.id || uid(),
-    numero: processo.numero || "",
+    numero: migrarTextoParaPb(processo.numero || ""),
     clienteId,
-    area: processo.area || estado.configs.areas[0],
-    status: processo.status || estado.configs.status[0],
+    area: migrarTextoParaPb(processo.area || estado.configs.areas[0]),
+    status: migrarTextoParaPb(processo.status || estado.configs.status[0]),
     orgao,
     prazo: processo.prazo || proximoPrazoLista(prazos),
     responsavelId,
     honorarios: Number(processo.honorarios || 0),
     recebido: Number(processo.recebido || 0),
-    resumo: processo.resumo || "",
+    resumo: migrarTextoParaPb(processo.resumo || ""),
     prazos,
-    movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), descricao: "Registro importado da versão anterior." }]).map((mov) => ({ id: mov.id || uid(), data: mov.data || hojeIso(), descricao: mov.descricao || "" }))
+    movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), descricao: "Registro importado da versão anterior." }]).map((mov) => ({ id: mov.id || uid(), data: mov.data || hojeIso(), descricao: migrarTextoParaPb(mov.descricao || "") }))
   };
 }
 
 function criarEstadoPadrao() {
   const usuarios = [
-    { id: uid(), nome: "Letícia Ramos", email: "leticia@sradvocacia.com", senha: "1234", cargo: "Advogada", telefone: "(85) 99999-1000", oab: "OAB/CE 00000", permissoes: permissoesPadrao() },
-    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com", senha: "1234", cargo: "Advogado", telefone: "(85) 99999-2000", oab: "OAB/CE 00001", permissoes: ["dashboard", "processos", "clientes", "agenda", "financeiro"] }
+    { id: uid(), nome: "Letícia Ramos", email: "leticia@sradvocacia.com", senha: "1234", cargo: "Advogada", telefone: "(83) 99999-1000", oab: "OAB/PB 00000", permissoes: permissoesPadrao() },
+    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com", senha: "1234", cargo: "Advogado", telefone: "(83) 99999-2000", oab: "OAB/PB 00001", permissoes: ["dashboard", "processos", "clientes", "agenda", "financeiro"] }
   ];
   const clientes = [
-    { id: uid(), criadoEm: "2026-05-01", nome: "Mariana Azevedo", tipoDocumento: "CPF", documento: "184.552.930-10", cpf: "184.552.930-10", email: "mariana@email.com", whatsapp: "(85) 99991-1030", estadoCivil: "Casado(a)", profissao: "Arquiteta", domicilio: "Fortaleza/CE", observacoes: "Prefere contato por Whatsapp no fim da tarde." },
-    { id: uid(), criadoEm: "2026-04-20", nome: "Nobre Serviços LTDA", tipoDocumento: "CNPJ", documento: "22.981.440/0001-70", cpf: "22.981.440/0001-70", email: "juridico@nobre.com", whatsapp: "(85) 98822-4410", estadoCivil: "", profissao: "Pessoa jurídica", domicilio: "Fortaleza/CE", observacoes: "Cliente empresarial com demandas trabalhistas recorrentes." },
-    { id: uid(), criadoEm: "2026-04-12", nome: "Paulo Henrique Sales", tipoDocumento: "CPF", documento: "039.118.260-54", cpf: "039.118.260-54", email: "paulo@email.com", whatsapp: "(85) 99777-2600", estadoCivil: "Solteiro(a)", profissao: "Engenheiro", domicilio: "Maracanaú/CE", observacoes: "Solicita relatórios mensais do caso." },
-    { id: uid(), criadoEm: "2026-05-08", nome: "Clínica Aurora", tipoDocumento: "CNPJ", documento: "31.550.020/0001-88", cpf: "31.550.020/0001-88", email: "financeiro@aurora.com", whatsapp: "(85) 98888-0201", estadoCivil: "", profissao: "Pessoa jurídica", domicilio: "Fortaleza/CE", observacoes: "Enviar boletos para o financeiro." }
+    { id: uid(), criadoEm: "2026-05-01", nome: "Mariana Azevedo", tipoDocumento: "CPF", documento: "184.552.930-10", cpf: "184.552.930-10", email: "mariana@email.com", whatsapp: "(83) 99991-1030", estadoCivil: "Casado(a)", profissao: "Arquiteta", nacionalidade: "Brasileira", rg: "3.245.810 SSP/PB", nascimento: "1988-08-14", domicilio: "João Pessoa/PB", observacoes: "Prefere contato por Whatsapp no fim da tarde." },
+    { id: uid(), criadoEm: "2026-04-20", nome: "Nobre Serviços LTDA", tipoDocumento: "CNPJ", documento: "22.981.440/0001-70", cpf: "22.981.440/0001-70", email: "juridico@nobre.com", whatsapp: "(83) 98822-4410", estadoCivil: "", profissao: "Pessoa jurídica", nomeFantasia: "Nobre Serviços", inscricaoEstadual: "16.000.000-0", representante: "Roberto Nobre", representanteCpf: "487.321.990-00", representanteCargo: "Sócio-administrador", domicilio: "João Pessoa/PB", observacoes: "Cliente empresarial com demandas trabalhistas recorrentes." },
+    { id: uid(), criadoEm: "2026-04-12", nome: "Paulo Henrique Sales", tipoDocumento: "CPF", documento: "039.118.260-54", cpf: "039.118.260-54", email: "paulo@email.com", whatsapp: "(83) 99777-2600", estadoCivil: "Solteiro(a)", profissao: "Engenheiro", nacionalidade: "Brasileiro", rg: "2.998.441 SSP/PB", nascimento: "1991-03-22", domicilio: "Cabedelo/PB", observacoes: "Solicita relatórios mensais do caso." },
+    { id: uid(), criadoEm: "2026-05-08", nome: "Clínica Aurora", tipoDocumento: "CNPJ", documento: "31.550.020/0001-88", cpf: "31.550.020/0001-88", email: "financeiro@aurora.com", whatsapp: "(83) 98888-0201", estadoCivil: "", profissao: "Pessoa jurídica", nomeFantasia: "Aurora Saúde", inscricaoEstadual: "16.111.000-0", representante: "Ana Beatriz Lima", representanteCpf: "612.340.880-20", representanteCargo: "Diretora", domicilio: "João Pessoa/PB", observacoes: "Enviar boletos para o financeiro." }
   ];
   return {
     usuarioAtivoId: null,
@@ -1087,22 +1292,26 @@ function criarEstadoPadrao() {
     clienteModo: "cards",
     clienteOrdenacao: "nome",
     sidebarRecolhida: false,
+    avancadas: {
+      googleScriptUrl: "",
+      observacoesTecnicas: ""
+    },
     usuarios,
     configs: {
       status: ["Ativo", "Aguardando audiência", "Recurso", "Suspenso", "Encerrado"],
       areas: ["Cível", "Trabalhista", "Família", "Empresarial", "Previdenciário"],
-      orgaos: ["1ª Vara Cível de Fortaleza", "2ª Vara Empresarial de Fortaleza", "3ª Vara de Família de Fortaleza", "12ª Vara do Trabalho de Fortaleza", "Fórum Clóvis Beviláqua", "TRT 7ª Região", "Justiça Federal do Ceará"]
+      orgaos: ["1ª Vara Cível de João Pessoa", "2ª Vara Empresarial de João Pessoa", "3ª Vara de Família de João Pessoa", "12ª Vara do Trabalho de João Pessoa", "Fórum Cível Des. Mário Moacyr Porto", "TRT 13ª Região", "Justiça Federal da Paraíba"]
     },
     clientes,
     processos: [
-      processoPadrao("0804126-31.2026.8.06.0001", clientes[0].id, "Família", "Aguardando audiência", "3ª Vara de Família de Fortaleza", "2026-05-22", usuarios[0].id, 6200, 3200, "Ação de guarda com pedido de regulamentação de convivência.", [
+      processoPadrao("0804126-31.2026.8.15.2001", clientes[0].id, "Família", "Aguardando audiência", "3ª Vara de Família de João Pessoa", "2026-05-22", usuarios[0].id, 6200, 3200, "Ação de guarda com pedido de regulamentação de convivência.", [
         { data: "2026-05-22", tipo: "Audiência", descricao: "Audiência de conciliação.", responsavelId: usuarios[0].id },
         { data: "2026-05-29", tipo: "Manifestação", descricao: "Juntar documentos complementares.", responsavelId: usuarios[0].id }
       ]),
-      processoPadrao("0009824-78.2025.5.07.0012", clientes[1].id, "Trabalhista", "Ativo", "12ª Vara do Trabalho de Fortaleza", "2026-05-27", usuarios[1].id, 9800, 6800, "Defesa em reclamação trabalhista com perícia técnica designada.", [
+      processoPadrao("0009824-78.2025.5.13.0012", clientes[1].id, "Trabalhista", "Ativo", "12ª Vara do Trabalho de João Pessoa", "2026-05-27", usuarios[1].id, 9800, 6800, "Defesa em reclamação trabalhista com perícia técnica designada.", [
         { data: "2026-05-27", tipo: "Perícia", descricao: "Acompanhar perícia técnica.", responsavelId: usuarios[1].id }
       ]),
-      processoPadrao("3001142-59.2026.8.06.0117", clientes[2].id, "Cível", "Recurso", "1ª Vara Cível de Fortaleza", "2026-06-02", usuarios[0].id, 7500, 7500, "Apelação em ação indenizatória por vício em imóvel.", [
+      processoPadrao("3001142-59.2026.8.15.2001", clientes[2].id, "Cível", "Recurso", "1ª Vara Cível de João Pessoa", "2026-06-02", usuarios[0].id, 7500, 7500, "Apelação em ação indenizatória por vício em imóvel.", [
         { data: "2026-06-02", tipo: "Contrarrazões", descricao: "Protocolar contrarrazões.", responsavelId: usuarios[0].id }
       ])
     ]
@@ -1131,11 +1340,11 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
 }
 
 function salvarEstado() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
 }
 
 function salvarEstadoNormalizado(estado) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(estado));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...estado, usuarioAtivoId: null }));
 }
 
 function obterCliente(id) {
