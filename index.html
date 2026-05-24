@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.5">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.5">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.5">
+  <link rel="stylesheet" href="style.css?v=1.0.5">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.4</small>
+        <small>Versão 1.0.5</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -41,7 +41,6 @@
           <span class="brand-mark" id="usuarioInicial" aria-hidden="true">L</span>
           <span class="brand-copy">
             <strong>SR Advocacia</strong>
-            <span>Gestão Jurídica</span>
           </span>
           <span class="brand-caret" aria-hidden="true">⌄</span>
         </button>
@@ -70,6 +69,10 @@
           <span class="nav-icon" aria-hidden="true">▦</span>
           <span>Painel</span>
         </button>
+        <button class="nav-item" type="button" data-view="atendimentos">
+          <span class="nav-icon emoji-theme pencil-icon" aria-hidden="true">✏︎</span>
+          <span>Atendimentos</span>
+        </button>
         <button class="nav-item" type="button" data-view="processos">
           <span class="nav-icon" aria-hidden="true">§</span>
           <span>Processos</span>
@@ -77,10 +80,6 @@
         <button class="nav-item" type="button" data-view="clientes">
           <span class="nav-icon" aria-hidden="true">◉</span>
           <span>Clientes</span>
-        </button>
-        <button class="nav-item" type="button" data-view="atendimentos">
-          <span class="nav-icon emoji-theme pencil-icon" aria-hidden="true">✏︎</span>
-          <span>Atendimentos</span>
         </button>
         <button class="nav-item" type="button" data-view="agenda">
           <span class="nav-icon emoji-theme" aria-hidden="true">📅︎</span>
@@ -188,14 +187,14 @@
       </section>
 
       <section class="view" id="view-atendimentos" aria-labelledby="viewTitle">
-        <div class="attendance-layout">
-          <section class="panel attendance-editor-panel">
+        <div class="attendance-layout is-list-mode" id="attendanceLayout">
+          <section class="panel attendance-editor-panel is-hidden" id="attendanceEditorPanel">
             <div class="panel-header">
               <div>
                 <h2>Registro de atendimento</h2>
                 <p>Rascunho automático, versões anteriores e conversão em processo</p>
               </div>
-              <button class="ghost-button" type="button" id="btnNovoAtendimento">Novo atendimento</button>
+              <button class="ghost-button" type="button" id="btnExpandirAtendimento">Expandir</button>
             </div>
             <form id="formAtendimento" class="attendance-form">
               <input type="hidden" name="id">
@@ -216,6 +215,17 @@
                   <span>Data</span>
                   <input name="data" type="datetime-local" id="atendimentoData" required>
                 </label>
+                <label>
+                  <span>Agendar</span>
+                  <select name="agendar" id="atendimentoAgendar">
+                    <option value="nao">Não colocar na agenda</option>
+                    <option value="sim">Colocar na agenda</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Data na agenda</span>
+                  <input name="agendadoEm" type="datetime-local" id="atendimentoAgendadoEm">
+                </label>
                 <label class="span-2">
                   <span>Assunto</span>
                   <input name="assunto" id="atendimentoAssunto" required placeholder="Ex.: reunião inicial, retorno, análise de documentos">
@@ -223,10 +233,19 @@
               </div>
               <div class="editor-shell">
                 <div class="editor-toolbar" id="editorToolbar">
-                  <button type="button" data-editor-command="bold" title="Negrito"><strong>B</strong></button>
-                  <button type="button" data-editor-command="underline" title="Sublinhar"><u>U</u></button>
-                  <button type="button" data-editor-command="insertUnorderedList" title="Marcadores">•</button>
-                  <button type="button" data-editor-command="backColor" data-editor-value="#fff0b8" title="Destacar">HL</button>
+                  <button type="button" data-editor-command="bold" title="Negrito">N</button>
+                  <button type="button" data-editor-command="italic" title="Itálico">I</button>
+                  <button type="button" data-editor-command="underline" title="Sublinhar">S</button>
+                  <button type="button" data-editor-command="justifyLeft" title="Alinhar à esquerda">≡</button>
+                  <button type="button" data-editor-command="justifyCenter" title="Centralizar">☰</button>
+                  <button type="button" data-editor-command="justifyFull" title="Justificar">▤</button>
+                  <button type="button" data-editor-command="insertUnorderedList" title="Lista com marcadores">•</button>
+                  <button type="button" data-editor-command="insertOrderedList" data-list-style="decimal" title="Lista numerada">1.</button>
+                  <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-alpha" title="Lista A B C">A.</button>
+                  <button type="button" data-editor-command="insertOrderedList" data-list-style="lower-alpha" title="Lista a b c">a.</button>
+                  <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-roman" title="Lista I II III">I.</button>
+                  <button type="button" data-editor-command="insertOrderedList" data-list-style="lower-roman" title="Lista i ii iii">i.</button>
+                  <button type="button" class="highlight-tool" data-editor-command="backColor" data-editor-value="#fff0b8" title="Destacar">A</button>
                   <button type="button" data-editor-command="fontSize" data-editor-value="3" title="Letra normal">A</button>
                   <button type="button" data-editor-command="fontSize" data-editor-value="5" title="Aumentar letra">A+</button>
                 </div>
@@ -244,10 +263,12 @@
           <aside class="panel attendance-side">
             <div class="panel-header">
               <div>
-                <h2>Atendimentos salvos</h2>
-                <p>Histórico por cliente e processo</p>
+                <h2>Atendimentos</h2>
+                <p>Rascunhos, agendados e registros ainda não convertidos em processo</p>
               </div>
+              <button class="ghost-button" type="button" id="btnToggleArquivados">Arquivados</button>
             </div>
+            <div id="rascunhoAtendimento" class="draft-list"></div>
             <div id="listaAtendimentos" class="attendance-list"></div>
             <div id="versoesAtendimento" class="version-list"></div>
           </aside>
@@ -358,6 +379,7 @@
 
   <dialog id="modalProcesso">
     <form method="dialog" class="modal-card" id="formProcesso">
+      <input type="hidden" name="atendimentoOrigemId">
       <div class="modal-header">
         <div>
           <p class="eyebrow">Cadastro</p>
@@ -416,6 +438,40 @@
       <div class="modal-actions">
         <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
         <button class="primary-button" value="default" type="submit">Salvar processo</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalContrato">
+    <form method="dialog" class="modal-card finance-modal" id="formContrato">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Honorários</p>
+          <h2>Contrato e desconto</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label class="span-2">
+          <span>Processo</span>
+          <select name="processoId" id="contratoProcesso" required></select>
+        </label>
+        <label>
+          <span>Valor contratado</span>
+          <input name="honorarios" type="number" min="0" step="0.01" placeholder="0,00" required>
+        </label>
+        <label>
+          <span>Desconto</span>
+          <input name="descontoHonorarios" type="number" min="0" step="0.01" placeholder="0,00">
+        </label>
+        <label class="span-2">
+          <span>Observação</span>
+          <textarea name="observacaoHonorarios" rows="3" placeholder="Motivo do desconto, ajuste contratual, condição combinada..."></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="primary-button" type="submit">Salvar contrato</button>
       </div>
     </form>
   </dialog>
@@ -633,10 +689,6 @@
           <input name="valor" type="number" min="0" step="0.01" placeholder="0,00">
         </label>
         <label>
-          <span>Desconto concedido</span>
-          <input name="desconto" type="number" min="0" step="0.01" placeholder="0,00">
-        </label>
-        <label>
           <span>Data do recebimento</span>
           <input name="data" type="date" required>
         </label>
@@ -659,10 +711,6 @@
             <option value="emitida">Nota fiscal já emitida</option>
           </select>
         </label>
-        <label>
-          <span>Motivo do desconto</span>
-          <input name="motivoDesconto" placeholder="Ex.: acordo, cortesia, ajuste contratual">
-        </label>
         <label class="span-2">
           <span>Observações</span>
           <textarea name="observacoes" rows="3" placeholder="Comprovante, parcela, observação interna..."></textarea>
@@ -678,6 +726,19 @@
     </form>
   </dialog>
 
+  <dialog id="modalTema">
+    <div class="modal-card config-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Aparência</p>
+          <h2>Temas clássicos</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="theme-modal-grid" id="temaModalGrid"></div>
+    </div>
+  </dialog>
+
   <dialog id="modalDetalheProcesso">
     <div class="modal-card detail-modal">
       <div class="modal-header">
@@ -691,6 +752,6 @@
     </div>
   </dialog>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=1.0.5"></script>
 </body>
 </html>
