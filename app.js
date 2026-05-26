@@ -1,7 +1,8 @@
-const APP_VERSION = "1.0.5";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v105";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.6";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v106";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
+const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 
 const ABAS = [
   { id: "dashboard", label: "Painel" },
@@ -27,6 +28,7 @@ let configAberta = null;
 let atendimentoAbertoId = "";
 let atendimentoAlterado = false;
 let atendimentoModoEditor = false;
+let selecaoAtendimento = null;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -67,6 +69,7 @@ const els = {
   processoClienteId: document.querySelector("#processoClienteId"),
   clienteSugestoes: document.querySelector("#clienteSugestoes"),
   formCliente: document.querySelector("#formCliente"),
+  clientePainel: document.querySelector("#clientePainel"),
   formUsuario: document.querySelector("#formUsuarioDetalhe"),
   formConfigItem: document.querySelector("#formConfigItem"),
   formAvancadas: document.querySelector("#formAvancadas"),
@@ -174,9 +177,14 @@ function configurarEventos() {
   els.formAtendimento.addEventListener("input", marcarAtendimentoAlterado);
   els.formAtendimento.addEventListener("change", marcarAtendimentoAlterado);
   els.atendimentoEditor.addEventListener("input", marcarAtendimentoAlterado);
+  els.atendimentoEditor.addEventListener("keyup", guardarSelecaoEditor);
+  els.atendimentoEditor.addEventListener("mouseup", guardarSelecaoEditor);
+  els.atendimentoEditor.addEventListener("focus", guardarSelecaoEditor);
   els.atendimentoEditor.addEventListener("keydown", atalhosEditorAtendimento);
   els.atendimentoAgendar.addEventListener("change", sincronizarAgendaAtendimento);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
+  document.querySelector("#editorToolbar").addEventListener("change", aplicarSelecaoEditor);
+  document.addEventListener("selectionchange", guardarSelecaoEditor);
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -266,6 +274,7 @@ function abrirModalCliente(id = "") {
   els.formCliente.domicilio.value = cliente?.domicilio || "";
   els.formCliente.observacoes.value = cliente?.observacoes || "";
   atualizarCamposClientePorTipo();
+  renderPainelCliente(cliente);
   els.modalCliente.showModal();
 }
 
@@ -774,6 +783,55 @@ function cardClienteLinha(cliente) {
   `;
 }
 
+function renderPainelCliente(cliente) {
+  if (!els.clientePainel) return;
+  els.clientePainel.classList.toggle("is-hidden", !cliente);
+  if (!cliente) {
+    els.clientePainel.innerHTML = "";
+    return;
+  }
+
+  const processos = state.processos
+    .filter((processo) => processo.clienteId === cliente.id)
+    .sort((a, b) => compararDatas(a.prazo, b.prazo));
+  const atendimentos = state.atendimentos
+    .filter((atendimento) => atendimento.clienteId === cliente.id)
+    .sort((a, b) => new Date(b.atualizadoEm || b.data) - new Date(a.atualizadoEm || a.data));
+
+  els.clientePainel.innerHTML = `
+    <div class="client-overview-header">
+      <div>
+        <span class="eyebrow">Painel do cliente</span>
+        <strong>${processos.length} processo${processos.length !== 1 ? "s" : ""} · ${atendimentos.length} atendimento${atendimentos.length !== 1 ? "s" : ""}</strong>
+      </div>
+      <small>${escapeHtml(cliente.nome)}</small>
+    </div>
+    <div class="client-overview-grid">
+      <section class="client-overview-block">
+        <h3>Processos</h3>
+        ${processos.length ? processos.map((processo) => `
+          <button class="client-overview-item" type="button" data-open-client-process="${processo.id}">
+            <strong>${escapeHtml(processo.numero || "Processo sem número")}</strong>
+            <span>${escapeHtml(processo.area)} · ${escapeHtml(processo.status)}</span>
+            <small>Prazo: ${dataCurta(processo.prazo)} · ${moeda(valorHonorariosLiquido(processo))}</small>
+          </button>
+        `).join("") : `<div class="client-overview-item"><span>Nenhum processo cadastrado para este cliente.</span></div>`}
+      </section>
+      <section class="client-overview-block">
+        <h3>Atendimentos</h3>
+        ${atendimentos.length ? atendimentos.map((atendimento) => `
+          <button class="client-overview-item" type="button" data-open-client-attendance="${atendimento.id}">
+            <strong>${rotuloAtendimento(atendimento)} ${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
+            <span>${escapeHtml(atendimento.area || "Área não informada")} · ${dataHoraCurta(atendimento.data)}</span>
+            <small>${atendimento.processoId ? "Vinculado a processo" : "Sem processo vinculado"}</small>
+          </button>
+        `).join("") : `<div class="client-overview-item"><span>Nenhum atendimento cadastrado para este cliente.</span></div>`}
+      </section>
+    </div>
+  `;
+  vincularPainelCliente();
+}
+
 function renderAtendimentos() {
   preencherSelect(els.atendimentoCliente, state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome })));
   preencherSelect(els.atendimentoArea, state.configs.areas.map(opcao));
@@ -788,7 +846,7 @@ function renderAtendimentos() {
     const agenda = atendimento.agendadoEm ? ` · Agendado: ${dataHoraCurta(atendimento.agendadoEm)}` : "";
     return `
       <article class="attendance-item clickable ${atendimento.arquivado ? "is-archived" : ""}" data-open-attendance="${atendimento.id}">
-        <strong>${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
+        <strong><span class="attendance-number">${rotuloAtendimento(atendimento)}</span>${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
         <span>${escapeHtml(cliente?.nome || "Cliente não informado")} · ${escapeHtml(atendimento.area)} · ${dataHoraCurta(atendimento.data)}</span>
         <small>Responsável: ${escapeHtml(responsavel?.nome || "")}${agenda}</small>
         <div class="attendance-actions">
@@ -812,7 +870,7 @@ function renderRascunhoAtendimento() {
   els.rascunhoAtendimento.innerHTML = rascunho?.conteudoHtml?.trim() ? `
     <button class="draft-card" type="button" data-open-draft>
       <span>Rascunho automático</span>
-      <strong>${escapeHtml(rascunho.assunto || "Atendimento em rascunho")}</strong>
+      <strong>${rascunho.id ? `<span class="attendance-number">${rotuloAtendimento(rascunho)}</span>` : ""}${escapeHtml(rascunho.assunto || "Atendimento em rascunho")}</strong>
       <small>${escapeHtml(obterCliente(rascunho.clienteId)?.nome || "Cliente não informado")} · salvo ${dataHoraCurta(rascunho.salvoEm || rascunho.atualizadoEm || rascunho.data)}</small>
     </button>
   ` : "";
@@ -860,7 +918,11 @@ function salvarRascunhoAtendimento(forcar = false) {
   if (!atendimentoModoEditor) return;
   if (!forcar && (viewAtual !== "atendimentos" || !atendimentoAlterado)) return;
   const rascunho = dadosAtendimentoDoFormulario();
+  if (!rascunho.id && atendimentoAbertoId) rascunho.id = atendimentoAbertoId;
+  if (forcar && rascunho.id && !atendimentoAlterado) return;
   if (!conteudoAtendimentoPreenchido(rascunho.conteudoHtml)) return;
+  const atendimentoExistente = rascunho.id ? state.atendimentos.find((item) => item.id === rascunho.id) : null;
+  if (atendimentoExistente?.numero) rascunho.numero = atendimentoExistente.numero;
   state.rascunhoAtendimento = manterTresVersoes(state.rascunhoAtendimento || {}, rascunho);
   Object.assign(state.rascunhoAtendimento, rascunho, { salvoEm: new Date().toISOString() });
   atendimentoAlterado = false;
@@ -876,21 +938,24 @@ function salvarAtendimento(event) {
     alert("Digite as anotações do atendimento antes de salvar.");
     return;
   }
-  let atendimento = dados.id ? state.atendimentos.find((item) => item.id === dados.id) : null;
+  const idReferencia = dados.id || atendimentoAbertoId || state.rascunhoAtendimento?.id || "";
+  let atendimento = idReferencia ? state.atendimentos.find((item) => item.id === idReferencia) : null;
+  if (!dados.id && atendimento) dados.id = atendimento.id;
   if (!atendimento) {
-    atendimento = { id: uid(), criadoEm: hojeIso(), versoes: [] };
+    atendimento = { id: uid(), numero: proximoNumeroAtendimento(), criadoEm: hojeIso(), versoes: [] };
+    dados.id = atendimento.id;
     state.atendimentos.unshift(atendimento);
   } else {
     atendimento.versoes = manterTresVersoes(atendimento, { ...atendimento }).versoes;
   }
-  Object.assign(atendimento, dados, { arquivado: !!atendimento.arquivado, atualizadoEm: new Date().toISOString() });
+  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, atualizadoEm: new Date().toISOString() });
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
   atendimentoAlterado = false;
   salvarEstado();
   renderAtendimentos();
-  els.atendimentoStatus.textContent = "Atendimento salvo";
+  els.atendimentoStatus.textContent = `Atendimento ${rotuloAtendimento(atendimento)} salvo`;
 }
 
 function dadosAtendimentoDoFormulario() {
@@ -938,7 +1003,7 @@ function preencherFormularioAtendimento(atendimento) {
   els.formAtendimento.assunto.value = atendimento.assunto || "";
   els.atendimentoEditor.innerHTML = atendimento.conteudoHtml || modeloAtendimento();
   atendimentoAlterado = false;
-  els.atendimentoStatus.textContent = atendimento.id ? "Atendimento carregado" : "Rascunho carregado";
+  els.atendimentoStatus.textContent = atendimento.id ? `Atendimento ${rotuloAtendimento(atendimento)} carregado` : "Rascunho carregado";
   renderVersoesAtendimento(atendimento);
   renderPainelEditorAtendimento();
 }
@@ -983,10 +1048,82 @@ function aplicarComandoEditor(event) {
   marcarAtendimentoAlterado();
 }
 
+function aplicarSelecaoEditor(event) {
+  const seletor = event.target.closest("[data-editor-select]");
+  if (!seletor) return;
+  const tipo = seletor.dataset.editorSelect;
+  const valor = seletor.value;
+
+  if (tipo === "align" && valor) {
+    executarComandoEditor(valor);
+  }
+
+  if (tipo === "list" && valor) {
+    const [comando, listStyle = ""] = valor.split(":");
+    executarComandoEditor(comando, null, listStyle);
+    seletor.value = "";
+  }
+
+  if (tipo === "highlight" && valor) {
+    document.querySelector(".editor-highlight-group")?.style.setProperty("--highlight-color", valor);
+    executarComandoEditor("backColor", valor);
+  }
+
+  marcarAtendimentoAlterado();
+}
+
 function executarComandoEditor(comando, valor = null, listStyle = "") {
-  els.atendimentoEditor.focus();
+  restaurarSelecaoEditor();
+  if (comando === "toggleHighlight") {
+    alternarDestaqueTexto(valor || corDestaqueSelecionada());
+    guardarSelecaoEditor();
+    return;
+  }
   document.execCommand(comando, false, valor);
   if (listStyle) aplicarEstiloListaOrdenada(listStyle);
+  guardarSelecaoEditor();
+}
+
+function guardarSelecaoEditor() {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount || !els.atendimentoEditor) return;
+  const range = selection.getRangeAt(0);
+  const origem = range.commonAncestorContainer;
+  if (origem === els.atendimentoEditor || els.atendimentoEditor.contains(origem)) {
+    selecaoAtendimento = range.cloneRange();
+  }
+}
+
+function restaurarSelecaoEditor() {
+  els.atendimentoEditor.focus();
+  if (!selecaoAtendimento) return;
+  const selection = window.getSelection?.();
+  if (!selection) return;
+  selection.removeAllRanges();
+  selection.addRange(selecaoAtendimento);
+}
+
+function corDestaqueSelecionada() {
+  return document.querySelector('[data-editor-select="highlight"]')?.value || DEFAULT_HIGHLIGHT_COLOR;
+}
+
+function alternarDestaqueTexto(cor) {
+  document.execCommand("backColor", false, selecaoTemDestaque() ? "transparent" : cor);
+}
+
+function selecaoTemDestaque() {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount) return false;
+  let node = selection.anchorNode;
+  if (node?.nodeType === Node.TEXT_NODE) node = node.parentElement;
+  while (node && node !== els.atendimentoEditor) {
+    const background = window.getComputedStyle(node).backgroundColor;
+    if (background && background !== "rgba(0, 0, 0, 0)" && background !== "transparent" && background !== "rgb(255, 255, 255)") {
+      return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
 }
 
 function aplicarEstiloListaOrdenada(listStyle) {
@@ -1006,10 +1143,10 @@ function atalhosEditorAtendimento(event) {
   }
   if (!(event.ctrlKey || event.metaKey)) return;
   const tecla = event.key.toLowerCase();
-  const comandos = { n: "bold", s: "underline", i: "italic", d: "backColor" };
+  const comandos = { n: "bold", s: "underline", i: "italic", d: "toggleHighlight" };
   if (!comandos[tecla]) return;
   event.preventDefault();
-  executarComandoEditor(comandos[tecla], tecla === "d" ? "#fff0b8" : null);
+  executarComandoEditor(comandos[tecla], tecla === "d" ? corDestaqueSelecionada() : null);
   marcarAtendimentoAlterado();
 }
 
@@ -1146,13 +1283,14 @@ function cardEvento(evento) {
 
 function renderFinanceiro() {
   const lista = filtrarProcessosFinanceiro();
-  const total = soma(lista, "honorarios");
+  const total = lista.reduce((valor, processo) => valor + valorHonorariosLiquido(processo), 0);
+  const bruto = soma(lista, "honorarios");
   const recebido = soma(lista, "recebido");
   const descontos = lista.reduce((valor, processo) => valor + totalDescontos(processo), 0);
   const pendente = lista.reduce((valor, processo) => valor + saldoHonorarios(processo), 0);
 
   document.querySelector("#financeiroResumo").innerHTML = [
-    financeCard("Contratado", total, descontos ? `Bruto contratado · ${moeda(descontos)} em descontos` : "Total em honorários", "data-open-contract"),
+    financeCard("Contratado", total, descontos ? `Valor com desconto · bruto ${moeda(bruto)}` : "Total em honorários"),
     financeCard("Recebido", recebido, "Entradas registradas"),
     financeCard("Pendente", pendente, "Valores a receber")
   ].join("");
@@ -1164,9 +1302,9 @@ function renderFinanceiro() {
         <td>${escapeHtml(cliente?.nome || "")}<br><span class="case-meta">${escapeHtml(processo.numero)}</span></td>
         <td>
           <button class="inline-link" type="button" data-open-contract="${processo.id}">
-            ${moeda(processo.honorarios)}
+            ${moeda(valorHonorariosLiquido(processo))}
           </button>
-          ${totalDescontos(processo) ? `<br><span class="case-meta">Desconto: ${moeda(totalDescontos(processo))}</span>` : ""}
+          ${totalDescontos(processo) ? `<br><span class="case-meta">Bruto: ${moeda(processo.honorarios)} · desconto: ${moeda(totalDescontos(processo))}</span>` : ""}
         </td>
         <td>${moeda(processo.recebido)}</td>
         <td>${moeda(saldoHonorarios(processo))}</td>
@@ -1229,6 +1367,7 @@ function renderModalTemas() {
       <span class="swatch ${tema.amostra}"></span>
       <strong>${tema.nome}</strong>
       <small>${tema.descricao}</small>
+      <span class="theme-icon-preview" aria-hidden="true"><span>✎</span><span>◷</span><span>$</span></span>
     </button>
   `).join("");
 }
@@ -1271,7 +1410,7 @@ function abrirDetalheProcesso(id) {
       </section>
 
       <section class="detail-finance">
-        <span><strong>${moeda(processo.honorarios)}</strong><small>Honorários contratados${totalDescontos(processo) ? ` · desconto ${moeda(totalDescontos(processo))}` : ""}</small></span>
+        <span><strong>${moeda(valorHonorariosLiquido(processo))}</strong><small>Honorários com desconto${totalDescontos(processo) ? ` · bruto ${moeda(processo.honorarios)}` : ""}</small></span>
         <span><strong>${moeda(processo.recebido)}</strong><small>Recebido</small></span>
         <span><strong>${moeda(saldoAtual)}</strong><small>Pendente</small></span>
         <button class="ghost-button" type="button" data-open-contract="${processo.id}">Contrato/desconto</button>
@@ -1471,11 +1610,11 @@ function abrirModalRecebimento(id) {
       <strong>${escapeHtml(cliente?.nome || "Cliente não informado")}</strong>
       <small>${escapeHtml(processo.numero)}</small>
     </article>
-    <article>
+    <button class="receipt-summary-card clickable" type="button" data-open-contract="${processo.id}" title="Abrir contrato/desconto deste processo">
       <span>Contratado</span>
-      <strong>${moeda(processo.honorarios)}</strong>
-      <small>Honorários do processo</small>
-    </article>
+      <strong>${moeda(valorHonorariosLiquido(processo))}</strong>
+      <small>Honorários do processo${totalDescontos(processo) ? ` · bruto ${moeda(processo.honorarios)}` : ""}</small>
+    </button>
     <article>
       <span>Recebido</span>
       <strong>${moeda(processo.recebido)}</strong>
@@ -1593,6 +1732,21 @@ function salvarAvancadas(event) {
 function vincularAberturaCliente() {
   document.querySelectorAll("[data-open-client-id]").forEach((elemento) => {
     elemento.onclick = () => abrirModalCliente(elemento.dataset.openClientId);
+  });
+}
+
+function vincularPainelCliente() {
+  document.querySelectorAll("[data-open-client-process]").forEach((elemento) => {
+    elemento.onclick = () => {
+      els.modalCliente.close();
+      abrirDetalheProcesso(elemento.dataset.openClientProcess);
+    };
+  });
+  document.querySelectorAll("[data-open-client-attendance]").forEach((elemento) => {
+    elemento.onclick = () => {
+      els.modalCliente.close();
+      abrirAtendimentoPorId(elemento.dataset.openClientAttendance);
+    };
   });
 }
 
@@ -1887,7 +2041,11 @@ function normalizarEstado(raw) {
     observacoes: cliente.observacoes || ""
   }));
   estado.atendimentos = (estado.atendimentos || []).map(normalizarAtendimento);
+  normalizarNumeracaoAtendimentos(estado.atendimentos);
   estado.rascunhoAtendimento = raw.rascunhoAtendimento ? normalizarAtendimento(raw.rascunhoAtendimento) : null;
+  if (estado.rascunhoAtendimento?.id && !estado.rascunhoAtendimento.numero) {
+    estado.rascunhoAtendimento.numero = estado.atendimentos.find((atendimento) => atendimento.id === estado.rascunhoAtendimento.id)?.numero || "";
+  }
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
   estado.usuarioAtivoId = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
   salvarEstadoNormalizado(estado);
@@ -1897,6 +2055,7 @@ function normalizarEstado(raw) {
 function normalizarAtendimento(atendimento = {}) {
   return {
     id: atendimento.id || "",
+    numero: atendimento.numero || "",
     criadoEm: atendimento.criadoEm || hojeIso(),
     salvoEm: atendimento.salvoEm || "",
     atualizadoEm: atendimento.atualizadoEm || atendimento.salvoEm || "",
@@ -1917,6 +2076,16 @@ function normalizarAtendimento(atendimento = {}) {
       salvoEm: versao.salvoEm || hojeIso()
     }))
   };
+}
+
+function normalizarNumeracaoAtendimentos(atendimentos) {
+  let maiorNumero = Math.max(0, ...atendimentos.map((atendimento) => Number(atendimento.numero || 0)).filter((numero) => Number.isFinite(numero)));
+  atendimentos.forEach((atendimento) => {
+    if (!atendimento.numero) {
+      maiorNumero += 1;
+      atendimento.numero = String(maiorNumero).padStart(4, "0");
+    }
+  });
 }
 
 function normalizarProcesso(processo, estado) {
@@ -2076,6 +2245,17 @@ function atendimentoAberto() {
   return state.atendimentos.find((atendimento) => atendimento.id === atendimentoAbertoId) || state.rascunhoAtendimento;
 }
 
+function rotuloAtendimento(atendimento = {}) {
+  return atendimento.numero ? `#${String(atendimento.numero).padStart(4, "0")}` : "#----";
+}
+
+function proximoNumeroAtendimento() {
+  const numeros = state.atendimentos
+    .map((atendimento) => Number(atendimento.numero || 0))
+    .filter((numero) => Number.isFinite(numero));
+  return String(Math.max(0, ...numeros) + 1).padStart(4, "0");
+}
+
 function atendimentosDoProcesso(processo) {
   const vinculados = new Set(processo.atendimentos || []);
   return state.atendimentos
@@ -2123,8 +2303,12 @@ function recalcularRecebido(processo) {
   processo.recebido = soma(processo.recebimentos || [], "valor");
 }
 
+function valorHonorariosLiquido(processo) {
+  return Math.max(0, Number(processo.honorarios || 0) - totalDescontos(processo));
+}
+
 function saldoHonorarios(processo) {
-  return Math.max(0, Number(processo.honorarios || 0) - totalDescontos(processo) - Number(processo.recebido || 0));
+  return Math.max(0, valorHonorariosLiquido(processo) - Number(processo.recebido || 0));
 }
 
 function totalDescontos(processo) {

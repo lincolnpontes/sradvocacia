@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.5">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.5">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.5">
-  <link rel="stylesheet" href="style.css?v=1.0.5">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.6">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.6">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.6">
+  <link rel="stylesheet" href="style.css?v=1.0.6">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.5</small>
+        <small>Versão 1.0.6</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -70,7 +70,7 @@
           <span>Painel</span>
         </button>
         <button class="nav-item" type="button" data-view="atendimentos">
-          <span class="nav-icon emoji-theme pencil-icon" aria-hidden="true">✏︎</span>
+          <span class="nav-icon" aria-hidden="true">✎</span>
           <span>Atendimentos</span>
         </button>
         <button class="nav-item" type="button" data-view="processos">
@@ -82,11 +82,11 @@
           <span>Clientes</span>
         </button>
         <button class="nav-item" type="button" data-view="agenda">
-          <span class="nav-icon emoji-theme" aria-hidden="true">📅︎</span>
+          <span class="nav-icon" aria-hidden="true">◷</span>
           <span>Agenda</span>
         </button>
         <button class="nav-item" type="button" data-view="financeiro">
-          <span class="nav-icon emoji-theme" aria-hidden="true">💲︎</span>
+          <span class="nav-icon" aria-hidden="true">$</span>
           <span>Honorários</span>
         </button>
       </nav>
@@ -233,28 +233,49 @@
               </div>
               <div class="editor-shell">
                 <div class="editor-toolbar" id="editorToolbar">
-                  <button type="button" data-editor-command="bold" title="Negrito">N</button>
-                  <button type="button" data-editor-command="italic" title="Itálico">I</button>
-                  <button type="button" data-editor-command="underline" title="Sublinhar">S</button>
-                  <button type="button" data-editor-command="justifyLeft" title="Alinhar à esquerda">≡</button>
-                  <button type="button" data-editor-command="justifyCenter" title="Centralizar">☰</button>
-                  <button type="button" data-editor-command="justifyFull" title="Justificar">▤</button>
-                  <button type="button" data-editor-command="insertUnorderedList" title="Lista com marcadores">•</button>
-                  <button type="button" data-editor-command="insertOrderedList" data-list-style="decimal" title="Lista numerada">1.</button>
-                  <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-alpha" title="Lista A B C">A.</button>
-                  <button type="button" data-editor-command="insertOrderedList" data-list-style="lower-alpha" title="Lista a b c">a.</button>
-                  <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-roman" title="Lista I II III">I.</button>
-                  <button type="button" data-editor-command="insertOrderedList" data-list-style="lower-roman" title="Lista i ii iii">i.</button>
-                  <button type="button" class="highlight-tool" data-editor-command="backColor" data-editor-value="#fff0b8" title="Destacar">A</button>
-                  <button type="button" data-editor-command="fontSize" data-editor-value="3" title="Letra normal">A</button>
-                  <button type="button" data-editor-command="fontSize" data-editor-value="5" title="Aumentar letra">A+</button>
+                  <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + N)" aria-label="Negrito">N</button>
+                  <button type="button" data-editor-command="italic" title="I -> Itálico (Ctrl + I)" aria-label="Itálico">I</button>
+                  <button type="button" data-editor-command="underline" title="S -> Sublinhar (Ctrl + S)" aria-label="Sublinhar">S</button>
+                  <label class="editor-select-wrap" title="Alinhamento do texto">
+                    <span class="sr-only">Alinhamento do texto</span>
+                    <select data-editor-select="align" aria-label="Alinhamento do texto">
+                      <option value="justifyLeft">À esquerda</option>
+                      <option value="justifyCenter">Centralizado</option>
+                      <option value="justifyRight">À direita</option>
+                      <option value="justifyFull">Justificado</option>
+                    </select>
+                  </label>
+                  <label class="editor-select-wrap" title="Tipo de lista">
+                    <span class="sr-only">Tipo de lista</span>
+                    <select data-editor-select="list" aria-label="Tipo de lista">
+                      <option value="">Lista</option>
+                      <option value="insertUnorderedList">• Marcadores</option>
+                      <option value="insertOrderedList:decimal">1. Numerada</option>
+                      <option value="insertOrderedList:upper-alpha">A. Letras maiúsculas</option>
+                      <option value="insertOrderedList:lower-alpha">a. Letras minúsculas</option>
+                      <option value="insertOrderedList:upper-roman">I. Romanos</option>
+                      <option value="insertOrderedList:lower-roman">i. Romanos minúsculos</option>
+                    </select>
+                  </label>
+                  <div class="editor-highlight-group">
+                    <button type="button" class="highlight-tool" data-editor-command="toggleHighlight" title="D -> Destacar texto (Ctrl + D)" aria-label="Destacar texto">A</button>
+                    <select data-editor-select="highlight" aria-label="Cor do destaque" title="Escolher cor do destaque">
+                      <option value="#fff0b8">Amarelo</option>
+                      <option value="#ccebd8">Verde</option>
+                      <option value="#d9e8ff">Azul</option>
+                      <option value="#ffd8d2">Rosa</option>
+                    </select>
+                  </div>
+                  <button type="button" data-editor-command="fontSize" data-editor-value="2" title="A- -> Letra menor" aria-label="Letra menor">A-</button>
+                  <button type="button" data-editor-command="fontSize" data-editor-value="3" title="A -> Letra normal" aria-label="Letra normal">A</button>
+                  <button type="button" data-editor-command="fontSize" data-editor-value="5" title="A+ -> Letra maior" aria-label="Letra maior">A+</button>
                 </div>
                 <div class="attendance-editor" id="atendimentoEditor" contenteditable="true" role="textbox" aria-label="Notas do atendimento"></div>
               </div>
               <div class="attendance-savebar">
                 <span id="atendimentoStatus">Rascunho pronto</span>
                 <div>
-                  <button class="ghost-button" type="button" id="btnAtendimentoProcesso">Transformar em processo</button>
+                  <button class="ghost-button warm-action" type="button" id="btnAtendimentoProcesso">Transformar em processo</button>
                   <button class="primary-button" type="submit">Salvar atendimento</button>
                 </div>
               </div>
@@ -486,6 +507,7 @@
         </div>
         <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
       </div>
+      <div class="client-overview is-hidden" id="clientePainel"></div>
       <div class="form-grid">
         <label>
           <span id="labelNomeCliente">Nome completo</span>
@@ -752,6 +774,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.5"></script>
+  <script src="app.js?v=1.0.6"></script>
 </body>
 </html>
