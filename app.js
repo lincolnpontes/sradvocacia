@@ -1,8 +1,9 @@
-const APP_VERSION = "1.0.6";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v106";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.7";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v107";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
+const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
 
 const ABAS = [
   { id: "dashboard", label: "Painel" },
@@ -81,6 +82,7 @@ const els = {
   atendimentoResponsavel: document.querySelector("#atendimentoResponsavel"),
   atendimentoData: document.querySelector("#atendimentoData"),
   atendimentoAgendar: document.querySelector("#atendimentoAgendar"),
+  atendimentoAgendaCampo: document.querySelector("#atendimentoAgendaCampo"),
   atendimentoAgendadoEm: document.querySelector("#atendimentoAgendadoEm"),
   atendimentoAssunto: document.querySelector("#atendimentoAssunto"),
   atendimentoEditor: document.querySelector("#atendimentoEditor"),
@@ -90,6 +92,9 @@ const els = {
   rascunhoAtendimento: document.querySelector("#rascunhoAtendimento"),
   listaAtendimentos: document.querySelector("#listaAtendimentos"),
   versoesAtendimento: document.querySelector("#versoesAtendimento"),
+  btnVersoesAtendimento: document.querySelector("#btnVersoesAtendimento"),
+  btnFecharAtendimento: document.querySelector("#btnFecharAtendimento"),
+  modalFecharAtendimento: document.querySelector("#modalFecharAtendimento"),
   contratoProcesso: document.querySelector("#contratoProcesso"),
   temaModalGrid: document.querySelector("#temaModalGrid"),
   detalheConteudo: document.querySelector("#detalheConteudo"),
@@ -102,6 +107,7 @@ const els = {
 iniciar();
 
 function iniciar() {
+  aplicarTamanhoPaginaAtendimento();
   aplicarTema();
   aplicarSidebar();
   popularLogin();
@@ -128,6 +134,8 @@ function configurarEventos() {
 
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".brand-wrap")) fecharMenuMarca();
+    if (!event.target.closest("#editorToolbar")) fecharMenusEditor();
+    if (!event.target.closest(".version-popover-wrap")) fecharVersoesAtendimento();
   });
   document.addEventListener("click", fecharDialogo);
   document.addEventListener("input", aplicarMascara);
@@ -183,8 +191,13 @@ function configurarEventos() {
   els.atendimentoEditor.addEventListener("keydown", atalhosEditorAtendimento);
   els.atendimentoAgendar.addEventListener("change", sincronizarAgendaAtendimento);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
-  document.querySelector("#editorToolbar").addEventListener("change", aplicarSelecaoEditor);
   document.addEventListener("selectionchange", guardarSelecaoEditor);
+  els.btnFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
+  els.btnVersoesAtendimento.addEventListener("click", alternarVersoesAtendimento);
+  els.versoesAtendimento.addEventListener("click", restaurarVersaoAtendimento);
+  document.querySelector("#btnAtendimentoCancelarFechar").addEventListener("click", () => els.modalFecharAtendimento.close());
+  document.querySelector("#btnAtendimentoSalvarSemFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(false));
+  document.querySelector("#btnAtendimentoSalvarEFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(true));
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -276,6 +289,12 @@ function abrirModalCliente(id = "") {
   atualizarCamposClientePorTipo();
   renderPainelCliente(cliente);
   els.modalCliente.showModal();
+}
+
+function aplicarTamanhoPaginaAtendimento() {
+  document.documentElement.style.setProperty("--attendance-page-width", ATTENDANCE_PAGE_SIZE.width);
+  document.documentElement.style.setProperty("--attendance-page-height", ATTENDANCE_PAGE_SIZE.height);
+  document.documentElement.style.setProperty("--attendance-page-mobile-height", ATTENDANCE_PAGE_SIZE.mobileHeight);
 }
 
 function abrirModalProcesso() {
@@ -733,7 +752,7 @@ function renderClientes() {
             <tr>
               <th>Cliente</th>
               <th>Contato</th>
-              <th>Casos</th>
+              <th>Casos/atend.</th>
               <th>Próximo prazo</th>
               <th>Cadastro</th>
             </tr>
@@ -755,7 +774,10 @@ function cardClienteCaixa(cliente) {
     <article class="client-card clickable" data-open-client-id="${cliente.id}">
       <div class="client-top">
         <strong>${escapeHtml(cliente.nome)}</strong>
-        <span class="badge">${stats.casos} caso${stats.casos !== 1 ? "s" : ""}</span>
+        <span class="client-badges">
+          <span class="badge">${stats.casos} caso${stats.casos !== 1 ? "s" : ""}</span>
+          <span class="badge gold">${pluralAtendimentos(stats.atendimentosAbertos)}</span>
+        </span>
       </div>
       <div class="client-meta">${escapeHtml(cliente.tipoDocumento || inferirTipoDocumento(cliente.documento))}: ${escapeHtml(cliente.documento || cliente.cpf || "")}</div>
       <div class="client-lines">
@@ -776,7 +798,7 @@ function cardClienteLinha(cliente) {
     <tr class="clickable" data-open-client-id="${cliente.id}">
       <td><strong>${escapeHtml(cliente.nome)}</strong><br><small>${escapeHtml(cliente.documento || cliente.cpf || "")}</small></td>
       <td>${escapeHtml(cliente.whatsapp || "-")}</td>
-      <td>${stats.casos} caso${stats.casos !== 1 ? "s" : ""}</td>
+      <td>${stats.casos} caso${stats.casos !== 1 ? "s" : ""}<br><small>${pluralAtendimentos(stats.atendimentosAbertos)}</small></td>
       <td>${stats.proximoPrazo ? dataCurta(stats.proximoPrazo) : "Sem prazo"}</td>
       <td>${dataCurta(cliente.criadoEm)}</td>
     </tr>
@@ -797,12 +819,13 @@ function renderPainelCliente(cliente) {
   const atendimentos = state.atendimentos
     .filter((atendimento) => atendimento.clienteId === cliente.id)
     .sort((a, b) => new Date(b.atualizadoEm || b.data) - new Date(a.atualizadoEm || a.data));
+  const atendimentosAbertos = atendimentos.filter((atendimento) => !atendimento.arquivado && !atendimento.processoId).length;
 
   els.clientePainel.innerHTML = `
     <div class="client-overview-header">
       <div>
         <span class="eyebrow">Painel do cliente</span>
-        <strong>${processos.length} processo${processos.length !== 1 ? "s" : ""} · ${atendimentos.length} atendimento${atendimentos.length !== 1 ? "s" : ""}</strong>
+        <strong>${processos.length} processo${processos.length !== 1 ? "s" : ""} · ${atendimentos.length} atendimento${atendimentos.length !== 1 ? "s" : ""} · ${pluralAtendimentos(atendimentosAbertos)} abertos</strong>
       </div>
       <small>${escapeHtml(cliente.nome)}</small>
     </div>
@@ -833,9 +856,17 @@ function renderPainelCliente(cliente) {
 }
 
 function renderAtendimentos() {
-  preencherSelect(els.atendimentoCliente, state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome })));
-  preencherSelect(els.atendimentoArea, state.configs.areas.map(opcao));
+  const valores = {
+    clienteId: els.atendimentoCliente.value,
+    area: els.atendimentoArea.value,
+    responsavelId: els.atendimentoResponsavel.value
+  };
+  preencherSelect(els.atendimentoCliente, [{ value: "", label: "Selecione" }, ...state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome }))]);
+  preencherSelect(els.atendimentoArea, [{ value: "", label: "Selecione" }, ...state.configs.areas.map(opcao)]);
   preencherSelect(els.atendimentoResponsavel, state.usuarios.map((usuario) => ({ value: usuario.id, label: usuario.nome })));
+  els.atendimentoCliente.value = state.clientes.some((cliente) => cliente.id === valores.clienteId) ? valores.clienteId : "";
+  els.atendimentoArea.value = state.configs.areas.includes(valores.area) ? valores.area : "";
+  if (state.usuarios.some((usuario) => usuario.id === valores.responsavelId)) els.atendimentoResponsavel.value = valores.responsavelId;
   document.querySelector("#btnToggleArquivados").textContent = state.atendimentoMostrarArquivados ? "Ver ativos" : "Arquivados";
   renderPainelEditorAtendimento();
   renderRascunhoAtendimento();
@@ -897,13 +928,14 @@ function novoAtendimento() {
   els.formAtendimento.reset();
   els.formAtendimento.elements.id.value = "";
   els.atendimentoData.value = agoraLocalInput();
-  els.atendimentoAgendar.value = "nao";
+  els.atendimentoCliente.value = "";
+  els.atendimentoArea.value = "";
+  els.atendimentoAgendar.checked = false;
   els.atendimentoAgendadoEm.value = "";
-  if (state.clientes[0]) els.atendimentoCliente.value = state.clientes[0].id;
-  if (state.configs.areas[0]) els.atendimentoArea.value = state.configs.areas[0];
   if (usuarioAtual()) els.atendimentoResponsavel.value = usuarioAtual().id;
-  els.atendimentoEditor.innerHTML = modeloAtendimento();
+  els.atendimentoEditor.innerHTML = "";
   els.atendimentoStatus.textContent = "Novo atendimento";
+  sincronizarAgendaAtendimento();
   renderVersoesAtendimento(null);
   renderPainelEditorAtendimento();
   els.atendimentoEditor.focus();
@@ -933,10 +965,18 @@ function salvarRascunhoAtendimento(forcar = false) {
 
 function salvarAtendimento(event) {
   event.preventDefault();
+  salvarAtendimentoAtual();
+}
+
+function salvarAtendimentoAtual({ fechar = false } = {}) {
   const dados = dadosAtendimentoDoFormulario();
+  if (!dados.clienteId || !dados.area || !dados.responsavelId || !dados.assunto) {
+    alert("Preencha cliente, área, responsável e assunto antes de salvar.");
+    return null;
+  }
   if (!conteudoAtendimentoPreenchido(dados.conteudoHtml)) {
     alert("Digite as anotações do atendimento antes de salvar.");
-    return;
+    return null;
   }
   const idReferencia = dados.id || atendimentoAbertoId || state.rascunhoAtendimento?.id || "";
   let atendimento = idReferencia ? state.atendimentos.find((item) => item.id === idReferencia) : null;
@@ -956,6 +996,43 @@ function salvarAtendimento(event) {
   salvarEstado();
   renderAtendimentos();
   els.atendimentoStatus.textContent = `Atendimento ${rotuloAtendimento(atendimento)} salvo`;
+  if (fechar) fecharEditorAtendimento();
+  return atendimento;
+}
+
+function solicitarFechamentoAtendimento() {
+  if (atendimentoPrecisaConfirmarFechamento()) {
+    els.modalFecharAtendimento.showModal();
+    return;
+  }
+  fecharEditorAtendimento();
+}
+
+function atendimentoPrecisaConfirmarFechamento() {
+  const dados = dadosAtendimentoDoFormulario();
+  const temDados = dados.clienteId || dados.area || dados.assunto || conteudoAtendimentoPreenchido(dados.conteudoHtml);
+  return atendimentoAlterado || (!dados.id && temDados);
+}
+
+function salvarAtendimentoPeloDialogo(fechar) {
+  const salvo = salvarAtendimentoAtual({ fechar });
+  if (!salvo) return;
+  els.modalFecharAtendimento.close();
+}
+
+function fecharEditorAtendimento() {
+  atendimentoModoEditor = false;
+  atendimentoAbertoId = "";
+  atendimentoAlterado = false;
+  selecaoAtendimento = null;
+  els.formAtendimento.reset();
+  els.formAtendimento.elements.id.value = "";
+  els.atendimentoEditor.innerHTML = "";
+  els.atendimentoStatus.textContent = "Rascunho pronto";
+  fecharVersoesAtendimento();
+  renderVersoesAtendimento(null);
+  sincronizarAgendaAtendimento();
+  renderPainelEditorAtendimento();
 }
 
 function dadosAtendimentoDoFormulario() {
@@ -966,8 +1043,8 @@ function dadosAtendimentoDoFormulario() {
     area: dados.area,
     responsavelId: dados.responsavelId,
     data: dados.data || agoraLocalInput(),
-    agendar: dados.agendar || "nao",
-    agendadoEm: dados.agendar === "sim" ? (dados.agendadoEm || dados.data || agoraLocalInput()) : "",
+    agendar: els.atendimentoAgendar.checked ? "sim" : "nao",
+    agendadoEm: els.atendimentoAgendar.checked ? (dados.agendadoEm || dados.data || agoraLocalInput()) : "",
     assunto: dados.assunto.trim(),
     conteudoHtml: els.atendimentoEditor.innerHTML
   };
@@ -998,7 +1075,7 @@ function preencherFormularioAtendimento(atendimento) {
   els.atendimentoArea.value = atendimento.area || state.configs.areas[0] || "";
   els.atendimentoResponsavel.value = atendimento.responsavelId || usuarioAtual()?.id || "";
   els.atendimentoData.value = atendimento.data || agoraLocalInput();
-  els.atendimentoAgendar.value = atendimento.agendadoEm ? "sim" : (atendimento.agendar || "nao");
+  els.atendimentoAgendar.checked = atendimento.agendadoEm ? true : (atendimento.agendar || "nao") === "sim";
   els.atendimentoAgendadoEm.value = atendimento.agendadoEm || "";
   els.formAtendimento.assunto.value = atendimento.assunto || "";
   els.atendimentoEditor.innerHTML = atendimento.conteudoHtml || modeloAtendimento();
@@ -1006,6 +1083,7 @@ function preencherFormularioAtendimento(atendimento) {
   els.atendimentoStatus.textContent = atendimento.id ? `Atendimento ${rotuloAtendimento(atendimento)} carregado` : "Rascunho carregado";
   renderVersoesAtendimento(atendimento);
   renderPainelEditorAtendimento();
+  sincronizarAgendaAtendimento();
 }
 
 function carregarRascunhoAtendimento() {
@@ -1015,15 +1093,49 @@ function carregarRascunhoAtendimento() {
 
 function renderVersoesAtendimento(atendimento) {
   const versoes = atendimento?.versoes || [];
+  els.btnVersoesAtendimento.classList.toggle("is-hidden", !versoes.length);
+  els.btnVersoesAtendimento.textContent = versoes.length ? `Últimas versões (${versoes.length})` : "Últimas versões";
+  fecharVersoesAtendimento();
   els.versoesAtendimento.innerHTML = versoes.length ? `
-    <h3>Últimas versões</h3>
-    ${versoes.map((versao) => `
+    ${versoes.map((versao, index) => `
       <article>
-        <strong>${escapeHtml(versao.assunto || "Versão anterior")}</strong>
-        <span>${dataHoraCurta(versao.salvoEm || versao.atualizadoEm || versao.data)}</span>
+        <div>
+          <strong>${escapeHtml(versao.assunto || "Versão anterior")}</strong>
+          <span>${dataHoraCurta(versao.salvoEm || versao.atualizadoEm || versao.data)}</span>
+        </div>
+        <button class="ghost-button table-action" type="button" data-restore-version="${index}">Restaurar</button>
       </article>
     `).join("")}
   ` : "";
+}
+
+function alternarVersoesAtendimento(event) {
+  event.preventDefault();
+  els.versoesAtendimento.classList.toggle("is-hidden");
+}
+
+function fecharVersoesAtendimento() {
+  els.versoesAtendimento.classList.add("is-hidden");
+}
+
+function restaurarVersaoAtendimento(event) {
+  const botao = event.target.closest("[data-restore-version]");
+  if (!botao) return;
+  const atendimento = atendimentoAberto();
+  const versao = atendimento?.versoes?.[Number(botao.dataset.restoreVersion)];
+  if (!versao) return;
+
+  const atual = dadosAtendimentoDoFormulario();
+  if (conteudoAtendimentoPreenchido(atual.conteudoHtml) && atendimento) {
+    atendimento.versoes = manterTresVersoes(atendimento, atual).versoes;
+  }
+
+  els.formAtendimento.assunto.value = versao.assunto || atual.assunto;
+  els.atendimentoEditor.innerHTML = versao.conteudoHtml || "";
+  atendimentoAlterado = true;
+  els.atendimentoStatus.textContent = "Versão restaurada em rascunho";
+  renderVersoesAtendimento(atendimento);
+  fecharVersoesAtendimento();
 }
 
 function manterTresVersoes(entidade, versao) {
@@ -1041,47 +1153,53 @@ function resumoVersaoAtendimento(item) {
 }
 
 function aplicarComandoEditor(event) {
+  const menu = event.target.closest("[data-editor-menu]");
+  if (menu) {
+    event.preventDefault();
+    alternarMenuEditor(menu.dataset.editorMenu);
+    return;
+  }
   const botao = event.target.closest("[data-editor-command]");
   if (!botao) return;
   event.preventDefault();
-  executarComandoEditor(botao.dataset.editorCommand, botao.dataset.editorValue || null, botao.dataset.listStyle || "");
+  const valor = botao.dataset.editorValue || null;
+  if (valor && botao.dataset.editorCommand === "backColor") atualizarCorDestaque(valor);
+  executarComandoEditor(botao.dataset.editorCommand, valor, botao.dataset.listStyle || "", botao.dataset.listType || "");
+  fecharMenusEditor();
   marcarAtendimentoAlterado();
 }
 
-function aplicarSelecaoEditor(event) {
-  const seletor = event.target.closest("[data-editor-select]");
-  if (!seletor) return;
-  const tipo = seletor.dataset.editorSelect;
-  const valor = seletor.value;
-
-  if (tipo === "align" && valor) {
-    executarComandoEditor(valor);
-  }
-
-  if (tipo === "list" && valor) {
-    const [comando, listStyle = ""] = valor.split(":");
-    executarComandoEditor(comando, null, listStyle);
-    seletor.value = "";
-  }
-
-  if (tipo === "highlight" && valor) {
-    document.querySelector(".editor-highlight-group")?.style.setProperty("--highlight-color", valor);
-    executarComandoEditor("backColor", valor);
-  }
-
-  marcarAtendimentoAlterado();
-}
-
-function executarComandoEditor(comando, valor = null, listStyle = "") {
+function executarComandoEditor(comando, valor = null, listStyle = "", listType = "") {
   restaurarSelecaoEditor();
   if (comando === "toggleHighlight") {
     alternarDestaqueTexto(valor || corDestaqueSelecionada());
     guardarSelecaoEditor();
     return;
   }
+  if (comando === "fontSizeStep") {
+    ajustarTamanhoFonte(Number(valor || 0));
+    guardarSelecaoEditor();
+    return;
+  }
   document.execCommand(comando, false, valor);
-  if (listStyle) aplicarEstiloListaOrdenada(listStyle);
+  if (listStyle) aplicarEstiloLista(listStyle, listType);
   guardarSelecaoEditor();
+}
+
+function alternarMenuEditor(nome) {
+  const grupoAlvo = document.querySelector(`[data-editor-menu="${nome}"]`)?.closest(".editor-dropdown");
+  const abrir = grupoAlvo && !grupoAlvo.classList.contains("is-open");
+  fecharMenusEditor();
+  if (abrir) grupoAlvo.classList.add("is-open");
+}
+
+function fecharMenusEditor() {
+  document.querySelectorAll(".editor-dropdown.is-open").forEach((grupo) => grupo.classList.remove("is-open"));
+}
+
+function atualizarCorDestaque(cor) {
+  document.querySelector(".editor-highlight-group")?.style.setProperty("--highlight-color", cor);
+  document.querySelector(".color-swatch.is-current")?.style.setProperty("--swatch-color", cor);
 }
 
 function guardarSelecaoEditor() {
@@ -1104,11 +1222,17 @@ function restaurarSelecaoEditor() {
 }
 
 function corDestaqueSelecionada() {
-  return document.querySelector('[data-editor-select="highlight"]')?.value || DEFAULT_HIGHLIGHT_COLOR;
+  return document.querySelector(".editor-highlight-group")?.style.getPropertyValue("--highlight-color") || DEFAULT_HIGHLIGHT_COLOR;
 }
 
 function alternarDestaqueTexto(cor) {
   document.execCommand("backColor", false, selecaoTemDestaque() ? "transparent" : cor);
+}
+
+function ajustarTamanhoFonte(delta) {
+  const atual = Number(document.queryCommandValue("fontSize")) || 3;
+  const proximo = Math.min(7, Math.max(1, atual + delta));
+  document.execCommand("fontSize", false, String(proximo));
 }
 
 function selecaoTemDestaque() {
@@ -1126,18 +1250,22 @@ function selecaoTemDestaque() {
   return false;
 }
 
-function aplicarEstiloListaOrdenada(listStyle) {
+function aplicarEstiloLista(listStyle, listType = "") {
   const selection = window.getSelection();
   const node = selection?.anchorNode;
   const elemento = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
-  const lista = elemento?.closest?.("ol");
+  const lista = elemento?.closest?.(listType || "ol, ul");
   if (lista) lista.style.listStyleType = listStyle;
 }
 
 function atalhosEditorAtendimento(event) {
   if (event.key === "Tab") {
     event.preventDefault();
-    executarComandoEditor(event.shiftKey ? "outdent" : "indent");
+    if (event.shiftKey) {
+      executarComandoEditor("outdent");
+    } else {
+      executarComandoEditor("insertHTML", "&nbsp;&nbsp;&nbsp;&nbsp;");
+    }
     marcarAtendimentoAlterado();
     return;
   }
@@ -1151,9 +1279,12 @@ function atalhosEditorAtendimento(event) {
 }
 
 function sincronizarAgendaAtendimento() {
-  if (els.atendimentoAgendar.value === "sim" && !els.atendimentoAgendadoEm.value) {
+  const ativo = els.atendimentoAgendar.checked;
+  els.atendimentoAgendaCampo.classList.toggle("is-hidden", !ativo);
+  if (ativo && !els.atendimentoAgendadoEm.value) {
     els.atendimentoAgendadoEm.value = els.atendimentoData.value || agoraLocalInput();
   }
+  if (!ativo) els.atendimentoAgendadoEm.value = "";
 }
 
 function alternarFocoAtendimento() {
@@ -1180,7 +1311,8 @@ function transformarAtendimentoEmProcesso() {
   const dados = dadosAtendimentoDoFormulario();
   let atendimento = dados.id ? state.atendimentos.find((item) => item.id === dados.id) : null;
   if (!atendimento || atendimentoAlterado) {
-    salvarAtendimento(new Event("submit"));
+    atendimento = salvarAtendimentoAtual();
+    if (!atendimento) return;
     atendimento = state.atendimentos.find((item) => item.id === atendimentoAbertoId);
   }
   if (!atendimento) return;
@@ -1350,9 +1482,11 @@ function renderConfiguracoes() {
 function temasDisponiveis() {
   return [
     { id: "classico", nome: "Clássico grafite", amostra: "charcoal", descricao: "Lateral grafite, fundo creme e ícones em creme escuro." },
-    { id: "vinho", nome: "Vinho clássico", amostra: "wine", descricao: "Lateral vinho, fundo claro e contraste sóbrio." },
+    { id: "vinho", nome: "Vinho clássico", amostra: "wine", descricao: "Lateral vinho com ícones dourados inspirados na logo." },
     { id: "marinho", nome: "Marinho", amostra: "navy", descricao: "Azul profundo com fundo frio e discreto." },
-    { id: "verde", nome: "Verde escritório", amostra: "green", descricao: "Verde fechado, fundo suave e leitura confortável." }
+    { id: "verde", nome: "Verde escritório", amostra: "green", descricao: "Verde fechado, fundo suave e leitura confortável." },
+    { id: "dourado", nome: "Dourado sóbrio", amostra: "gold", descricao: "Grafite aquecido, detalhes dourados e fundo elegante." },
+    { id: "petroleo", nome: "Petróleo claro", amostra: "teal", descricao: "Azul petróleo, verde suave e contraste calmo." }
   ];
 }
 
@@ -1794,7 +1928,12 @@ function ordenarClientes(clientes) {
 function estatisticasCliente(cliente) {
   const processos = state.processos.filter((processo) => processo.clienteId === cliente.id);
   const prazos = processos.flatMap((processo) => processo.prazos.filter((prazo) => !prazo.concluido).map((prazo) => prazo.data));
-  return { casos: processos.length, proximoPrazo: prazos.sort()[0] || "" };
+  const atendimentosAbertos = state.atendimentos.filter((atendimento) => atendimento.clienteId === cliente.id && !atendimento.arquivado && !atendimento.processoId).length;
+  return { casos: processos.length, proximoPrazo: prazos.sort()[0] || "", atendimentosAbertos };
+}
+
+function pluralAtendimentos(total) {
+  return `${total} atendimento${total !== 1 ? "s" : ""}`;
 }
 
 function filtrarProcessos() {
