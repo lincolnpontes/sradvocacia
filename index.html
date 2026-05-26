@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.6">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.6">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.6">
-  <link rel="stylesheet" href="style.css?v=1.0.6">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.7">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.7">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.7">
+  <link rel="stylesheet" href="style.css?v=1.0.7">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.6</small>
+        <small>Versão 1.0.7</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -189,16 +189,10 @@
       <section class="view" id="view-atendimentos" aria-labelledby="viewTitle">
         <div class="attendance-layout is-list-mode" id="attendanceLayout">
           <section class="panel attendance-editor-panel is-hidden" id="attendanceEditorPanel">
-            <div class="panel-header">
-              <div>
-                <h2>Registro de atendimento</h2>
-                <p>Rascunho automático, versões anteriores e conversão em processo</p>
-              </div>
-              <button class="ghost-button" type="button" id="btnExpandirAtendimento">Expandir</button>
-            </div>
+            <button class="ghost-button attendance-expand" type="button" id="btnExpandirAtendimento">Expandir</button>
             <form id="formAtendimento" class="attendance-form">
               <input type="hidden" name="id">
-              <div class="form-grid">
+              <div class="form-grid attendance-meta-grid">
                 <label>
                   <span>Cliente</span>
                   <select name="clienteId" id="atendimentoCliente" required></select>
@@ -215,18 +209,16 @@
                   <span>Data</span>
                   <input name="data" type="datetime-local" id="atendimentoData" required>
                 </label>
-                <label>
+                <label class="switch-field">
                   <span>Agendar</span>
-                  <select name="agendar" id="atendimentoAgendar">
-                    <option value="nao">Não colocar na agenda</option>
-                    <option value="sim">Colocar na agenda</option>
-                  </select>
+                  <input name="agendar" id="atendimentoAgendar" type="checkbox" value="sim">
+                  <span class="switch-track" aria-hidden="true"></span>
                 </label>
-                <label>
+                <label class="agenda-date-field is-hidden" id="atendimentoAgendaCampo">
                   <span>Data na agenda</span>
                   <input name="agendadoEm" type="datetime-local" id="atendimentoAgendadoEm">
                 </label>
-                <label class="span-2">
+                <label class="span-3">
                   <span>Assunto</span>
                   <input name="assunto" id="atendimentoAssunto" required placeholder="Ex.: reunião inicial, retorno, análise de documentos">
                 </label>
@@ -236,47 +228,67 @@
                   <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + N)" aria-label="Negrito">N</button>
                   <button type="button" data-editor-command="italic" title="I -> Itálico (Ctrl + I)" aria-label="Itálico">I</button>
                   <button type="button" data-editor-command="underline" title="S -> Sublinhar (Ctrl + S)" aria-label="Sublinhar">S</button>
-                  <label class="editor-select-wrap" title="Alinhamento do texto">
-                    <span class="sr-only">Alinhamento do texto</span>
-                    <select data-editor-select="align" aria-label="Alinhamento do texto">
-                      <option value="justifyLeft">À esquerda</option>
-                      <option value="justifyCenter">Centralizado</option>
-                      <option value="justifyRight">À direita</option>
-                      <option value="justifyFull">Justificado</option>
-                    </select>
-                  </label>
-                  <label class="editor-select-wrap" title="Tipo de lista">
-                    <span class="sr-only">Tipo de lista</span>
-                    <select data-editor-select="list" aria-label="Tipo de lista">
-                      <option value="">Lista</option>
-                      <option value="insertUnorderedList">• Marcadores</option>
-                      <option value="insertOrderedList:decimal">1. Numerada</option>
-                      <option value="insertOrderedList:upper-alpha">A. Letras maiúsculas</option>
-                      <option value="insertOrderedList:lower-alpha">a. Letras minúsculas</option>
-                      <option value="insertOrderedList:upper-roman">I. Romanos</option>
-                      <option value="insertOrderedList:lower-roman">i. Romanos minúsculos</option>
-                    </select>
-                  </label>
-                  <div class="editor-highlight-group">
-                    <button type="button" class="highlight-tool" data-editor-command="toggleHighlight" title="D -> Destacar texto (Ctrl + D)" aria-label="Destacar texto">A</button>
-                    <select data-editor-select="highlight" aria-label="Cor do destaque" title="Escolher cor do destaque">
-                      <option value="#fff0b8">Amarelo</option>
-                      <option value="#ccebd8">Verde</option>
-                      <option value="#d9e8ff">Azul</option>
-                      <option value="#ffd8d2">Rosa</option>
-                    </select>
+                  <div class="editor-dropdown">
+                    <button class="toolbar-icon-button" type="button" data-editor-menu="align" title="Alinhamento" aria-label="Alinhamento">
+                      <span class="align-lines align-left" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                      <span class="toolbar-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="editor-menu" data-editor-menu-panel="align">
+                      <button type="button" data-editor-command="justifyLeft" title="Alinhar à esquerda" aria-label="Alinhar à esquerda"><span class="align-lines align-left" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
+                      <button type="button" data-editor-command="justifyCenter" title="Centralizar" aria-label="Centralizar"><span class="align-lines align-center" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
+                      <button type="button" data-editor-command="justifyRight" title="Alinhar à direita" aria-label="Alinhar à direita"><span class="align-lines align-right" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
+                      <button type="button" data-editor-command="justifyFull" title="Justificar" aria-label="Justificar"><span class="align-lines align-justify" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
+                    </div>
                   </div>
-                  <button type="button" data-editor-command="fontSize" data-editor-value="2" title="A- -> Letra menor" aria-label="Letra menor">A-</button>
-                  <button type="button" data-editor-command="fontSize" data-editor-value="3" title="A -> Letra normal" aria-label="Letra normal">A</button>
-                  <button type="button" data-editor-command="fontSize" data-editor-value="5" title="A+ -> Letra maior" aria-label="Letra maior">A+</button>
+                  <div class="editor-dropdown">
+                    <button class="toolbar-icon-button" type="button" data-editor-menu="unordered" title="Marcadores" aria-label="Marcadores">
+                      <span class="list-icon list-bullets" aria-hidden="true"><i></i><i></i><i></i></span>
+                      <span class="toolbar-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="editor-menu" data-editor-menu-panel="unordered">
+                      <button type="button" data-editor-command="insertUnorderedList" data-list-style="disc" data-list-type="ul" title="Marcador redondo" aria-label="Marcador redondo"><span class="list-icon list-bullets" aria-hidden="true"><i></i><i></i><i></i></span></button>
+                      <button type="button" data-editor-command="insertUnorderedList" data-list-style="circle" data-list-type="ul" title="Marcador vazado" aria-label="Marcador vazado"><span class="list-icon list-circles" aria-hidden="true"><i></i><i></i><i></i></span></button>
+                      <button type="button" data-editor-command="insertUnorderedList" data-list-style="square" data-list-type="ul" title="Marcador quadrado" aria-label="Marcador quadrado"><span class="list-icon list-squares" aria-hidden="true"><i></i><i></i><i></i></span></button>
+                    </div>
+                  </div>
+                  <div class="editor-dropdown">
+                    <button class="toolbar-icon-button" type="button" data-editor-menu="ordered" title="Lista ordenada" aria-label="Lista ordenada">
+                      <span class="list-icon list-numbers" aria-hidden="true"><i>1</i><i>2</i><i>3</i></span>
+                      <span class="toolbar-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="editor-menu" data-editor-menu-panel="ordered">
+                      <button type="button" data-editor-command="insertOrderedList" data-list-style="decimal" data-list-type="ol" title="1 2 3" aria-label="Lista 1 2 3"><span class="list-icon list-numbers" aria-hidden="true"><i>1</i><i>2</i><i>3</i></span></button>
+                      <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-alpha" data-list-type="ol" title="A B C" aria-label="Lista A B C"><span class="list-icon list-numbers" aria-hidden="true"><i>A</i><i>B</i><i>C</i></span></button>
+                      <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-roman" data-list-type="ol" title="I II III" aria-label="Lista I II III"><span class="list-icon list-numbers" aria-hidden="true"><i>I</i><i>II</i><i>III</i></span></button>
+                    </div>
+                  </div>
+                  <div class="editor-highlight-group editor-dropdown">
+                    <button type="button" class="highlight-tool" data-editor-command="toggleHighlight" title="D -> Destacar texto (Ctrl + D)" aria-label="Destacar texto">A</button>
+                    <button class="toolbar-color-button" type="button" data-editor-menu="highlight" title="Cores de destaque" aria-label="Cores de destaque"><span class="color-swatch is-current" aria-hidden="true"></span><span class="toolbar-caret" aria-hidden="true"></span></button>
+                    <div class="editor-menu color-menu" data-editor-menu-panel="highlight">
+                      <button type="button" data-editor-command="backColor" data-editor-value="#fff0b8" title="Amarelo" aria-label="Amarelo"><span class="color-swatch" style="--swatch-color:#fff0b8" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="backColor" data-editor-value="#ccebd8" title="Verde" aria-label="Verde"><span class="color-swatch" style="--swatch-color:#ccebd8" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="backColor" data-editor-value="#d9e8ff" title="Azul" aria-label="Azul"><span class="color-swatch" style="--swatch-color:#d9e8ff" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="backColor" data-editor-value="#ffd8d2" title="Rosa" aria-label="Rosa"><span class="color-swatch" style="--swatch-color:#ffd8d2" aria-hidden="true"></span></button>
+                    </div>
+                  </div>
+                  <button type="button" data-editor-command="fontSizeStep" data-editor-value="-1" title="A- -> Diminuir letra" aria-label="Diminuir letra">A-</button>
+                  <button type="button" data-editor-command="fontSizeStep" data-editor-value="1" title="A+ -> Aumentar letra" aria-label="Aumentar letra">A+</button>
                 </div>
                 <div class="attendance-editor" id="atendimentoEditor" contenteditable="true" role="textbox" aria-label="Notas do atendimento"></div>
               </div>
               <div class="attendance-savebar">
-                <span id="atendimentoStatus">Rascunho pronto</span>
+                <div class="attendance-status-tools">
+                  <span id="atendimentoStatus">Rascunho pronto</span>
+                  <div class="version-popover-wrap">
+                    <button class="ghost-button version-trigger is-hidden" type="button" id="btnVersoesAtendimento">Últimas versões</button>
+                    <div id="versoesAtendimento" class="version-list version-popover is-hidden"></div>
+                  </div>
+                </div>
                 <div>
                   <button class="ghost-button warm-action" type="button" id="btnAtendimentoProcesso">Transformar em processo</button>
                   <button class="primary-button" type="submit">Salvar atendimento</button>
+                  <button class="ghost-button" type="button" id="btnFecharAtendimento">Fechar</button>
                 </div>
               </div>
             </form>
@@ -291,7 +303,6 @@
             </div>
             <div id="rascunhoAtendimento" class="draft-list"></div>
             <div id="listaAtendimentos" class="attendance-list"></div>
-            <div id="versoesAtendimento" class="version-list"></div>
           </aside>
         </div>
       </section>
@@ -761,6 +772,24 @@
     </div>
   </dialog>
 
+  <dialog id="modalFecharAtendimento">
+    <div class="modal-card prompt-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Atendimento</p>
+          <h2>Salvar antes de fechar?</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <p>Há informações ainda não salvas neste atendimento.</p>
+      <div class="modal-actions prompt-actions">
+        <button class="ghost-button" type="button" id="btnAtendimentoCancelarFechar">Cancelar</button>
+        <button class="ghost-button" type="button" id="btnAtendimentoSalvarSemFechar">Salvar sem fechar</button>
+        <button class="primary-button" type="button" id="btnAtendimentoSalvarEFechar">Salvar e fechar</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="modalDetalheProcesso">
     <div class="modal-card detail-modal">
       <div class="modal-header">
@@ -774,6 +803,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.6"></script>
+  <script src="app.js?v=1.0.7"></script>
 </body>
 </html>
