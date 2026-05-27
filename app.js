@@ -1,9 +1,11 @@
-const APP_VERSION = "1.0.7";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v107";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.8";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v108";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
+const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+const ATTENDANCE_INDENT_CM = 1.25;
 
 const ABAS = [
   { id: "dashboard", label: "Painel" },
@@ -48,7 +50,9 @@ const els = {
   busca: document.querySelector("#buscaGlobal"),
   btnNovo: document.querySelector("#btnNovo"),
   btnNovoTexto: document.querySelector("#btnNovoTexto"),
+  btnAgendarAtendimento: document.querySelector("#btnAgendarAtendimento"),
   topSearchBox: document.querySelector("#topSearchBox"),
+  clientTopControls: document.querySelector("#clientTopControls"),
   btnForceUpdateTop: document.querySelector("#btnForceUpdateTop"),
   btnForceUpdateLogin: document.querySelector("#btnForceUpdateLogin"),
   filtroArea: document.querySelector("#filtroArea"),
@@ -65,6 +69,7 @@ const els = {
   modalRecebimento: document.querySelector("#modalRecebimento"),
   modalContrato: document.querySelector("#modalContrato"),
   modalTema: document.querySelector("#modalTema"),
+  modalAgendarAtendimento: document.querySelector("#modalAgendarAtendimento"),
   formProcesso: document.querySelector("#formProcesso"),
   processoClienteBusca: document.querySelector("#processoClienteBusca"),
   processoClienteId: document.querySelector("#processoClienteId"),
@@ -77,6 +82,7 @@ const els = {
   formRecebimento: document.querySelector("#formRecebimento"),
   formContrato: document.querySelector("#formContrato"),
   formAtendimento: document.querySelector("#formAtendimento"),
+  formAgendarAtendimento: document.querySelector("#formAgendarAtendimento"),
   atendimentoCliente: document.querySelector("#atendimentoCliente"),
   atendimentoArea: document.querySelector("#atendimentoArea"),
   atendimentoResponsavel: document.querySelector("#atendimentoResponsavel"),
@@ -95,6 +101,13 @@ const els = {
   btnVersoesAtendimento: document.querySelector("#btnVersoesAtendimento"),
   btnFecharAtendimento: document.querySelector("#btnFecharAtendimento"),
   modalFecharAtendimento: document.querySelector("#modalFecharAtendimento"),
+  agendaCliente: document.querySelector("#agendaCliente"),
+  agendaArea: document.querySelector("#agendaArea"),
+  agendaResponsavel: document.querySelector("#agendaResponsavel"),
+  agendaData: document.querySelector("#agendaData"),
+  agendaAssunto: document.querySelector("#agendaAssunto"),
+  agendaConteudo: document.querySelector("#agendaConteudo"),
+  editorFontSize: document.querySelector("#editorFontSize"),
   contratoProcesso: document.querySelector("#contratoProcesso"),
   temaModalGrid: document.querySelector("#temaModalGrid"),
   detalheConteudo: document.querySelector("#detalheConteudo"),
@@ -156,6 +169,7 @@ function configurarEventos() {
 
   els.sidebarToggle.addEventListener("click", alternarSidebar);
   els.btnNovo.addEventListener("click", acaoPrincipal);
+  els.btnAgendarAtendimento.addEventListener("click", abrirModalAgendarAtendimento);
   els.btnModoClientes.addEventListener("click", alternarModoClientes);
   els.ordenacaoClientes.addEventListener("change", () => {
     state.clienteOrdenacao = els.ordenacaoClientes.value;
@@ -180,18 +194,20 @@ function configurarEventos() {
   els.formAvancadas.addEventListener("submit", salvarAvancadas);
   els.formRecebimento.addEventListener("submit", salvarRecebimento);
   els.formContrato.addEventListener("submit", salvarContratoHonorarios);
+  els.formAgendarAtendimento.addEventListener("submit", salvarAgendamentoAtendimento);
   els.contratoProcesso.addEventListener("change", () => preencherContratoHonorarios(els.contratoProcesso.value));
   els.formAtendimento.addEventListener("submit", salvarAtendimento);
   els.formAtendimento.addEventListener("input", marcarAtendimentoAlterado);
   els.formAtendimento.addEventListener("change", marcarAtendimentoAlterado);
   els.atendimentoEditor.addEventListener("input", marcarAtendimentoAlterado);
-  els.atendimentoEditor.addEventListener("keyup", guardarSelecaoEditor);
-  els.atendimentoEditor.addEventListener("mouseup", guardarSelecaoEditor);
-  els.atendimentoEditor.addEventListener("focus", guardarSelecaoEditor);
+  els.atendimentoEditor.addEventListener("keyup", atualizarSelecaoEditor);
+  els.atendimentoEditor.addEventListener("mouseup", atualizarSelecaoEditor);
+  els.atendimentoEditor.addEventListener("focus", atualizarSelecaoEditor);
   els.atendimentoEditor.addEventListener("keydown", atalhosEditorAtendimento);
   els.atendimentoAgendar.addEventListener("change", sincronizarAgendaAtendimento);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
-  document.addEventListener("selectionchange", guardarSelecaoEditor);
+  els.editorFontSize.addEventListener("change", aplicarTamanhoFonteSelecionado);
+  document.addEventListener("selectionchange", atualizarSelecaoEditor);
   els.btnFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
   els.btnVersoesAtendimento.addEventListener("click", alternarVersoesAtendimento);
   els.versoesAtendimento.addEventListener("click", restaurarVersaoAtendimento);
@@ -655,6 +671,8 @@ function atualizarAcoesTopo(view = viewAtual) {
   const mostrarBusca = ["processos", "clientes", "financeiro", "atendimentos"].includes(view);
   els.topSearchBox.classList.toggle("is-hidden", !mostrarBusca);
   els.btnNovo.classList.toggle("is-hidden", !["processos", "atendimentos"].includes(view));
+  els.btnAgendarAtendimento.classList.toggle("is-hidden", view !== "atendimentos");
+  els.clientTopControls.classList.toggle("is-hidden", view !== "clientes");
   els.btnForceUpdateTop.classList.toggle("is-hidden", view !== "dashboard");
   els.btnNovoTexto.textContent = view === "atendimentos" ? "Novo atendimento" : "Novo processo";
 
@@ -891,6 +909,43 @@ function renderAtendimentos() {
   renderVersoesAtendimento(atendimentoAberto());
 }
 
+function abrirModalAgendarAtendimento() {
+  preencherSelect(els.agendaCliente, state.clientes.map((cliente) => ({ value: cliente.id, label: cliente.nome })));
+  preencherSelect(els.agendaArea, [{ value: "", label: "Sem area definida" }, ...state.configs.areas.map(opcao)]);
+  preencherSelect(els.agendaResponsavel, state.usuarios.map((usuario) => ({ value: usuario.id, label: usuario.nome })));
+  els.formAgendarAtendimento.reset();
+  if (usuarioAtual()) els.agendaResponsavel.value = usuarioAtual().id;
+  els.agendaData.value = agoraLocalInput();
+  els.modalAgendarAtendimento.showModal();
+}
+
+function salvarAgendamentoAtendimento(event) {
+  event.preventDefault();
+  const dados = Object.fromEntries(new FormData(els.formAgendarAtendimento));
+  const atendimento = {
+    id: uid(),
+    numero: proximoNumeroAtendimento(),
+    criadoEm: hojeIso(),
+    salvoEm: new Date().toISOString(),
+    atualizadoEm: new Date().toISOString(),
+    clienteId: dados.clienteId,
+    area: dados.area || "",
+    responsavelId: dados.responsavelId,
+    data: agoraLocalInput(),
+    agendar: "sim",
+    agendadoEm: dados.agendadoEm,
+    assunto: dados.assunto?.trim() || "Atendimento agendado",
+    conteudoHtml: textoParaHtml(dados.conteudo || ""),
+    arquivado: false,
+    processoId: "",
+    versoes: []
+  };
+  state.atendimentos.unshift(atendimento);
+  salvarEstado();
+  els.modalAgendarAtendimento.close();
+  renderizarTudo();
+}
+
 function renderPainelEditorAtendimento() {
   els.attendanceEditorPanel.classList.toggle("is-hidden", !atendimentoModoEditor);
   els.attendanceLayout.classList.toggle("is-list-mode", !atendimentoModoEditor);
@@ -1001,6 +1056,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
 }
 
 function solicitarFechamentoAtendimento() {
+  sairFocoAtendimento();
   if (atendimentoPrecisaConfirmarFechamento()) {
     els.modalFecharAtendimento.showModal();
     return;
@@ -1021,6 +1077,7 @@ function salvarAtendimentoPeloDialogo(fechar) {
 }
 
 function fecharEditorAtendimento() {
+  sairFocoAtendimento();
   atendimentoModoEditor = false;
   atendimentoAbertoId = "";
   atendimentoAlterado = false;
@@ -1072,7 +1129,7 @@ function preencherFormularioAtendimento(atendimento) {
   atendimentoAbertoId = atendimento.id || "";
   els.formAtendimento.elements.id.value = atendimento.id || "";
   els.atendimentoCliente.value = atendimento.clienteId || state.clientes[0]?.id || "";
-  els.atendimentoArea.value = atendimento.area || state.configs.areas[0] || "";
+  els.atendimentoArea.value = atendimento.area || "";
   els.atendimentoResponsavel.value = atendimento.responsavelId || usuarioAtual()?.id || "";
   els.atendimentoData.value = atendimento.data || agoraLocalInput();
   els.atendimentoAgendar.checked = atendimento.agendadoEm ? true : (atendimento.agendar || "nao") === "sim";
@@ -1163,7 +1220,7 @@ function aplicarComandoEditor(event) {
   if (!botao) return;
   event.preventDefault();
   const valor = botao.dataset.editorValue || null;
-  if (valor && botao.dataset.editorCommand === "backColor") atualizarCorDestaque(valor);
+  if (valor && botao.dataset.editorCommand === "toggleHighlight") atualizarCorDestaque(valor);
   executarComandoEditor(botao.dataset.editorCommand, valor, botao.dataset.listStyle || "", botao.dataset.listType || "");
   fecharMenusEditor();
   marcarAtendimentoAlterado();
@@ -1184,6 +1241,41 @@ function executarComandoEditor(comando, valor = null, listStyle = "", listType =
   document.execCommand(comando, false, valor);
   if (listStyle) aplicarEstiloLista(listStyle, listType);
   guardarSelecaoEditor();
+}
+
+function aplicarTamanhoFonteSelecionado(event) {
+  aplicarTamanhoFonte(Number(event.target.value || 12));
+  marcarAtendimentoAlterado();
+}
+
+function aplicarTamanhoFonte(tamanho) {
+  restaurarSelecaoEditor();
+  document.execCommand("fontSize", false, "7");
+  els.atendimentoEditor.querySelectorAll('font[size="7"]').forEach((font) => {
+    const span = document.createElement("span");
+    span.style.fontSize = `${tamanho}pt`;
+    span.innerHTML = font.innerHTML;
+    font.replaceWith(span);
+  });
+  guardarSelecaoEditor();
+  atualizarControleTamanhoFonte();
+}
+
+function atualizarSelecaoEditor() {
+  guardarSelecaoEditor();
+  atualizarControleTamanhoFonte();
+}
+
+function atualizarControleTamanhoFonte() {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount || !els.editorFontSize) return;
+  const origem = selection.anchorNode;
+  const node = origem?.nodeType === Node.TEXT_NODE ? origem.parentElement : origem;
+  if (!node || (node !== els.atendimentoEditor && !els.atendimentoEditor.contains(node))) return;
+  const tamanhoPx = parseFloat(window.getComputedStyle(node).fontSize);
+  const tamanhoPt = tamanhoPx ? Math.round(tamanhoPx * 0.75) : 12;
+  const maisProximo = FONT_SIZE_OPTIONS.reduce((melhor, atual) => Math.abs(atual - tamanhoPt) < Math.abs(melhor - tamanhoPt) ? atual : melhor, 12);
+  els.editorFontSize.value = String(maisProximo);
 }
 
 function alternarMenuEditor(nome) {
@@ -1261,13 +1353,23 @@ function aplicarEstiloLista(listStyle, listType = "") {
 function atalhosEditorAtendimento(event) {
   if (event.key === "Tab") {
     event.preventDefault();
-    if (event.shiftKey) {
-      executarComandoEditor("outdent");
-    } else {
-      executarComandoEditor("insertHTML", "&nbsp;&nbsp;&nbsp;&nbsp;");
-    }
+    alterarRecuoAtendimento(event.shiftKey ? -1 : 1);
     marcarAtendimentoAlterado();
     return;
+  }
+  if (event.key === "Backspace" && removerRecuoAoApagar()) {
+    event.preventDefault();
+    marcarAtendimentoAlterado();
+    return;
+  }
+  if (event.key === "Enter") {
+    const nivel = nivelRecuoBloco(blocoEditorAtual());
+    if (nivel > 0) {
+      setTimeout(() => {
+        const bloco = blocoEditorAtual();
+        if (bloco) aplicarNivelRecuo(bloco, nivel);
+      }, 0);
+    }
   }
   if (!(event.ctrlKey || event.metaKey)) return;
   const tecla = event.key.toLowerCase();
@@ -1278,9 +1380,68 @@ function atalhosEditorAtendimento(event) {
   marcarAtendimentoAlterado();
 }
 
+function alterarRecuoAtendimento(delta) {
+  restaurarSelecaoEditor();
+  let bloco = blocoEditorAtual();
+  if (!bloco || bloco === els.atendimentoEditor) {
+    document.execCommand("formatBlock", false, "p");
+    bloco = blocoEditorAtual();
+  }
+  if (!bloco || bloco === els.atendimentoEditor) return;
+  aplicarNivelRecuo(bloco, nivelRecuoBloco(bloco) + delta);
+  guardarSelecaoEditor();
+}
+
+function removerRecuoAoApagar() {
+  const bloco = blocoEditorAtual();
+  if (!bloco || bloco === els.atendimentoEditor || nivelRecuoBloco(bloco) <= 0 || !cursorNoInicioDoBloco(bloco)) return false;
+  aplicarNivelRecuo(bloco, nivelRecuoBloco(bloco) - 1);
+  guardarSelecaoEditor();
+  return true;
+}
+
+function blocoEditorAtual() {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount) return null;
+  const origem = selection.anchorNode;
+  let node = origem?.nodeType === Node.TEXT_NODE ? origem.parentElement : origem;
+  if (!node || (node !== els.atendimentoEditor && !els.atendimentoEditor.contains(node))) return null;
+  return node.closest?.("p, div, li, h1, h2, h3, h4, h5, h6") || els.atendimentoEditor;
+}
+
+function nivelRecuoBloco(bloco) {
+  if (!bloco || bloco === els.atendimentoEditor) return 0;
+  const salvo = Number(bloco.dataset.indentLevel || 0);
+  if (Number.isFinite(salvo) && salvo > 0) return salvo;
+  const margem = parseFloat(bloco.style.marginLeft || "0");
+  return margem ? Math.round(margem / ATTENDANCE_INDENT_CM) : 0;
+}
+
+function aplicarNivelRecuo(bloco, nivel) {
+  if (!bloco || bloco === els.atendimentoEditor) return;
+  const proximo = Math.max(0, Math.min(8, nivel));
+  if (!proximo) {
+    bloco.style.marginLeft = "";
+    delete bloco.dataset.indentLevel;
+    return;
+  }
+  bloco.dataset.indentLevel = String(proximo);
+  bloco.style.marginLeft = `${(proximo * ATTENDANCE_INDENT_CM).toFixed(2)}cm`;
+}
+
+function cursorNoInicioDoBloco(bloco) {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount || !selection.isCollapsed) return false;
+  const range = selection.getRangeAt(0).cloneRange();
+  const inicio = range.cloneRange();
+  inicio.selectNodeContents(bloco);
+  inicio.setEnd(range.startContainer, range.startOffset);
+  return inicio.toString().length === 0;
+}
+
 function sincronizarAgendaAtendimento() {
   const ativo = els.atendimentoAgendar.checked;
-  els.atendimentoAgendaCampo.classList.toggle("is-hidden", !ativo);
+  els.atendimentoAgendaCampo?.classList.toggle("is-hidden", !ativo);
   if (ativo && !els.atendimentoAgendadoEm.value) {
     els.atendimentoAgendadoEm.value = els.atendimentoData.value || agoraLocalInput();
   }
@@ -1290,6 +1451,11 @@ function sincronizarAgendaAtendimento() {
 function alternarFocoAtendimento() {
   document.body.classList.toggle("attendance-focus-mode");
   document.querySelector("#btnExpandirAtendimento").textContent = document.body.classList.contains("attendance-focus-mode") ? "Sair do foco" : "Expandir";
+}
+
+function sairFocoAtendimento() {
+  document.body.classList.remove("attendance-focus-mode");
+  document.querySelector("#btnExpandirAtendimento").textContent = "Expandir";
 }
 
 function alternarArquivadosAtendimento() {
@@ -2530,6 +2696,12 @@ function agoraLocalInput() {
   const agora = new Date();
   agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset());
   return agora.toISOString().slice(0, 16);
+}
+
+function textoParaHtml(texto = "") {
+  const limpo = String(texto || "").trim();
+  if (!limpo) return "";
+  return limpo.split(/\n{2,}/).map((paragrafo) => `<p>${escapeHtml(paragrafo).replace(/\n/g, "<br>")}</p>`).join("");
 }
 
 function somarDiasIso(data, dias) {

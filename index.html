@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.7">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.7">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.7">
-  <link rel="stylesheet" href="style.css?v=1.0.7">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.8">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.8">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.8">
+  <link rel="stylesheet" href="style.css?v=1.0.8">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.7</small>
+        <small>Versão 1.0.8</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -109,6 +109,17 @@
             <span aria-hidden="true">⌕</span>
             <input id="buscaGlobal" type="search" placeholder="Buscar cliente, processo, vara..." autocomplete="off">
           </label>
+          <div class="client-top-controls is-hidden" id="clientTopControls">
+            <select id="ordenacaoClientes" aria-label="Ordenar clientes">
+              <option value="nome">Nome</option>
+              <option value="prazo">Próximo prazo</option>
+              <option value="cadastro">Tempo de cadastro</option>
+              <option value="casos">Número de casos</option>
+            </select>
+            <button class="ghost-button" id="btnModoClientes" type="button">Ver em lista</button>
+            <button class="primary-button" type="button" data-open-client>Adicionar cliente</button>
+          </div>
+          <button class="ghost-button top-schedule-button is-hidden" id="btnAgendarAtendimento" type="button">Agendar atendimento</button>
           <button class="primary-button" id="btnNovo" type="button">
             <span aria-hidden="true">+</span>
             <span id="btnNovoTexto">Novo processo</span>
@@ -167,22 +178,6 @@
       </section>
 
       <section class="view" id="view-clientes" aria-labelledby="viewTitle">
-        <div class="section-strip">
-          <div>
-            <h2>Clientes</h2>
-            <p>Cadastro completo para contato, documento, domicílio e dados pessoais úteis ao processo.</p>
-          </div>
-          <div class="strip-actions">
-            <select id="ordenacaoClientes" aria-label="Ordenar clientes">
-              <option value="nome">Nome</option>
-              <option value="prazo">Próximo prazo</option>
-              <option value="cadastro">Tempo de cadastro</option>
-              <option value="casos">Número de casos</option>
-            </select>
-            <button class="ghost-button" id="btnModoClientes" type="button">Ver em lista</button>
-            <button class="primary-button" type="button" data-open-client>Adicionar cliente</button>
-          </div>
-        </div>
         <div class="client-grid" id="listaClientes"></div>
       </section>
 
@@ -193,6 +188,8 @@
             <form id="formAtendimento" class="attendance-form">
               <input type="hidden" name="id">
               <div class="form-grid attendance-meta-grid">
+                <input name="agendar" id="atendimentoAgendar" type="checkbox" value="sim" hidden>
+                <input name="agendadoEm" type="hidden" id="atendimentoAgendadoEm">
                 <label>
                   <span>Cliente</span>
                   <select name="clienteId" id="atendimentoCliente" required></select>
@@ -208,15 +205,6 @@
                 <label>
                   <span>Data</span>
                   <input name="data" type="datetime-local" id="atendimentoData" required>
-                </label>
-                <label class="switch-field">
-                  <span>Agendar</span>
-                  <input name="agendar" id="atendimentoAgendar" type="checkbox" value="sim">
-                  <span class="switch-track" aria-hidden="true"></span>
-                </label>
-                <label class="agenda-date-field is-hidden" id="atendimentoAgendaCampo">
-                  <span>Data na agenda</span>
-                  <input name="agendadoEm" type="datetime-local" id="atendimentoAgendadoEm">
                 </label>
                 <label class="span-3">
                   <span>Assunto</span>
@@ -262,18 +250,37 @@
                       <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-roman" data-list-type="ol" title="I II III" aria-label="Lista I II III"><span class="list-icon list-numbers" aria-hidden="true"><i>I</i><i>II</i><i>III</i></span></button>
                     </div>
                   </div>
+                  <select class="font-size-select" id="editorFontSize" title="Tamanho da fonte" aria-label="Tamanho da fonte">
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                    <option value="11">11</option>
+                    <option value="12" selected>12</option>
+                    <option value="14">14</option>
+                    <option value="16">16</option>
+                    <option value="18">18</option>
+                    <option value="20">20</option>
+                    <option value="22">22</option>
+                    <option value="24">24</option>
+                    <option value="26">26</option>
+                    <option value="28">28</option>
+                    <option value="36">36</option>
+                    <option value="48">48</option>
+                    <option value="72">72</option>
+                  </select>
                   <div class="editor-highlight-group editor-dropdown">
-                    <button type="button" class="highlight-tool" data-editor-command="toggleHighlight" title="D -> Destacar texto (Ctrl + D)" aria-label="Destacar texto">A</button>
-                    <button class="toolbar-color-button" type="button" data-editor-menu="highlight" title="Cores de destaque" aria-label="Cores de destaque"><span class="color-swatch is-current" aria-hidden="true"></span><span class="toolbar-caret" aria-hidden="true"></span></button>
+                    <button class="highlight-tool toolbar-icon-button" type="button" data-editor-menu="highlight" title="Destaque" aria-label="Destaque">
+                      <span>A</span>
+                      <span class="color-swatch is-current" aria-hidden="true"></span>
+                      <span class="toolbar-caret" aria-hidden="true"></span>
+                    </button>
                     <div class="editor-menu color-menu" data-editor-menu-panel="highlight">
-                      <button type="button" data-editor-command="backColor" data-editor-value="#fff0b8" title="Amarelo" aria-label="Amarelo"><span class="color-swatch" style="--swatch-color:#fff0b8" aria-hidden="true"></span></button>
-                      <button type="button" data-editor-command="backColor" data-editor-value="#ccebd8" title="Verde" aria-label="Verde"><span class="color-swatch" style="--swatch-color:#ccebd8" aria-hidden="true"></span></button>
-                      <button type="button" data-editor-command="backColor" data-editor-value="#d9e8ff" title="Azul" aria-label="Azul"><span class="color-swatch" style="--swatch-color:#d9e8ff" aria-hidden="true"></span></button>
-                      <button type="button" data-editor-command="backColor" data-editor-value="#ffd8d2" title="Rosa" aria-label="Rosa"><span class="color-swatch" style="--swatch-color:#ffd8d2" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="toggleHighlight" data-editor-value="#fff0b8" title="Amarelo" aria-label="Amarelo"><span class="color-swatch" style="--swatch-color:#fff0b8" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="toggleHighlight" data-editor-value="#ccebd8" title="Verde" aria-label="Verde"><span class="color-swatch" style="--swatch-color:#ccebd8" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="toggleHighlight" data-editor-value="#d9e8ff" title="Azul" aria-label="Azul"><span class="color-swatch" style="--swatch-color:#d9e8ff" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="toggleHighlight" data-editor-value="#ffd8d2" title="Rosa" aria-label="Rosa"><span class="color-swatch" style="--swatch-color:#ffd8d2" aria-hidden="true"></span></button>
                     </div>
                   </div>
-                  <button type="button" data-editor-command="fontSizeStep" data-editor-value="-1" title="A- -> Diminuir letra" aria-label="Diminuir letra">A-</button>
-                  <button type="button" data-editor-command="fontSizeStep" data-editor-value="1" title="A+ -> Aumentar letra" aria-label="Aumentar letra">A+</button>
                 </div>
                 <div class="attendance-editor" id="atendimentoEditor" contenteditable="true" role="textbox" aria-label="Notas do atendimento"></div>
               </div>
@@ -790,6 +797,48 @@
     </div>
   </dialog>
 
+  <dialog id="modalAgendarAtendimento">
+    <form method="dialog" class="modal-card schedule-modal" id="formAgendarAtendimento">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Agenda</p>
+          <h2>Agendar atendimento</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Cliente</span>
+          <select name="clienteId" id="agendaCliente" required></select>
+        </label>
+        <label>
+          <span>Área</span>
+          <select name="area" id="agendaArea"></select>
+        </label>
+        <label>
+          <span>Responsável</span>
+          <select name="responsavelId" id="agendaResponsavel" required></select>
+        </label>
+        <label>
+          <span>Data e hora</span>
+          <input name="agendadoEm" id="agendaData" type="datetime-local" required>
+        </label>
+        <label class="span-2">
+          <span>Assunto</span>
+          <input name="assunto" id="agendaAssunto" placeholder="Ex.: retorno, reunião inicial, entrega de documentos">
+        </label>
+        <label class="span-2">
+          <span>Notas</span>
+          <textarea name="conteudo" id="agendaConteudo" rows="4" placeholder="Opcional"></textarea>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="primary-button" type="submit">Salvar agendamento</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="modalDetalheProcesso">
     <div class="modal-card detail-modal">
       <div class="modal-header">
@@ -803,6 +852,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.7"></script>
+  <script src="app.js?v=1.0.8"></script>
 </body>
 </html>
