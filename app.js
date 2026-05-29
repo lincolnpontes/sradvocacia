@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.10";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v110";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.11";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v111";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -212,6 +212,7 @@ function configurarEventos() {
   els.atendimentoEditor.addEventListener("focus", atualizarSelecaoEditor);
   els.atendimentoEditor.addEventListener("keydown", atalhosEditorAtendimento);
   els.atendimentoAgendar.addEventListener("change", sincronizarAgendaAtendimento);
+  document.querySelector("#editorToolbar").addEventListener("mousedown", manterSelecaoAoClicarToolbar);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
   els.editorFontSize.addEventListener("change", aplicarTamanhoFonteSelecionado);
   document.addEventListener("selectionchange", atualizarSelecaoEditor);
@@ -1293,6 +1294,10 @@ function aplicarComandoEditor(event) {
   marcarAtendimentoAlterado();
 }
 
+function manterSelecaoAoClicarToolbar(event) {
+  if (event.target.closest("button")) event.preventDefault();
+}
+
 function executarComandoEditor(comando, valor = null, listStyle = "", listType = "") {
   restaurarSelecaoEditor();
   if (comando === "toggleHighlight") {
@@ -1302,6 +1307,11 @@ function executarComandoEditor(comando, valor = null, listStyle = "", listType =
   }
   if (comando === "fontSizeStep") {
     ajustarTamanhoFonte(Number(valor || 0));
+    guardarSelecaoEditor();
+    return;
+  }
+  if (comando === "lineSpacing") {
+    aplicarEspacamentoLinha(valor || "1.5");
     guardarSelecaoEditor();
     return;
   }
@@ -1396,6 +1406,7 @@ function substituirFontesTemporarias(tamanho) {
 function atualizarSelecaoEditor() {
   guardarSelecaoEditor();
   atualizarControleTamanhoFonte();
+  atualizarControleEspacamento();
 }
 
 function atualizarControleTamanhoFonte() {
@@ -1457,6 +1468,53 @@ function ajustarTamanhoFonte(delta) {
   const atual = Number(document.queryCommandValue("fontSize")) || 3;
   const proximo = Math.min(7, Math.max(1, atual + delta));
   document.execCommand("fontSize", false, String(proximo));
+}
+
+function aplicarEspacamentoLinha(valor) {
+  const espacamento = String(valor).replace(",", ".");
+  const blocos = blocosSelecionadosEditor();
+  if (!blocos.length) {
+    document.execCommand("formatBlock", false, "p");
+    const bloco = blocoEditorAtual();
+    if (bloco && bloco !== els.atendimentoEditor) bloco.style.lineHeight = espacamento;
+    return;
+  }
+  blocos.forEach((bloco) => {
+    bloco.style.lineHeight = espacamento;
+  });
+  atualizarControleEspacamento(espacamento);
+}
+
+function atualizarControleEspacamento(valorAtual = "") {
+  const bloco = blocoEditorAtual();
+  const valor = normalizarEspacamentoLinha(valorAtual || bloco?.style.lineHeight || "1.5");
+  document.querySelectorAll(".spacing-menu [data-editor-command='lineSpacing']").forEach((button) => {
+    button.classList.toggle("is-active", normalizarEspacamentoLinha(button.dataset.editorValue) === valor);
+  });
+}
+
+function normalizarEspacamentoLinha(valor = "") {
+  const numero = Number(String(valor).replace(",", "."));
+  if (!Number.isFinite(numero) || numero <= 0) return "1.5";
+  return String(numero);
+}
+
+function blocosSelecionadosEditor() {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount) return [];
+  const range = selection.getRangeAt(0);
+  if (!els.atendimentoEditor.contains(range.commonAncestorContainer) && range.commonAncestorContainer !== els.atendimentoEditor) return [];
+  const atual = blocoEditorAtual();
+  if (range.collapsed) return atual && atual !== els.atendimentoEditor ? [atual] : [];
+  const candidatos = Array.from(els.atendimentoEditor.querySelectorAll("p, div, li, h1, h2, h3, h4, h5, h6, blockquote"));
+  const blocos = candidatos.filter((bloco) => {
+    try {
+      return range.intersectsNode(bloco);
+    } catch {
+      return false;
+    }
+  });
+  return blocos.length ? blocos : (atual && atual !== els.atendimentoEditor ? [atual] : []);
 }
 
 function selecaoTemDestaque() {

@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.10 */
+/* SR Advocacia v1.0.11 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -1204,23 +1204,27 @@ tr:last-child td {
   min-width: 0;
 }
 
-.editor-highlight-group {
-  gap: 0;
+.toolbar-split-button {
+  gap: 2px;
 }
 
 .toolbar-icon-button,
 .toolbar-color-button {
-  grid-template-columns: minmax(0, 1fr) 8px;
-  gap: 2px;
-  width: 38px;
-  min-width: 38px;
-  padding: 0 5px;
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+.toolbar-caret-button {
+  width: 22px !important;
+  min-width: 22px !important;
+  padding: 0 !important;
+  border-radius: 7px !important;
 }
 
 .toolbar-caret {
   width: 0;
   height: 0;
-  justify-self: end;
   border-top: 4px solid currentColor;
   border-right: 4px solid transparent;
   border-left: 4px solid transparent;
@@ -1242,13 +1246,17 @@ tr:last-child td {
   box-shadow: 0 18px 40px rgba(47,48,50,0.16);
 }
 
+.toolbar-split-button .editor-menu {
+  left: 0;
+}
+
 .editor-dropdown.is-open .editor-menu {
   display: grid;
 }
 
 .color-menu {
   grid-template-columns: repeat(4, 36px);
-  min-width: 176px;
+  min-width: auto;
 }
 
 .align-lines {
@@ -1354,8 +1362,6 @@ tr:last-child td {
 
 .editor-toolbar .highlight-tool {
   position: relative;
-  grid-template-columns: minmax(0, 1fr) 8px;
-  gap: 2px;
 }
 
 .editor-toolbar .highlight-tool::after {
@@ -1380,6 +1386,79 @@ tr:last-child td {
   height: 3px;
   border-radius: 999px;
   background: var(--highlight-color, #f2c95c);
+}
+
+.spacing-icon {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  width: 20px;
+  padding-left: 8px;
+}
+
+.spacing-icon::before,
+.spacing-icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+}
+
+.spacing-icon::before {
+  top: 1px;
+  transform: rotate(225deg);
+}
+
+.spacing-icon::after {
+  bottom: 1px;
+  transform: rotate(45deg);
+}
+
+.spacing-icon i {
+  display: block;
+  width: 15px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.spacing-menu {
+  grid-template-columns: minmax(82px, 1fr);
+  min-width: 104px;
+  padding: 6px;
+}
+
+.spacing-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--ink);
+  background: transparent;
+  font-weight: 700;
+}
+
+.spacing-menu button:hover {
+  background: #f3eee8;
+}
+
+.spacing-menu button::before {
+  content: "";
+  width: 12px;
+  color: #2e7d55;
+  font-weight: 900;
+}
+
+.spacing-menu button.is-active::before {
+  content: "✓";
 }
 
 .warm-action {
@@ -1592,11 +1671,11 @@ body.attendance-focus-mode .attendance-editor {
 
 .calendar-shell {
   min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(255,255,255,0.92);
-  box-shadow: var(--shadow);
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .calendar-header {
@@ -1604,28 +1683,44 @@ body.attendance-focus-mode .attendance-editor {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px;
-  border-bottom: 1px solid var(--line);
+  margin-bottom: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.94);
+  box-shadow: 0 12px 28px rgba(47,48,50,0.08);
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
 }
 
 .calendar-header strong {
+  min-width: min(360px, 40vw);
+  color: var(--ink);
   text-transform: capitalize;
+  text-align: center;
 }
 
 .calendar-mode-toggle {
   display: inline-flex;
-  gap: 4px;
-  padding: 3px;
+  gap: 0;
+  padding: 4px;
   border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fff;
+  border-radius: 999px;
+  background: #f3eee8;
 }
 
 .calendar-mode-toggle button {
-  min-height: 30px;
-  padding: 0 10px;
+  min-height: 32px;
+  width: auto;
+  min-width: 74px;
+  padding: 0 14px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 999px;
   color: var(--muted);
   background: transparent;
   font-weight: 800;
@@ -1634,6 +1729,7 @@ body.attendance-focus-mode .attendance-editor {
 .calendar-mode-toggle button.is-active {
   color: #fff;
   background: var(--wine);
+  box-shadow: 0 6px 14px rgba(47,48,50,0.14);
 }
 
 .calendar-weekdays,
@@ -1642,8 +1738,32 @@ body.attendance-focus-mode .attendance-editor {
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
+.calendar-weekdays {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+}
+
+.calendar-grid {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 0 0 8px 8px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+
 .calendar-shell[data-agenda-mode="dia"] .calendar-weekdays {
   display: none;
+}
+
+.calendar-grid.calendar-semana-mode,
+.calendar-grid.calendar-dia-mode {
+  gap: 10px;
+  padding: 12px;
+  overflow: visible;
+  border-radius: 8px;
+  background: #f6f0e7;
 }
 
 .calendar-grid.calendar-dia-mode {
@@ -1653,7 +1773,7 @@ body.attendance-focus-mode .attendance-editor {
 .calendar-weekdays span {
   padding: 10px;
   color: var(--muted);
-  background: #fffaf4;
+  background: #fbf7f0;
   font-size: 12px;
   font-weight: 800;
   text-align: center;
@@ -1662,7 +1782,6 @@ body.attendance-focus-mode .attendance-editor {
 .calendar-day {
   min-height: 116px;
   padding: 9px;
-  border-top: 1px solid var(--line);
   border-right: 1px solid var(--line);
   background: #fff;
   cursor: pointer;
@@ -1677,12 +1796,26 @@ body.attendance-focus-mode .attendance-editor {
 }
 
 .calendar-day.today {
-  box-shadow: inset 0 0 0 2px var(--gold);
+  background: #fffaf0;
+  box-shadow: inset 0 0 0 2px rgba(197,154,70,0.55);
 }
 
 .calendar-day.is-selected {
-  background: #fff7dc;
-  box-shadow: inset 0 0 0 2px var(--wine);
+  background: #fff6d9;
+  box-shadow: inset 0 0 0 2px rgba(92,41,55,0.78);
+}
+
+.calendar-semana-mode .calendar-day,
+.calendar-dia-mode .calendar-day {
+  min-height: 178px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(47,48,50,0.07);
+}
+
+.calendar-semana-mode .calendar-day:nth-child(7n),
+.calendar-dia-mode .calendar-day:nth-child(7n) {
+  border-right: 1px solid var(--line);
 }
 
 .calendar-dia-mode .calendar-day {
@@ -1706,6 +1839,7 @@ body.attendance-focus-mode .attendance-editor {
   overflow: hidden;
   border: 0;
   border-radius: 6px;
+  border-left: 3px solid var(--gold);
   color: var(--wine);
   background: #f8eadf;
   font-size: 13px;

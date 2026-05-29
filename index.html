@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.10">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.10">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.10">
-  <link rel="stylesheet" href="style.css?v=1.0.10">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.11">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.11">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.11">
+  <link rel="stylesheet" href="style.css?v=1.0.11">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.10</small>
+        <small>Versão 1.0.11</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -216,9 +216,11 @@
                   <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + N)" aria-label="Negrito">N</button>
                   <button type="button" data-editor-command="italic" title="I -> Itálico (Ctrl + I)" aria-label="Itálico">I</button>
                   <button type="button" data-editor-command="underline" title="S -> Sublinhar (Ctrl + S)" aria-label="Sublinhar">S</button>
-                  <div class="editor-dropdown">
-                    <button class="toolbar-icon-button" type="button" data-editor-menu="align" title="Alinhamento" aria-label="Alinhamento">
+                  <div class="editor-dropdown toolbar-split-button">
+                    <button class="toolbar-icon-button" type="button" data-editor-command="justifyLeft" title="Alinhar à esquerda" aria-label="Alinhar à esquerda">
                       <span class="align-lines align-left" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+                    </button>
+                    <button class="toolbar-caret-button" type="button" data-editor-menu="align" title="Mais alinhamentos" aria-label="Mais alinhamentos">
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
                     <div class="editor-menu" data-editor-menu-panel="align">
@@ -228,9 +230,11 @@
                       <button type="button" data-editor-command="justifyFull" title="Justificar" aria-label="Justificar"><span class="align-lines align-justify" aria-hidden="true"><i></i><i></i><i></i><i></i></span></button>
                     </div>
                   </div>
-                  <div class="editor-dropdown">
-                    <button class="toolbar-icon-button" type="button" data-editor-menu="unordered" title="Marcadores" aria-label="Marcadores">
+                  <div class="editor-dropdown toolbar-split-button">
+                    <button class="toolbar-icon-button" type="button" data-editor-command="insertUnorderedList" data-list-style="disc" data-list-type="ul" title="Marcadores" aria-label="Marcadores">
                       <span class="list-icon list-bullets" aria-hidden="true"><i></i><i></i><i></i></span>
+                    </button>
+                    <button class="toolbar-caret-button" type="button" data-editor-menu="unordered" title="Mais marcadores" aria-label="Mais marcadores">
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
                     <div class="editor-menu" data-editor-menu-panel="unordered">
@@ -239,9 +243,11 @@
                       <button type="button" data-editor-command="insertUnorderedList" data-list-style="square" data-list-type="ul" title="Marcador quadrado" aria-label="Marcador quadrado"><span class="list-icon list-squares" aria-hidden="true"><i></i><i></i><i></i></span></button>
                     </div>
                   </div>
-                  <div class="editor-dropdown">
-                    <button class="toolbar-icon-button" type="button" data-editor-menu="ordered" title="Lista ordenada" aria-label="Lista ordenada">
+                  <div class="editor-dropdown toolbar-split-button">
+                    <button class="toolbar-icon-button" type="button" data-editor-command="insertOrderedList" data-list-style="decimal" data-list-type="ol" title="Lista ordenada" aria-label="Lista ordenada">
                       <span class="list-icon list-numbers" aria-hidden="true"><i>1</i><i>2</i><i>3</i></span>
+                    </button>
+                    <button class="toolbar-caret-button" type="button" data-editor-menu="ordered" title="Mais listas ordenadas" aria-label="Mais listas ordenadas">
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
                     <div class="editor-menu" data-editor-menu-panel="ordered">
@@ -268,9 +274,27 @@
                     <option value="48">48</option>
                     <option value="72">72</option>
                   </select>
-                  <div class="editor-highlight-group editor-dropdown">
-                    <button class="highlight-tool toolbar-icon-button" type="button" data-editor-menu="highlight" title="Destaque" aria-label="Destaque">
+                  <div class="editor-dropdown toolbar-split-button">
+                    <button class="toolbar-icon-button line-spacing-tool" type="button" data-editor-command="lineSpacing" data-editor-value="1.5" title="Espaçamento entre linhas" aria-label="Espaçamento entre linhas">
+                      <span class="spacing-icon" aria-hidden="true"><i></i><i></i><i></i></span>
+                    </button>
+                    <button class="toolbar-caret-button" type="button" data-editor-menu="spacing" title="Mais espaçamentos" aria-label="Mais espaçamentos">
+                      <span class="toolbar-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="editor-menu spacing-menu" data-editor-menu-panel="spacing">
+                      <button type="button" data-editor-command="lineSpacing" data-editor-value="1" title="1,0" aria-label="Espaçamento 1,0"><span>1,0</span></button>
+                      <button type="button" data-editor-command="lineSpacing" data-editor-value="1.15" title="1,15" aria-label="Espaçamento 1,15"><span>1,15</span></button>
+                      <button type="button" data-editor-command="lineSpacing" data-editor-value="1.5" title="1,5" aria-label="Espaçamento 1,5"><span>1,5</span></button>
+                      <button type="button" data-editor-command="lineSpacing" data-editor-value="2" title="2,0" aria-label="Espaçamento 2,0"><span>2,0</span></button>
+                      <button type="button" data-editor-command="lineSpacing" data-editor-value="2.5" title="2,5" aria-label="Espaçamento 2,5"><span>2,5</span></button>
+                      <button type="button" data-editor-command="lineSpacing" data-editor-value="3" title="3,0" aria-label="Espaçamento 3,0"><span>3,0</span></button>
+                    </div>
+                  </div>
+                  <div class="editor-highlight-group editor-dropdown toolbar-split-button">
+                    <button class="highlight-tool toolbar-icon-button" type="button" data-editor-command="toggleHighlight" data-editor-value="#fff0b8" title="Destaque" aria-label="Destaque">
                       <span class="highlight-letter">A</span>
+                    </button>
+                    <button class="toolbar-caret-button" type="button" data-editor-menu="highlight" title="Cores do destaque" aria-label="Cores do destaque">
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
                     <div class="editor-menu color-menu" data-editor-menu-panel="highlight">
@@ -317,14 +341,16 @@
         <div class="agenda-layout">
           <section class="calendar-shell">
             <div class="calendar-header">
-              <button class="icon-button" type="button" id="mesAnterior" title="Mês anterior">‹</button>
-              <strong id="tituloMesAgenda">Agenda</strong>
+              <div class="calendar-nav">
+                <button class="icon-button" type="button" id="mesAnterior" title="Anterior">‹</button>
+                <strong id="tituloMesAgenda">Agenda</strong>
+                <button class="icon-button" type="button" id="mesProximo" title="Próximo">›</button>
+              </div>
               <div class="calendar-mode-toggle" id="agendaModo" aria-label="Modo da agenda">
                 <button type="button" data-agenda-mode="mes">Mês</button>
                 <button type="button" data-agenda-mode="semana">Semana</button>
                 <button type="button" data-agenda-mode="dia">Dia</button>
               </div>
-              <button class="icon-button" type="button" id="mesProximo" title="Próximo mês">›</button>
             </div>
             <div class="calendar-weekdays">
               <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
@@ -857,6 +883,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.10"></script>
+  <script src="app.js?v=1.0.11"></script>
 </body>
 </html>
