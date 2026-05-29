@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.8">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.8">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.8">
-  <link rel="stylesheet" href="style.css?v=1.0.8">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.10">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.10">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.10">
+  <link rel="stylesheet" href="style.css?v=1.0.10">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.8</small>
+        <small>Versão 1.0.10</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -270,8 +270,7 @@
                   </select>
                   <div class="editor-highlight-group editor-dropdown">
                     <button class="highlight-tool toolbar-icon-button" type="button" data-editor-menu="highlight" title="Destaque" aria-label="Destaque">
-                      <span>A</span>
-                      <span class="color-swatch is-current" aria-hidden="true"></span>
+                      <span class="highlight-letter">A</span>
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
                     <div class="editor-menu color-menu" data-editor-menu-panel="highlight">
@@ -320,12 +319,18 @@
             <div class="calendar-header">
               <button class="icon-button" type="button" id="mesAnterior" title="Mês anterior">‹</button>
               <strong id="tituloMesAgenda">Agenda</strong>
+              <div class="calendar-mode-toggle" id="agendaModo" aria-label="Modo da agenda">
+                <button type="button" data-agenda-mode="mes">Mês</button>
+                <button type="button" data-agenda-mode="semana">Semana</button>
+                <button type="button" data-agenda-mode="dia">Dia</button>
+              </div>
               <button class="icon-button" type="button" id="mesProximo" title="Próximo mês">›</button>
             </div>
             <div class="calendar-weekdays">
               <span>Dom</span><span>Seg</span><span>Ter</span><span>Qua</span><span>Qui</span><span>Sex</span><span>Sáb</span>
             </div>
             <div class="calendar-grid" id="gradeAgenda"></div>
+            <div class="calendar-day-detail is-hidden" id="agendaDetalheDia"></div>
           </section>
 
           <aside class="panel agenda-side">
@@ -852,6 +857,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.8"></script>
+  <script src="app.js?v=1.0.10"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.8";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v108";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.10";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v110";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -20,7 +20,8 @@ const ABAS = [
 const CONFIG_META = {
   status: { titulo: "Status", descricao: "Fases usadas nos processos" },
   areas: { titulo: "Áreas", descricao: "Ramos de atuação do escritório" },
-  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" }
+  orgaos: { titulo: "Varas/Fóruns", descricao: "Órgãos, varas, fóruns e tribunais" },
+  movimentacoes: { titulo: "Movimentações", descricao: "Motivos rápidos para andamentos e providências" }
 };
 
 const state = normalizarEstado(carregarEstado());
@@ -107,6 +108,9 @@ const els = {
   agendaData: document.querySelector("#agendaData"),
   agendaAssunto: document.querySelector("#agendaAssunto"),
   agendaConteudo: document.querySelector("#agendaConteudo"),
+  agendaModo: document.querySelector("#agendaModo"),
+  gradeAgenda: document.querySelector("#gradeAgenda"),
+  agendaDetalheDia: document.querySelector("#agendaDetalheDia"),
   editorFontSize: document.querySelector("#editorFontSize"),
   contratoProcesso: document.querySelector("#contratoProcesso"),
   temaModalGrid: document.querySelector("#temaModalGrid"),
@@ -180,6 +184,9 @@ function configurarEventos() {
   els.btnForceUpdateLogin.addEventListener("click", forcarAtualizacao);
   document.querySelector("#mesAnterior").addEventListener("click", () => mudarMes(-1));
   document.querySelector("#mesProximo").addEventListener("click", () => mudarMes(1));
+  els.agendaModo.addEventListener("click", mudarModoAgenda);
+  els.gradeAgenda.addEventListener("click", selecionarDiaAgenda);
+  els.agendaDetalheDia.addEventListener("click", abrirItemDetalheAgenda);
   document.querySelector("#btnFecharDetalhe").addEventListener("click", () => els.modalDetalhe.close());
 
   els.busca.addEventListener("input", renderizarTudo);
@@ -532,6 +539,37 @@ function salvarItemProcesso(event) {
   if (!processo) return;
 
   const dados = Object.fromEntries(new FormData(form));
+  if (form.dataset.detailForm === "andamento") {
+    const tipoSelecionado = dados.tipoMovimentacao === "Outro" ? dados.tipoOutro?.trim() : dados.tipoMovimentacao;
+    const movimentacao = {
+      id: uid(),
+      data: dados.data || hojeIso(),
+      tipo: tipoSelecionado || "Andamento",
+      descricao: dados.descricao?.trim() || "",
+      prazoId: ""
+    };
+
+    if (dados.gerarPrazo === "sim") {
+      if (!dados.prazoData || !dados.prazoTipo?.trim()) {
+        alert("Informe a data e o tipo do prazo para registrar a providência.");
+        return;
+      }
+      const prazo = {
+        id: uid(),
+        data: dados.prazoData,
+        tipo: dados.prazoTipo.trim(),
+        descricao: dados.prazoDescricao?.trim() || movimentacao.descricao || movimentacao.tipo,
+        responsavelId: dados.responsavelId || processo.responsavelId,
+        concluido: false
+      };
+      processo.prazos.push(prazo);
+      processo.prazo = proximoPrazoDoProcesso(processo);
+      movimentacao.prazoId = prazo.id;
+    }
+
+    processo.movimentacoes.unshift(movimentacao);
+  }
+
   if (form.dataset.detailForm === "prazo") {
     processo.prazos.push({
       id: uid(),
@@ -701,11 +739,13 @@ function renderizarTudo() {
 function renderMetricas() {
   const processosAtivos = state.processos.filter((processo) => processo.status !== "Encerrado").length;
   const prazosCriticos = eventosAgenda().filter((evento) => !evento.concluido && diasAte(evento.data) <= 3).length;
+  const atendimentosAbertos = state.atendimentos.filter((atendimento) => !atendimento.arquivado && !atendimento.processoId).length;
   const pendente = state.processos.reduce((total, processo) => total + saldoHonorarios(processo), 0);
   const cards = [
     metricCard("Processos ativos", processosAtivos, "Carteira em andamento"),
     metricCard("Clientes", state.clientes.length, "Cadastros no escritório"),
-    metricCard("Prazos críticos", prazosCriticos, "Vencidos ou até 3 dias")
+    metricCard("Prazos críticos", prazosCriticos, "Vencidos ou até 3 dias"),
+    metricCard("Atendimentos", atendimentosAbertos, "Abertos sem processo")
   ];
   if (temAcesso("financeiro")) cards.push(metricCard("A receber", moeda(pendente), "Honorários pendentes"));
   document.querySelector("#metricas").innerHTML = cards.join("");
@@ -1041,15 +1081,23 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
     dados.id = atendimento.id;
     state.atendimentos.unshift(atendimento);
   } else {
+    if (assinaturaAtendimento(atendimento) === assinaturaAtendimento(dados)) {
+      atendimentoAbertoId = atendimento.id;
+      els.formAtendimento.elements.id.value = atendimento.id;
+      atendimentoAlterado = false;
+      els.atendimentoStatus.textContent = `Atendimento ${rotuloAtendimento(atendimento)} sem alterações`;
+      if (fechar) fecharEditorAtendimento();
+      return atendimento;
+    }
     atendimento.versoes = manterTresVersoes(atendimento, { ...atendimento }).versoes;
   }
-  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, atualizadoEm: new Date().toISOString() });
+  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, salvoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString() });
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
   atendimentoAlterado = false;
   salvarEstado();
-  renderAtendimentos();
+  renderizarTudo();
   els.atendimentoStatus.textContent = `Atendimento ${rotuloAtendimento(atendimento)} salvo`;
   if (fechar) fecharEditorAtendimento();
   return atendimento;
@@ -1105,6 +1153,25 @@ function dadosAtendimentoDoFormulario() {
     assunto: dados.assunto.trim(),
     conteudoHtml: els.atendimentoEditor.innerHTML
   };
+}
+
+function assinaturaAtendimento(atendimento = {}) {
+  return JSON.stringify({
+    clienteId: atendimento.clienteId || "",
+    area: atendimento.area || "",
+    responsavelId: atendimento.responsavelId || "",
+    data: atendimento.data || "",
+    agendar: atendimento.agendar || "nao",
+    agendadoEm: atendimento.agendadoEm || "",
+    assunto: (atendimento.assunto || "").trim(),
+    conteudoHtml: normalizarHtmlComparacao(atendimento.conteudoHtml || "")
+  });
+}
+
+function normalizarHtmlComparacao(html = "") {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.innerHTML.replace(/\sdata-indent-level="[^"]*"/g, "").replace(/\s+/g, " ").trim();
 }
 
 function abrirAtendimentoDaLista(event) {
@@ -1250,15 +1317,80 @@ function aplicarTamanhoFonteSelecionado(event) {
 
 function aplicarTamanhoFonte(tamanho) {
   restaurarSelecaoEditor();
-  document.execCommand("fontSize", false, "7");
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (!els.atendimentoEditor.contains(range.commonAncestorContainer) && range.commonAncestorContainer !== els.atendimentoEditor) return;
+  if (range.collapsed) {
+    document.execCommand("fontSize", false, "7");
+    substituirFontesTemporarias(tamanho);
+    guardarSelecaoEditor();
+    atualizarControleTamanhoFonte();
+    return;
+  }
+
+  const marcadorInicio = document.createElement("span");
+  const marcadorFim = document.createElement("span");
+  marcadorInicio.setAttribute("data-editor-marker", "start");
+  marcadorFim.setAttribute("data-editor-marker", "end");
+  const finalRange = range.cloneRange();
+  finalRange.collapse(false);
+  finalRange.insertNode(marcadorFim);
+  range.insertNode(marcadorInicio);
+
+  const intervalo = document.createRange();
+  intervalo.setStartAfter(marcadorInicio);
+  intervalo.setEndBefore(marcadorFim);
+  aplicarTamanhoFonteNoIntervalo(intervalo, tamanho);
+
+  const novaSelecao = document.createRange();
+  novaSelecao.setStartAfter(marcadorInicio);
+  novaSelecao.setEndBefore(marcadorFim);
+  selection.removeAllRanges();
+  selection.addRange(novaSelecao);
+  marcadorInicio.remove();
+  marcadorFim.remove();
+  substituirFontesTemporarias(tamanho);
+  guardarSelecaoEditor();
+  atualizarControleTamanhoFonte();
+}
+
+function aplicarTamanhoFonteNoIntervalo(range, tamanho) {
+  const raiz = range.commonAncestorContainer.nodeType === Node.TEXT_NODE ? range.commonAncestorContainer.parentElement : range.commonAncestorContainer;
+  const textos = [];
+  const walker = document.createTreeWalker(raiz, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.nodeValue.trim() && node.nodeValue !== " ") return NodeFilter.FILTER_REJECT;
+      return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  while (walker.nextNode()) textos.push(walker.currentNode);
+  textos.reverse().forEach((node) => {
+    const inicio = node === range.startContainer ? range.startOffset : 0;
+    const fim = node === range.endContainer ? range.endOffset : node.nodeValue.length;
+    if (inicio >= fim) return;
+    const trecho = document.createRange();
+    trecho.setStart(node, inicio);
+    trecho.setEnd(node, fim);
+    const span = document.createElement("span");
+    span.style.fontSize = `${tamanho}pt`;
+    try {
+      trecho.surroundContents(span);
+    } catch {
+      const conteudo = trecho.extractContents();
+      span.appendChild(conteudo);
+      trecho.insertNode(span);
+    }
+  });
+}
+
+function substituirFontesTemporarias(tamanho) {
   els.atendimentoEditor.querySelectorAll('font[size="7"]').forEach((font) => {
     const span = document.createElement("span");
     span.style.fontSize = `${tamanho}pt`;
     span.innerHTML = font.innerHTML;
     font.replaceWith(span);
   });
-  guardarSelecaoEditor();
-  atualizarControleTamanhoFonte();
 }
 
 function atualizarSelecaoEditor() {
@@ -1413,20 +1545,22 @@ function nivelRecuoBloco(bloco) {
   if (!bloco || bloco === els.atendimentoEditor) return 0;
   const salvo = Number(bloco.dataset.indentLevel || 0);
   if (Number.isFinite(salvo) && salvo > 0) return salvo;
-  const margem = parseFloat(bloco.style.marginLeft || "0");
-  return margem ? Math.round(margem / ATTENDANCE_INDENT_CM) : 0;
+  const recuo = parseFloat(bloco.style.textIndent || bloco.style.marginLeft || "0");
+  return recuo ? Math.round(recuo / ATTENDANCE_INDENT_CM) : 0;
 }
 
 function aplicarNivelRecuo(bloco, nivel) {
   if (!bloco || bloco === els.atendimentoEditor) return;
   const proximo = Math.max(0, Math.min(8, nivel));
   if (!proximo) {
+    bloco.style.textIndent = "";
     bloco.style.marginLeft = "";
     delete bloco.dataset.indentLevel;
     return;
   }
   bloco.dataset.indentLevel = String(proximo);
-  bloco.style.marginLeft = `${(proximo * ATTENDANCE_INDENT_CM).toFixed(2)}cm`;
+  bloco.style.textIndent = `${(proximo * ATTENDANCE_INDENT_CM).toFixed(2)}cm`;
+  bloco.style.marginLeft = "";
 }
 
 function cursorNoInicioDoBloco(bloco) {
@@ -1526,40 +1660,130 @@ function renderAgenda() {
   const proximos = eventos.filter((evento) => !evento.concluido).slice(0, 8);
   document.querySelector("#agendaResumo").innerHTML = vazioOu(proximos.slice(0, 6), cardEvento);
   document.querySelector("#agendaLista").innerHTML = vazioOu(proximos, cardEvento);
+  state.agendaModo = state.agendaModo || "mes";
+  state.agendaDiaSelecionado = state.agendaDiaSelecionado || hojeIso();
+  renderModoAgenda();
   renderCalendario(eventos);
+  renderDetalheDiaAgenda(state.agendaDiaSelecionado, eventos);
   vincularAberturaProcesso();
   vincularAberturaAtendimentoAgenda();
 }
 
 function renderCalendario(eventos) {
-  const ano = mesAgenda.getFullYear();
-  const mes = mesAgenda.getMonth();
-  const primeiroDia = new Date(ano, mes, 1);
-  const totalDias = new Date(ano, mes + 1, 0).getDate();
-  const inicio = primeiroDia.getDay();
-  const titulo = new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(mesAgenda);
-  document.querySelector("#tituloMesAgenda").textContent = titulo;
+  const modo = state.agendaModo || "mes";
+  const selecionado = state.agendaDiaSelecionado || hojeIso();
+  els.gradeAgenda.className = `calendar-grid calendar-${modo}-mode`;
+  els.gradeAgenda.closest(".calendar-shell")?.setAttribute("data-agenda-mode", modo);
+  document.querySelector("#tituloMesAgenda").textContent = tituloAgenda(modo, selecionado);
 
-  const celulas = [];
-  for (let i = 0; i < inicio; i++) celulas.push(`<div class="calendar-day empty"></div>`);
-  for (let dia = 1; dia <= totalDias; dia++) {
-    const data = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
-    const eventosDia = eventos.filter((evento) => evento.data === data).slice(0, 3);
-    celulas.push(`
-      <div class="calendar-day ${data === hojeIso() ? "today" : ""}">
-        <strong>${dia}</strong>
-        <div class="calendar-events">
-          ${eventosDia.map((evento) => `
-            <button type="button" ${evento.processoId ? `data-open-process="${evento.processoId}"` : `data-open-attendance-view="${evento.atendimentoId}"`}>
-              ${escapeHtml(evento.cliente)} · ${escapeHtml(evento.tipo)}
-            </button>
-          `).join("")}
-        </div>
-      </div>
-    `);
+  if (modo === "mes") {
+    const ano = mesAgenda.getFullYear();
+    const mes = mesAgenda.getMonth();
+    const primeiroDia = new Date(ano, mes, 1);
+    const totalDias = new Date(ano, mes + 1, 0).getDate();
+    const inicio = primeiroDia.getDay();
+    const celulas = [];
+    for (let i = 0; i < inicio; i++) celulas.push(`<div class="calendar-day empty"></div>`);
+    for (let dia = 1; dia <= totalDias; dia++) {
+      const data = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
+      celulas.push(celulaAgenda(data, eventos));
+    }
+    els.gradeAgenda.innerHTML = celulas.join("");
+    return;
   }
-  document.querySelector("#gradeAgenda").innerHTML = celulas.join("");
-  vincularAberturaProcesso();
+
+  const datas = modo === "semana" ? datasSemanaAgenda(selecionado) : [selecionado];
+  els.gradeAgenda.innerHTML = datas.map((data) => celulaAgenda(data, eventos)).join("");
+}
+
+function renderModoAgenda() {
+  els.agendaModo.querySelectorAll("[data-agenda-mode]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.agendaMode === (state.agendaModo || "mes"));
+  });
+}
+
+function tituloAgenda(modo, dataSelecionada) {
+  if (modo === "mes") return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(mesAgenda);
+  if (modo === "semana") {
+    const semana = datasSemanaAgenda(dataSelecionada);
+    return `${dataCurta(semana[0])} a ${dataCurta(semana[6])}`;
+  }
+  return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(dataLocalAgenda(dataSelecionada));
+}
+
+function celulaAgenda(data, eventos) {
+  const eventosDia = eventos.filter((evento) => evento.data === data);
+  const dia = dataLocalAgenda(data).getDate();
+  const selecionado = data === state.agendaDiaSelecionado;
+  const limite = state.agendaModo === "mes" ? 3 : 12;
+  return `
+    <div class="calendar-day ${data === hojeIso() ? "today" : ""} ${selecionado ? "is-selected" : ""}" data-calendar-day="${data}">
+      <strong>${dia}</strong>
+      <div class="calendar-events">
+        ${eventosDia.slice(0, limite).map((evento) => `
+          <button type="button" data-calendar-date="${data}">
+            ${escapeHtml(evento.cliente)} · ${escapeHtml(evento.tipo)}
+          </button>
+        `).join("")}
+        ${eventosDia.length > limite ? `<span class="calendar-more">+${eventosDia.length - limite}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function renderDetalheDiaAgenda(data, eventos) {
+  if (!els.agendaDetalheDia) return;
+  const eventosDia = eventos.filter((evento) => evento.data === data);
+  els.agendaDetalheDia.classList.remove("is-hidden");
+  els.agendaDetalheDia.innerHTML = `
+    <div class="calendar-detail-header">
+      <div>
+        <span>Dia selecionado</span>
+        <strong>${dataCurta(data)}</strong>
+      </div>
+      <small>${eventosDia.length} compromisso${eventosDia.length !== 1 ? "s" : ""}</small>
+    </div>
+    <div class="calendar-detail-list">
+      ${eventosDia.length ? eventosDia.map((evento) => `
+        <button type="button" class="calendar-detail-item" ${evento.processoId ? `data-detail-open-process="${evento.processoId}"` : `data-detail-open-attendance="${evento.atendimentoId}"`}>
+          <strong>${escapeHtml(evento.tipo)} · ${escapeHtml(evento.cliente)}</strong>
+          <span>${escapeHtml(evento.processo)} · Responsável: ${escapeHtml(evento.responsavel)}</span>
+          <small>${escapeHtml(evento.descricao || "")}</small>
+        </button>
+      `).join("") : `<p>Nenhum prazo ou atendimento agendado neste dia.</p>`}
+    </div>
+  `;
+}
+
+function mudarModoAgenda(event) {
+  const botao = event.target.closest("[data-agenda-mode]");
+  if (!botao) return;
+  state.agendaModo = botao.dataset.agendaMode;
+  state.agendaDiaSelecionado = state.agendaDiaSelecionado || hojeIso();
+  mesAgenda = dataLocalAgenda(state.agendaDiaSelecionado);
+  salvarEstado();
+  renderAgenda();
+}
+
+function selecionarDiaAgenda(event) {
+  const alvo = event.target.closest("[data-calendar-date], [data-calendar-day]");
+  if (!alvo) return;
+  const data = alvo.dataset.calendarDate || alvo.dataset.calendarDay;
+  if (!data) return;
+  state.agendaDiaSelecionado = data;
+  mesAgenda = dataLocalAgenda(data);
+  salvarEstado();
+  renderAgenda();
+}
+
+function abrirItemDetalheAgenda(event) {
+  const processo = event.target.closest("[data-detail-open-process]");
+  if (processo) {
+    abrirDetalheProcesso(processo.dataset.detailOpenProcess);
+    return;
+  }
+  const atendimento = event.target.closest("[data-detail-open-attendance]");
+  if (atendimento) abrirAtendimentoPorId(atendimento.dataset.detailOpenAttendance);
 }
 
 function cardEvento(evento) {
@@ -1729,23 +1953,28 @@ function abrirDetalheProcesso(id) {
           <p>${escapeHtml(processo.resumo || "Sem resumo cadastrado.")}</p>
         </section>
 
-        <section class="detail-panel detail-form-card">
-          <h3>Novo prazo</h3>
-          <form class="stack-form" data-detail-form="prazo">
-            <input name="data" type="date" required>
-            <input name="tipo" required placeholder="Tipo do prazo">
-            <select name="responsavelId" required>${state.usuarios.map((u) => `<option value="${u.id}" ${u.id === processo.responsavelId ? "selected" : ""}>${escapeHtml(u.nome)}</option>`).join("")}</select>
-            <textarea name="descricao" rows="3" required placeholder="Descrição"></textarea>
-            <button class="primary-button" type="submit">Adicionar prazo</button>
-          </form>
-        </section>
-
-        <section class="detail-panel detail-form-card">
-          <h3>Nova movimentação</h3>
-          <form class="stack-form" data-detail-form="movimentacao">
-            <input name="data" type="date" required value="${hojeIso()}">
-            <textarea name="descricao" rows="4" required placeholder="Descrição da movimentação"></textarea>
-            <button class="primary-button" type="submit">Adicionar movimentação</button>
+        <section class="detail-panel detail-form-card movement-form-card">
+          <h3>Andamento e providência</h3>
+          <form class="stack-form movement-form" data-detail-form="andamento">
+            <div class="movement-grid">
+              <input name="data" type="date" required value="${hojeIso()}">
+              <select name="tipoMovimentacao" required>
+                ${state.configs.movimentacoes.map((tipo) => `<option value="${escapeHtml(tipo)}">${escapeHtml(tipo)}</option>`).join("")}
+              </select>
+            </div>
+            <input name="tipoOutro" placeholder="Outro motivo, se precisar">
+            <textarea name="descricao" rows="3" required placeholder="Resumo do andamento, publicação, contato ou conferência"></textarea>
+            <label class="check-line">
+              <input name="gerarPrazo" type="checkbox" value="sim">
+              <span>Esta movimentação gera prazo/providência</span>
+            </label>
+            <div class="movement-deadline">
+              <input name="prazoData" type="date" aria-label="Data do prazo">
+              <input name="prazoTipo" placeholder="Tipo do prazo/providência">
+              <select name="responsavelId">${state.usuarios.map((u) => `<option value="${u.id}" ${u.id === processo.responsavelId ? "selected" : ""}>${escapeHtml(u.nome)}</option>`).join("")}</select>
+              <textarea name="prazoDescricao" rows="2" placeholder="Observação da providência, se for diferente do andamento"></textarea>
+            </div>
+            <button class="primary-button" type="submit">Registrar andamento</button>
           </form>
         </section>
 
@@ -1771,12 +2000,19 @@ function abrirDetalheProcesso(id) {
         <section class="detail-panel detail-movements">
           <h3>Movimentações</h3>
           <div class="timeline-list">
-            ${ordenarPorData(processo.movimentacoes).reverse().map((mov) => `
-              <article>
-                <time>${dataCurta(mov.data)}</time>
-                <p>${escapeHtml(mov.descricao)}</p>
-              </article>
-            `).join("") || "<p>Nenhuma movimentação cadastrada.</p>"}
+            ${ordenarPorData(processo.movimentacoes).reverse().map((mov) => {
+              const prazoVinculado = processo.prazos.find((prazo) => prazo.id === mov.prazoId);
+              return `
+                <article>
+                  <time>${dataCurta(mov.data)}</time>
+                  <div>
+                    <strong>${escapeHtml(mov.tipo || "Andamento")}</strong>
+                    <p>${escapeHtml(mov.descricao)}</p>
+                    ${prazoVinculado ? `<small>Prazo gerado: ${dataCurta(prazoVinculado.data)} · ${escapeHtml(prazoVinculado.tipo)}</small>` : `<small>Sem novo prazo vinculado</small>`}
+                  </div>
+                </article>
+              `;
+            }).join("") || "<p>Nenhuma movimentação cadastrada.</p>"}
           </div>
         </section>
 
@@ -2191,7 +2427,19 @@ function fecharMenuMarca() {
 }
 
 function mudarMes(delta) {
+  const modo = state.agendaModo || "mes";
+  if (modo === "semana" || modo === "dia") {
+    const base = dataLocalAgenda(state.agendaDiaSelecionado || hojeIso());
+    base.setDate(base.getDate() + delta * (modo === "semana" ? 7 : 1));
+    state.agendaDiaSelecionado = isoLocalAgenda(base);
+    mesAgenda = new Date(base.getFullYear(), base.getMonth(), 1);
+    salvarEstado();
+    renderAgenda();
+    return;
+  }
   mesAgenda = new Date(mesAgenda.getFullYear(), mesAgenda.getMonth() + delta, 1);
+  state.agendaDiaSelecionado = isoLocalAgenda(mesAgenda);
+  salvarEstado();
   renderAgenda();
 }
 
@@ -2300,11 +2548,13 @@ function normalizarEstado(raw) {
   estado.configs = {
     status: raw.configs?.status || padrao.configs.status,
     areas: raw.configs?.areas || padrao.configs.areas,
-    orgaos: orgaosSalvos.length ? orgaosSalvos.map(migrarTextoParaPb) : padrao.configs.orgaos
+    orgaos: orgaosSalvos.length ? orgaosSalvos.map(migrarTextoParaPb) : padrao.configs.orgaos,
+    movimentacoes: raw.configs?.movimentacoes?.length ? raw.configs.movimentacoes : padrao.configs.movimentacoes
   };
   if (!estado.configs.orgaos.length) estado.configs.orgaos = padrao.configs.orgaos;
   estado.configs.status = estado.configs.status.map(migrarTextoParaPb);
   estado.configs.areas = estado.configs.areas.map(migrarTextoParaPb);
+  estado.configs.movimentacoes = estado.configs.movimentacoes.map(migrarTextoParaPb);
   estado.avancadas = {
     googleScriptUrl: raw.avancadas?.googleScriptUrl || "",
     observacoesTecnicas: raw.avancadas?.observacoesTecnicas || ""
@@ -2313,6 +2563,8 @@ function normalizarEstado(raw) {
   estado.clienteOrdenacao = estado.clienteOrdenacao || "nome";
   estado.atendimentoMostrarArquivados = !!estado.atendimentoMostrarArquivados;
   estado.sidebarRecolhida = !!estado.sidebarRecolhida;
+  estado.agendaModo = ["mes", "semana", "dia"].includes(raw.agendaModo) ? raw.agendaModo : "mes";
+  estado.agendaDiaSelecionado = raw.agendaDiaSelecionado || hojeIso();
   estado.usuarios = (estado.usuarios || padrao.usuarios).map((usuario, index) => ({
     id: usuario.id || uid(),
     nome: usuario.nome || `Usuário ${index + 1}`,
@@ -2450,7 +2702,13 @@ function normalizarProcesso(processo, estado) {
     resumo: migrarTextoParaPb(processo.resumo || ""),
     prazos,
     atendimentos: processo.atendimentos || [],
-    movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), descricao: "Registro importado da versão anterior." }]).map((mov) => ({ id: mov.id || uid(), data: mov.data || hojeIso(), descricao: migrarTextoParaPb(mov.descricao || "") }))
+    movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), tipo: "Histórico", descricao: "Registro importado da versão anterior." }]).map((mov) => ({
+      id: mov.id || uid(),
+      data: mov.data || hojeIso(),
+      tipo: migrarTextoParaPb(mov.tipo || "Andamento"),
+      descricao: migrarTextoParaPb(mov.descricao || ""),
+      prazoId: mov.prazoId || ""
+    }))
   };
 }
 
@@ -2472,6 +2730,8 @@ function criarEstadoPadrao() {
     clienteOrdenacao: "nome",
     atendimentoMostrarArquivados: false,
     sidebarRecolhida: false,
+    agendaModo: "mes",
+    agendaDiaSelecionado: hojeIso(),
     rascunhoAtendimento: null,
     avancadas: {
       googleScriptUrl: "",
@@ -2481,7 +2741,8 @@ function criarEstadoPadrao() {
     configs: {
       status: ["Ativo", "Aguardando audiência", "Recurso", "Suspenso", "Encerrado"],
       areas: ["Cível", "Trabalhista", "Família", "Empresarial", "Previdenciário"],
-      orgaos: ["1ª Vara Cível de João Pessoa", "2ª Vara Empresarial de João Pessoa", "3ª Vara de Família de João Pessoa", "12ª Vara do Trabalho de João Pessoa", "Fórum Cível Des. Mário Moacyr Porto", "TRT 13ª Região", "Justiça Federal da Paraíba"]
+      orgaos: ["1ª Vara Cível de João Pessoa", "2ª Vara Empresarial de João Pessoa", "3ª Vara de Família de João Pessoa", "12ª Vara do Trabalho de João Pessoa", "Fórum Cível Des. Mário Moacyr Porto", "TRT 13ª Região", "Justiça Federal da Paraíba"],
+      movimentacoes: ["Intimação/publicação", "Despacho", "Decisão", "Sentença", "Audiência designada", "Petição protocolada", "Juntada de documentos", "Vista/carga", "Contato com cliente", "Sem movimentação externa", "Outro"]
     },
     clientes,
     atendimentos: [],
@@ -2520,8 +2781,8 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
     atendimentos: [],
     prazos: prazos.map((item) => ({ id: uid(), concluido: false, ...item })),
     movimentacoes: [
-      { id: uid(), data: "2026-05-18", descricao: "Movimentação registrada e conferida pela equipe." },
-      { id: uid(), data: "2026-05-12", descricao: "Documentos anexados ao acompanhamento interno." }
+      { id: uid(), data: "2026-05-18", tipo: "Andamento conferido", descricao: "Movimentação registrada e conferida pela equipe." },
+      { id: uid(), data: "2026-05-12", tipo: "Juntada de documentos", descricao: "Documentos anexados ao acompanhamento interno." }
     ]
   };
 }
@@ -2708,6 +2969,25 @@ function somarDiasIso(data, dias) {
   const base = new Date(`${String(data).slice(0, 10)}T00:00:00`);
   base.setDate(base.getDate() + dias);
   return base.toISOString().slice(0, 10);
+}
+
+function dataLocalAgenda(data) {
+  const [ano, mes, dia] = String(data || hojeIso()).slice(0, 10).split("-").map(Number);
+  return new Date(ano, (mes || 1) - 1, dia || 1);
+}
+
+function isoLocalAgenda(data) {
+  return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
+}
+
+function datasSemanaAgenda(data) {
+  const inicio = dataLocalAgenda(data);
+  inicio.setDate(inicio.getDate() - inicio.getDay());
+  return Array.from({ length: 7 }, (_, index) => {
+    const dia = new Date(inicio);
+    dia.setDate(inicio.getDate() + index);
+    return isoLocalAgenda(dia);
+  });
 }
 
 function diasAte(data) {

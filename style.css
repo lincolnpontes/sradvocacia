@@ -1,3 +1,4 @@
+/* SR Advocacia v1.0.10 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -1177,7 +1178,9 @@ tr:last-child td {
   display: grid;
   place-items: center;
   min-width: 34px;
+  width: 34px;
   min-height: 32px;
+  height: 32px;
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1188,6 +1191,7 @@ tr:last-child td {
 
 .editor-toolbar select {
   display: block;
+  width: auto;
   min-width: 68px;
   padding: 0 8px;
 }
@@ -1206,13 +1210,18 @@ tr:last-child td {
 
 .toolbar-icon-button,
 .toolbar-color-button {
-  gap: 6px;
+  grid-template-columns: minmax(0, 1fr) 8px;
+  gap: 2px;
+  width: 38px;
+  min-width: 38px;
+  padding: 0 5px;
 }
 
 .toolbar-caret {
   width: 0;
   height: 0;
-  border-top: 5px solid currentColor;
+  justify-self: end;
+  border-top: 4px solid currentColor;
   border-right: 4px solid transparent;
   border-left: 4px solid transparent;
 }
@@ -1244,49 +1253,49 @@ tr:last-child td {
 
 .align-lines {
   display: grid;
-  gap: 3px;
-  width: 24px;
+  gap: 2.5px;
+  width: 20px;
 }
 
 .align-lines i {
   display: block;
-  height: 2px;
+  height: 1.5px;
   border-radius: 999px;
   background: currentColor;
 }
 
 .align-left i:nth-child(1),
-.align-left i:nth-child(3) { width: 24px; }
+.align-left i:nth-child(3) { width: 20px; }
 .align-left i:nth-child(2),
-.align-left i:nth-child(4) { width: 16px; }
+.align-left i:nth-child(4) { width: 13px; }
 
 .align-center i:nth-child(1),
-.align-center i:nth-child(3) { width: 24px; }
+.align-center i:nth-child(3) { width: 20px; }
 .align-center i:nth-child(2),
-.align-center i:nth-child(4) { width: 16px; margin: 0 auto; }
+.align-center i:nth-child(4) { width: 13px; margin: 0 auto; }
 
 .align-right i:nth-child(1),
-.align-right i:nth-child(3) { width: 24px; }
+.align-right i:nth-child(3) { width: 20px; }
 .align-right i:nth-child(2),
-.align-right i:nth-child(4) { width: 16px; margin-left: auto; }
+.align-right i:nth-child(4) { width: 13px; margin-left: auto; }
 
 .align-justify i {
-  width: 24px;
+  width: 20px;
 }
 
 .list-icon {
   display: grid;
-  gap: 3px;
-  width: 28px;
+  gap: 2.5px;
+  width: 22px;
 }
 
 .list-icon i {
   position: relative;
   display: grid;
-  grid-template-columns: 8px 1fr;
+  grid-template-columns: 7px 1fr;
   align-items: center;
-  gap: 5px;
-  height: 7px;
+  gap: 4px;
+  height: 6px;
   color: currentColor;
   font-size: 11px;
   font-style: normal;
@@ -1304,7 +1313,7 @@ tr:last-child td {
 
 .list-icon i::after {
   content: "";
-  height: 2px;
+  height: 1.5px;
   border-radius: 999px;
   background: currentColor;
 }
@@ -1345,17 +1354,30 @@ tr:last-child td {
 
 .editor-toolbar .highlight-tool {
   position: relative;
-  grid-template-columns: auto auto auto;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) 8px;
+  gap: 2px;
 }
 
 .editor-toolbar .highlight-tool::after {
+  content: none;
+}
+
+.highlight-letter {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 13px;
+  padding-bottom: 4px;
+  line-height: 1;
+}
+
+.highlight-letter::after {
   content: "";
   position: absolute;
-  right: 8px;
-  bottom: 6px;
-  left: 8px;
-  height: 4px;
+  right: 0;
+  bottom: 1px;
+  left: 0;
+  height: 3px;
   border-radius: 999px;
   background: var(--highlight-color, #f2c95c);
 }
@@ -1590,10 +1612,42 @@ body.attendance-focus-mode .attendance-editor {
   text-transform: capitalize;
 }
 
+.calendar-mode-toggle {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.calendar-mode-toggle button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  background: transparent;
+  font-weight: 800;
+}
+
+.calendar-mode-toggle button.is-active {
+  color: #fff;
+  background: var(--wine);
+}
+
 .calendar-weekdays,
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendar-shell[data-agenda-mode="dia"] .calendar-weekdays {
+  display: none;
+}
+
+.calendar-grid.calendar-dia-mode {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .calendar-weekdays span {
@@ -1611,6 +1665,7 @@ body.attendance-focus-mode .attendance-editor {
   border-top: 1px solid var(--line);
   border-right: 1px solid var(--line);
   background: #fff;
+  cursor: pointer;
 }
 
 .calendar-day:nth-child(7n) {
@@ -1623,6 +1678,15 @@ body.attendance-focus-mode .attendance-editor {
 
 .calendar-day.today {
   box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.calendar-day.is-selected {
+  background: #fff7dc;
+  box-shadow: inset 0 0 0 2px var(--wine);
+}
+
+.calendar-dia-mode .calendar-day {
+  min-height: 260px;
 }
 
 .calendar-day strong {
@@ -1769,6 +1833,66 @@ body.attendance-focus-mode .attendance-editor {
 
 .theme-card small {
   grid-column: 2;
+  color: var(--muted);
+}
+
+.calendar-more {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.calendar-day-detail {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border-top: 1px solid var(--line);
+  background: #fffaf4;
+}
+
+.calendar-detail-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.calendar-detail-header span,
+.calendar-detail-header small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.calendar-detail-header strong {
+  display: block;
+  margin-top: 2px;
+  text-transform: capitalize;
+}
+
+.calendar-detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.calendar-detail-item {
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fff;
+  text-align: left;
+}
+
+.calendar-detail-item span,
+.calendar-detail-item small {
   color: var(--muted);
 }
 
@@ -2335,6 +2459,40 @@ dialog::backdrop {
   align-self: start;
 }
 
+.movement-form-card {
+  grid-column: 1 / -1;
+}
+
+.movement-grid,
+.movement-deadline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.movement-form:not(:has(input[name="gerarPrazo"]:checked)) .movement-deadline {
+  display: none;
+}
+
+.check-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: #fffaf4;
+  font-weight: 800;
+}
+
+.check-line input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--wine);
+}
+
 .detail-chips {
   display: flex;
   gap: 8px;
@@ -2448,6 +2606,13 @@ dd {
 
 .timeline-list p {
   margin-bottom: 0;
+}
+
+.timeline-list small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted);
+  font-weight: 700;
 }
 
 @media (max-width: 1100px) {
