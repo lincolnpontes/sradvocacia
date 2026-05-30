@@ -1,11 +1,22 @@
-const APP_VERSION = "1.0.11";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v111";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.12";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v112";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
 const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
 const ATTENDANCE_INDENT_CM = 1.25;
+const FERIADOS_FIXOS_BRASIL = Object.freeze([
+  { mes: 1, dia: 1, nome: "Confraternização Universal" },
+  { mes: 4, dia: 21, nome: "Tiradentes" },
+  { mes: 5, dia: 1, nome: "Dia do Trabalho" },
+  { mes: 9, dia: 7, nome: "Independência do Brasil" },
+  { mes: 10, dia: 12, nome: "Nossa Senhora Aparecida" },
+  { mes: 11, dia: 2, nome: "Finados" },
+  { mes: 11, dia: 15, nome: "Proclamação da República" },
+  { mes: 11, dia: 20, nome: "Consciência Negra" },
+  { mes: 12, dia: 25, nome: "Natal" }
+]);
 
 const ABAS = [
   { id: "dashboard", label: "Painel" },
@@ -102,6 +113,9 @@ const els = {
   btnVersoesAtendimento: document.querySelector("#btnVersoesAtendimento"),
   btnFecharAtendimento: document.querySelector("#btnFecharAtendimento"),
   modalFecharAtendimento: document.querySelector("#modalFecharAtendimento"),
+  modalExcluirAtendimento: document.querySelector("#modalExcluirAtendimento"),
+  textoExcluirAtendimento: document.querySelector("#textoExcluirAtendimento"),
+  btnConfirmarExcluirAtendimento: document.querySelector("#btnConfirmarExcluirAtendimento"),
   agendaCliente: document.querySelector("#agendaCliente"),
   agendaArea: document.querySelector("#agendaArea"),
   agendaResponsavel: document.querySelector("#agendaResponsavel"),
@@ -111,6 +125,10 @@ const els = {
   agendaModo: document.querySelector("#agendaModo"),
   gradeAgenda: document.querySelector("#gradeAgenda"),
   agendaDetalheDia: document.querySelector("#agendaDetalheDia"),
+  btnAdicionarFeriado: document.querySelector("#btnAdicionarFeriado"),
+  modalFeriadoExtra: document.querySelector("#modalFeriadoExtra"),
+  formFeriadoExtra: document.querySelector("#formFeriadoExtra"),
+  agendaFeriadoData: document.querySelector("#agendaFeriadoData"),
   editorFontSize: document.querySelector("#editorFontSize"),
   contratoProcesso: document.querySelector("#contratoProcesso"),
   temaModalGrid: document.querySelector("#temaModalGrid"),
@@ -180,13 +198,15 @@ function configurarEventos() {
     salvarEstado();
     renderClientes();
   });
-  els.btnForceUpdateTop.addEventListener("click", forcarAtualizacao);
+  els.btnForceUpdateTop?.addEventListener("click", forcarAtualizacao);
   els.btnForceUpdateLogin.addEventListener("click", forcarAtualizacao);
   document.querySelector("#mesAnterior").addEventListener("click", () => mudarMes(-1));
   document.querySelector("#mesProximo").addEventListener("click", () => mudarMes(1));
   els.agendaModo.addEventListener("click", mudarModoAgenda);
   els.gradeAgenda.addEventListener("click", selecionarDiaAgenda);
   els.agendaDetalheDia.addEventListener("click", abrirItemDetalheAgenda);
+  els.btnAdicionarFeriado.addEventListener("click", abrirModalFeriadoExtra);
+  els.formFeriadoExtra.addEventListener("submit", salvarFeriadoExtra);
   document.querySelector("#btnFecharDetalhe").addEventListener("click", () => els.modalDetalhe.close());
 
   els.busca.addEventListener("input", renderizarTudo);
@@ -222,6 +242,7 @@ function configurarEventos() {
   document.querySelector("#btnAtendimentoCancelarFechar").addEventListener("click", () => els.modalFecharAtendimento.close());
   document.querySelector("#btnAtendimentoSalvarSemFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(false));
   document.querySelector("#btnAtendimentoSalvarEFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(true));
+  els.btnConfirmarExcluirAtendimento.addEventListener("click", confirmarExclusaoAtendimento);
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -426,6 +447,9 @@ function salvarProcesso(event) {
   }
   state.processos.unshift(processo);
   salvarEstado();
+  if (els.modalCliente.open && els.formCliente.elements.id.value === processo.clienteId) {
+    renderPainelCliente(obterCliente(processo.clienteId));
+  }
   els.modalProcesso.close();
   trocarView("processos");
 }
@@ -712,7 +736,7 @@ function atualizarAcoesTopo(view = viewAtual) {
   els.btnNovo.classList.toggle("is-hidden", !["processos", "atendimentos"].includes(view));
   els.btnAgendarAtendimento.classList.toggle("is-hidden", view !== "atendimentos");
   els.clientTopControls.classList.toggle("is-hidden", view !== "clientes");
-  els.btnForceUpdateTop.classList.toggle("is-hidden", view !== "dashboard");
+  els.btnForceUpdateTop?.classList.toggle("is-hidden", true);
   els.btnNovoTexto.textContent = view === "atendimentos" ? "Novo atendimento" : "Novo processo";
 
   const placeholders = {
@@ -745,7 +769,7 @@ function renderMetricas() {
   const cards = [
     metricCard("Processos ativos", processosAtivos, "Carteira em andamento"),
     metricCard("Clientes", state.clientes.length, "Cadastros no escritório"),
-    metricCard("Prazos críticos", prazosCriticos, "Vencidos ou até 3 dias"),
+    metricCard("Prazos críticos", prazosCriticos, "Vencidos ou com vencimento nos próximos 3 dias"),
     metricCard("Atendimentos", atendimentosAbertos, "Abertos sem processo")
   ];
   if (temAcesso("financeiro")) cards.push(metricCard("A receber", moeda(pendente), "Honorários pendentes"));
@@ -943,6 +967,7 @@ function renderAtendimentos() {
           <button class="ghost-button table-action" type="button" data-toggle-archive-attendance="${atendimento.id}">
             ${atendimento.arquivado ? "Desarquivar" : "Arquivar"}
           </button>
+          ${atendimento.arquivado ? `<button class="danger-button table-action" type="button" data-delete-attendance="${atendimento.id}">Excluir</button>` : ""}
         </div>
       </article>
     `;
@@ -1176,6 +1201,11 @@ function normalizarHtmlComparacao(html = "") {
 }
 
 function abrirAtendimentoDaLista(event) {
+  const excluir = event.target.closest("[data-delete-attendance]");
+  if (excluir) {
+    pedirExclusaoAtendimento(excluir.dataset.deleteAttendance);
+    return;
+  }
   const arquivar = event.target.closest("[data-toggle-archive-attendance]");
   if (arquivar) {
     alternarArquivoAtendimento(arquivar.dataset.toggleArchiveAttendance);
@@ -1312,6 +1342,11 @@ function executarComandoEditor(comando, valor = null, listStyle = "", listType =
   }
   if (comando === "lineSpacing") {
     aplicarEspacamentoLinha(valor || "1.5");
+    guardarSelecaoEditor();
+    return;
+  }
+  if (comando === "removeList") {
+    removerListaSelecionada();
     guardarSelecaoEditor();
     return;
   }
@@ -1537,7 +1572,35 @@ function aplicarEstiloLista(listStyle, listType = "") {
   const node = selection?.anchorNode;
   const elemento = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
   const lista = elemento?.closest?.(listType || "ol, ul");
-  if (lista) lista.style.listStyleType = listStyle;
+  if (!lista) return;
+  lista.dataset.listFormat = "";
+  const customFormats = {
+    "decimal-paren": "decimal-paren",
+    "lower-alpha-paren": "lower-alpha-paren"
+  };
+  if (customFormats[listStyle]) {
+    lista.dataset.listFormat = customFormats[listStyle];
+    lista.style.listStyleType = "none";
+    return;
+  }
+  lista.removeAttribute("data-list-format");
+  lista.style.listStyleType = listStyle;
+}
+
+function removerListaSelecionada() {
+  const selection = window.getSelection();
+  const node = selection?.anchorNode;
+  const elemento = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  const lista = elemento?.closest?.("ol, ul");
+  if (!lista || !els.atendimentoEditor.contains(lista)) return;
+  const fragmento = document.createDocumentFragment();
+  Array.from(lista.children).forEach((item) => {
+    if (item.tagName !== "LI") return;
+    const p = document.createElement("p");
+    p.innerHTML = item.innerHTML || "<br>";
+    fragmento.appendChild(p);
+  });
+  lista.replaceWith(fragmento);
 }
 
 function atalhosEditorAtendimento(event) {
@@ -1760,23 +1823,47 @@ function renderModoAgenda() {
   });
 }
 
+function tituloMesAgenda(data) {
+  return capitalizarPrimeira(new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(data));
+}
+
+function tituloSemanaAgenda(inicio, fim) {
+  const dataInicio = dataLocalAgenda(inicio);
+  const dataFim = dataLocalAgenda(fim);
+  const mesInicio = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataInicio);
+  const mesFim = new Intl.DateTimeFormat("pt-BR", { month: "long" }).format(dataFim);
+  if (dataInicio.getFullYear() === dataFim.getFullYear() && dataInicio.getMonth() === dataFim.getMonth()) {
+    return `${dataInicio.getDate()} a ${dataFim.getDate()} de ${mesFim} de ${dataFim.getFullYear()}`;
+  }
+  if (dataInicio.getFullYear() === dataFim.getFullYear()) {
+    return `${dataInicio.getDate()} de ${mesInicio} a ${dataFim.getDate()} de ${mesFim} de ${dataFim.getFullYear()}`;
+  }
+  return `${dataInicio.getDate()} de ${mesInicio} de ${dataInicio.getFullYear()} a ${dataFim.getDate()} de ${mesFim} de ${dataFim.getFullYear()}`;
+}
+
+function capitalizarPrimeira(texto = "") {
+  return texto ? texto.charAt(0).toUpperCase() + texto.slice(1) : "";
+}
+
 function tituloAgenda(modo, dataSelecionada) {
-  if (modo === "mes") return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(mesAgenda);
+  if (modo === "mes") return tituloMesAgenda(mesAgenda);
   if (modo === "semana") {
     const semana = datasSemanaAgenda(dataSelecionada);
-    return `${dataCurta(semana[0])} a ${dataCurta(semana[6])}`;
+    return tituloSemanaAgenda(semana[0], semana[6]);
   }
-  return new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(dataLocalAgenda(dataSelecionada));
+  return capitalizarPrimeira(new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dataLocalAgenda(dataSelecionada)));
 }
 
 function celulaAgenda(data, eventos) {
   const eventosDia = eventos.filter((evento) => evento.data === data);
+  const feriado = feriadoAgenda(data);
   const dia = dataLocalAgenda(data).getDate();
   const selecionado = data === state.agendaDiaSelecionado;
   const limite = state.agendaModo === "mes" ? 3 : 12;
   return `
-    <div class="calendar-day ${data === hojeIso() ? "today" : ""} ${selecionado ? "is-selected" : ""}" data-calendar-day="${data}">
+    <div class="calendar-day ${data === hojeIso() ? "today" : ""} ${selecionado ? "is-selected" : ""} ${feriado ? "is-holiday" : ""}" data-calendar-day="${data}">
       <strong>${dia}</strong>
+      ${feriado ? `<button class="holiday-badge" type="button" data-toggle-holiday="${data}" title="Clique para desmarcar como feriado">${escapeHtml(feriado.nome)}</button>` : ""}
       <div class="calendar-events">
         ${eventosDia.slice(0, limite).map((evento) => `
           <button type="button" data-calendar-date="${data}">
@@ -1792,15 +1879,17 @@ function celulaAgenda(data, eventos) {
 function renderDetalheDiaAgenda(data, eventos) {
   if (!els.agendaDetalheDia) return;
   const eventosDia = eventos.filter((evento) => evento.data === data);
+  const feriado = feriadoAgenda(data);
   els.agendaDetalheDia.classList.remove("is-hidden");
   els.agendaDetalheDia.innerHTML = `
     <div class="calendar-detail-header">
       <div>
         <span>Dia selecionado</span>
-        <strong>${dataCurta(data)}</strong>
+        <strong>${capitalizarPrimeira(new Intl.DateTimeFormat("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(dataLocalAgenda(data)))}</strong>
       </div>
       <small>${eventosDia.length} compromisso${eventosDia.length !== 1 ? "s" : ""}</small>
     </div>
+    ${feriado ? `<button type="button" class="holiday-detail" data-toggle-holiday="${data}">Feriado: ${escapeHtml(feriado.nome)} · clicar para desmarcar</button>` : ""}
     <div class="calendar-detail-list">
       ${eventosDia.length ? eventosDia.map((evento) => `
         <button type="button" class="calendar-detail-item" ${evento.processoId ? `data-detail-open-process="${evento.processoId}"` : `data-detail-open-attendance="${evento.atendimentoId}"`}>
@@ -1824,6 +1913,11 @@ function mudarModoAgenda(event) {
 }
 
 function selecionarDiaAgenda(event) {
+  const feriado = event.target.closest("[data-toggle-holiday]");
+  if (feriado) {
+    alternarFeriadoAgenda(feriado.dataset.toggleHoliday);
+    return;
+  }
   const alvo = event.target.closest("[data-calendar-date], [data-calendar-day]");
   if (!alvo) return;
   const data = alvo.dataset.calendarDate || alvo.dataset.calendarDay;
@@ -1834,7 +1928,48 @@ function selecionarDiaAgenda(event) {
   renderAgenda();
 }
 
+function abrirModalFeriadoExtra() {
+  els.formFeriadoExtra.reset();
+  els.agendaFeriadoData.value = state.agendaDiaSelecionado || hojeIso();
+  els.modalFeriadoExtra.showModal();
+}
+
+function salvarFeriadoExtra(event) {
+  event.preventDefault();
+  const dados = Object.fromEntries(new FormData(els.formFeriadoExtra));
+  const inicio = dados.dataInicio;
+  const fim = dados.dataFim || dados.dataInicio;
+  if (compararDatas(inicio, fim) > 0) {
+    alert("A data final precisa ser igual ou posterior à data inicial.");
+    return;
+  }
+  state.feriadosExtras.push({
+    id: uid(),
+    tipo: dados.tipo,
+    nome: dados.nome.trim(),
+    dataInicio: inicio,
+    dataFim: fim
+  });
+  salvarEstado();
+  els.modalFeriadoExtra.close();
+  renderAgenda();
+}
+
+function alternarFeriadoAgenda(data) {
+  const set = new Set(state.feriadosDesmarcados || []);
+  if (set.has(data)) set.delete(data);
+  else set.add(data);
+  state.feriadosDesmarcados = [...set];
+  salvarEstado();
+  renderAgenda();
+}
+
 function abrirItemDetalheAgenda(event) {
+  const feriado = event.target.closest("[data-toggle-holiday]");
+  if (feriado) {
+    alternarFeriadoAgenda(feriado.dataset.toggleHoliday);
+    return;
+  }
   const processo = event.target.closest("[data-detail-open-process]");
   if (processo) {
     abrirDetalheProcesso(processo.dataset.detailOpenProcess);
@@ -2187,6 +2322,9 @@ function salvarContratoHonorarios(event) {
   els.modalContrato.close();
   renderizarTudo();
   if (processoAbertoId === processo.id) abrirDetalheProcesso(processo.id);
+  if (els.modalCliente.open && els.formCliente.elements.id.value === processo.clienteId) {
+    renderPainelCliente(obterCliente(processo.clienteId));
+  }
 }
 
 function abrirModalRecebimento(id) {
@@ -2369,6 +2507,26 @@ function abrirAtendimentoPorId(id) {
   preencherFormularioAtendimento(atendimento);
 }
 
+function pedirExclusaoAtendimento(id) {
+  const atendimento = state.atendimentos.find((item) => item.id === id && item.arquivado);
+  if (!atendimento) return;
+  els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance = atendimento.id;
+  els.textoExcluirAtendimento.textContent = `O atendimento ${rotuloAtendimento(atendimento)} será removido definitivamente. Essa ação não pode ser desfeita.`;
+  els.modalExcluirAtendimento.showModal();
+}
+
+function confirmarExclusaoAtendimento() {
+  const id = els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
+  if (!id) return;
+  state.atendimentos = state.atendimentos.filter((atendimento) => atendimento.id !== id);
+  if (state.rascunhoAtendimento?.id === id) state.rascunhoAtendimento = null;
+  if (atendimentoAbertoId === id) fecharEditorAtendimento();
+  delete els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
+  salvarEstado();
+  els.modalExcluirAtendimento.close();
+  renderizarTudo();
+}
+
 function filtrarClientes() {
   const termo = normalizar(els.busca.value);
   return state.clientes.filter((cliente) => !termo || normalizar(cliente.nome).includes(termo));
@@ -2443,6 +2601,47 @@ function eventosAgenda() {
       };
     });
   return [...eventosProcessos, ...eventosAtendimentos];
+}
+
+function feriadoAgenda(data) {
+  if ((state.feriadosDesmarcados || []).includes(data)) return null;
+  const ano = dataLocalAgenda(data).getFullYear();
+  const nacionais = feriadosNacionaisBrasil(ano);
+  const fixo = nacionais.find((feriado) => feriado.data === data);
+  if (fixo) return { ...fixo, tipo: "Feriado nacional" };
+  const extra = (state.feriadosExtras || []).find((feriado) => compararDatas(data, feriado.dataInicio) >= 0 && compararDatas(data, feriado.dataFim) <= 0);
+  return extra ? { data, nome: extra.nome, tipo: extra.tipo } : null;
+}
+
+function feriadosNacionaisBrasil(ano) {
+  const pascoa = calcularPascoa(ano);
+  const sextaSanta = new Date(pascoa);
+  sextaSanta.setDate(pascoa.getDate() - 2);
+  return [
+    ...FERIADOS_FIXOS_BRASIL.map((feriado) => ({
+      data: `${ano}-${String(feriado.mes).padStart(2, "0")}-${String(feriado.dia).padStart(2, "0")}`,
+      nome: feriado.nome
+    })),
+    { data: isoLocalAgenda(sextaSanta), nome: "Sexta-feira Santa" }
+  ];
+}
+
+function calcularPascoa(ano) {
+  const a = ano % 19;
+  const b = Math.floor(ano / 100);
+  const c = ano % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(ano, mes - 1, dia);
 }
 
 function popularLogin() {
@@ -2623,6 +2822,14 @@ function normalizarEstado(raw) {
   estado.sidebarRecolhida = !!estado.sidebarRecolhida;
   estado.agendaModo = ["mes", "semana", "dia"].includes(raw.agendaModo) ? raw.agendaModo : "mes";
   estado.agendaDiaSelecionado = raw.agendaDiaSelecionado || hojeIso();
+  estado.feriadosDesmarcados = Array.isArray(raw.feriadosDesmarcados) ? raw.feriadosDesmarcados : [];
+  estado.feriadosExtras = Array.isArray(raw.feriadosExtras) ? raw.feriadosExtras.map((feriado) => ({
+    id: feriado.id || uid(),
+    tipo: feriado.tipo || "Feriado extra",
+    nome: feriado.nome || "Feriado extra",
+    dataInicio: feriado.dataInicio || feriado.data || hojeIso(),
+    dataFim: feriado.dataFim || feriado.dataInicio || feriado.data || hojeIso()
+  })) : [];
   estado.usuarios = (estado.usuarios || padrao.usuarios).map((usuario, index) => ({
     id: usuario.id || uid(),
     nome: usuario.nome || `Usuário ${index + 1}`,
@@ -2790,6 +2997,8 @@ function criarEstadoPadrao() {
     sidebarRecolhida: false,
     agendaModo: "mes",
     agendaDiaSelecionado: hojeIso(),
+    feriadosDesmarcados: [],
+    feriadosExtras: [],
     rascunhoAtendimento: null,
     avancadas: {
       googleScriptUrl: "",

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.11">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.11">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.11">
-  <link rel="stylesheet" href="style.css?v=1.0.11">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.12">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.12">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.12">
+  <link rel="stylesheet" href="style.css?v=1.0.12">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.11</small>
+        <small>Versão 1.0.12</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -124,7 +124,6 @@
             <span aria-hidden="true">+</span>
             <span id="btnNovoTexto">Novo processo</span>
           </button>
-          <button class="ghost-button" id="btnForceUpdateTop" type="button">Forçar atualização</button>
         </div>
       </header>
 
@@ -237,10 +236,17 @@
                     <button class="toolbar-caret-button" type="button" data-editor-menu="unordered" title="Mais marcadores" aria-label="Mais marcadores">
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
-                    <div class="editor-menu" data-editor-menu-panel="unordered">
-                      <button type="button" data-editor-command="insertUnorderedList" data-list-style="disc" data-list-type="ul" title="Marcador redondo" aria-label="Marcador redondo"><span class="list-icon list-bullets" aria-hidden="true"><i></i><i></i><i></i></span></button>
-                      <button type="button" data-editor-command="insertUnorderedList" data-list-style="circle" data-list-type="ul" title="Marcador vazado" aria-label="Marcador vazado"><span class="list-icon list-circles" aria-hidden="true"><i></i><i></i><i></i></span></button>
-                      <button type="button" data-editor-command="insertUnorderedList" data-list-style="square" data-list-type="ul" title="Marcador quadrado" aria-label="Marcador quadrado"><span class="list-icon list-squares" aria-hidden="true"><i></i><i></i><i></i></span></button>
+                    <div class="editor-menu list-gallery-menu" data-editor-menu-panel="unordered">
+                      <button class="list-style-tile list-style-none" type="button" data-editor-command="removeList" title="Nenhum" aria-label="Nenhum">Nenhum</button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertUnorderedList" data-list-style="disc" data-list-type="ul" title="Marcador redondo" aria-label="Marcador redondo">
+                        <span class="list-preview bullet-preview bullet-disc" aria-hidden="true"><i></i><i></i><i></i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertUnorderedList" data-list-style="circle" data-list-type="ul" title="Marcador vazado" aria-label="Marcador vazado">
+                        <span class="list-preview bullet-preview bullet-circle" aria-hidden="true"><i></i><i></i><i></i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertUnorderedList" data-list-style="square" data-list-type="ul" title="Marcador quadrado" aria-label="Marcador quadrado">
+                        <span class="list-preview bullet-preview bullet-square" aria-hidden="true"><i></i><i></i><i></i></span>
+                      </button>
                     </div>
                   </div>
                   <div class="editor-dropdown toolbar-split-button">
@@ -250,10 +256,29 @@
                     <button class="toolbar-caret-button" type="button" data-editor-menu="ordered" title="Mais listas ordenadas" aria-label="Mais listas ordenadas">
                       <span class="toolbar-caret" aria-hidden="true"></span>
                     </button>
-                    <div class="editor-menu" data-editor-menu-panel="ordered">
-                      <button type="button" data-editor-command="insertOrderedList" data-list-style="decimal" data-list-type="ol" title="1 2 3" aria-label="Lista 1 2 3"><span class="list-icon list-numbers" aria-hidden="true"><i>1</i><i>2</i><i>3</i></span></button>
-                      <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-alpha" data-list-type="ol" title="A B C" aria-label="Lista A B C"><span class="list-icon list-numbers" aria-hidden="true"><i>A</i><i>B</i><i>C</i></span></button>
-                      <button type="button" data-editor-command="insertOrderedList" data-list-style="upper-roman" data-list-type="ol" title="I II III" aria-label="Lista I II III"><span class="list-icon list-numbers" aria-hidden="true"><i>I</i><i>II</i><i>III</i></span></button>
+                    <div class="editor-menu list-gallery-menu ordered-gallery-menu" data-editor-menu-panel="ordered">
+                      <button class="list-style-tile list-style-none" type="button" data-editor-command="removeList" title="Nenhum" aria-label="Nenhum">Nenhum</button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="decimal" data-list-type="ol" title="1. 2. 3." aria-label="Lista 1 2 3">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>1.</i><i>2.</i><i>3.</i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="decimal-paren" data-list-type="ol" title="1) 2) 3)" aria-label="Lista 1 parêntese">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>1)</i><i>2)</i><i>3)</i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="upper-roman" data-list-type="ol" title="I. II. III." aria-label="Lista romana maiúscula">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>I.</i><i>II.</i><i>III.</i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="upper-alpha" data-list-type="ol" title="A. B. C." aria-label="Lista letras maiúsculas">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>A.</i><i>B.</i><i>C.</i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="lower-alpha-paren" data-list-type="ol" title="a) b) c)" aria-label="Lista letras minúsculas com parêntese">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>a)</i><i>b)</i><i>c)</i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="lower-alpha" data-list-type="ol" title="a. b. c." aria-label="Lista letras minúsculas">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>a.</i><i>b.</i><i>c.</i></span>
+                      </button>
+                      <button class="list-style-tile" type="button" data-editor-command="insertOrderedList" data-list-style="lower-roman" data-list-type="ol" title="i. ii. iii." aria-label="Lista romana minúscula">
+                        <span class="list-preview ordered-preview" aria-hidden="true"><i>i.</i><i>ii.</i><i>iii.</i></span>
+                      </button>
                     </div>
                   </div>
                   <select class="font-size-select" id="editorFontSize" title="Tamanho da fonte" aria-label="Tamanho da fonte">
@@ -346,10 +371,13 @@
                 <strong id="tituloMesAgenda">Agenda</strong>
                 <button class="icon-button" type="button" id="mesProximo" title="Próximo">›</button>
               </div>
-              <div class="calendar-mode-toggle" id="agendaModo" aria-label="Modo da agenda">
-                <button type="button" data-agenda-mode="mes">Mês</button>
-                <button type="button" data-agenda-mode="semana">Semana</button>
-                <button type="button" data-agenda-mode="dia">Dia</button>
+              <div class="calendar-mode-actions">
+                <div class="calendar-mode-toggle" id="agendaModo" aria-label="Modo da agenda">
+                  <button type="button" data-agenda-mode="mes">Mês</button>
+                  <button type="button" data-agenda-mode="semana">Semana</button>
+                  <button type="button" data-agenda-mode="dia">Dia</button>
+                </div>
+                <button class="calendar-add-button" type="button" id="btnAdicionarFeriado" title="Adicionar feriado ou recesso" aria-label="Adicionar feriado ou recesso">+</button>
               </div>
             </div>
             <div class="calendar-weekdays">
@@ -828,6 +856,23 @@
     </div>
   </dialog>
 
+  <dialog id="modalExcluirAtendimento">
+    <div class="modal-card prompt-modal danger-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Atendimento arquivado</p>
+          <h2>Excluir atendimento?</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <p id="textoExcluirAtendimento">Essa exclusão é definitiva.</p>
+      <div class="modal-actions prompt-actions">
+        <button class="ghost-button" type="button" data-close-dialog>Cancelar</button>
+        <button class="danger-button" type="button" id="btnConfirmarExcluirAtendimento">Excluir atendimento</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="modalAgendarAtendimento">
     <form method="dialog" class="modal-card schedule-modal" id="formAgendarAtendimento">
       <div class="modal-header">
@@ -870,6 +915,43 @@
     </form>
   </dialog>
 
+  <dialog id="modalFeriadoExtra">
+    <form method="dialog" class="modal-card schedule-modal" id="formFeriadoExtra">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Agenda</p>
+          <h2>Feriado ou recesso</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Tipo</span>
+          <select name="tipo" required>
+            <option value="Feriado extra">Feriado extra</option>
+            <option value="Recesso">Recesso</option>
+          </select>
+        </label>
+        <label>
+          <span>Nome</span>
+          <input name="nome" required placeholder="Ex.: Recesso forense">
+        </label>
+        <label>
+          <span>Data inicial</span>
+          <input name="dataInicio" id="agendaFeriadoData" type="date" required>
+        </label>
+        <label>
+          <span>Data final</span>
+          <input name="dataFim" type="date">
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="primary-button" type="submit">Adicionar</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="modalDetalheProcesso">
     <div class="modal-card detail-modal">
       <div class="modal-header">
@@ -883,6 +965,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.11"></script>
+  <script src="app.js?v=1.0.12"></script>
 </body>
 </html>

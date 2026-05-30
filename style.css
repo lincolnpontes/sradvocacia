@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.11 */
+/* SR Advocacia v1.0.12 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -617,6 +617,18 @@ body.sidebar-collapsed .nav-item {
   background: transparent;
 }
 
+.search-box span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  color: var(--wine);
+  font-size: 21px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .primary-button,
 .ghost-button,
 .icon-button {
@@ -803,6 +815,23 @@ body.sidebar-collapsed .nav-item {
 .deadline-top {
   min-width: 0;
   flex-wrap: wrap;
+}
+
+.danger-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid #b42318;
+  border-radius: 8px;
+  color: #fff;
+  background: #b42318;
+  font-weight: 800;
+}
+
+.danger-button:hover {
+  background: #8f1d14;
 }
 
 .client-badges {
@@ -1351,6 +1380,96 @@ tr:last-child td {
   display: none;
 }
 
+.list-gallery-menu {
+  grid-template-columns: repeat(3, 78px);
+  gap: 8px;
+  min-width: 268px;
+  padding: 10px;
+}
+
+.ordered-gallery-menu {
+  grid-template-columns: repeat(3, 78px);
+}
+
+.list-style-tile {
+  width: 78px !important;
+  min-width: 78px !important;
+  height: 62px !important;
+  min-height: 62px !important;
+  padding: 6px !important;
+  border-radius: 4px !important;
+  color: #1f2328 !important;
+  background: #fff !important;
+  box-shadow: inset 0 0 0 1px rgba(47,48,50,0.1);
+}
+
+.list-style-tile:hover {
+  box-shadow: inset 0 0 0 2px var(--gold);
+}
+
+.list-style-none {
+  font-size: 13px;
+  font-weight: 500 !important;
+}
+
+.list-preview {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+}
+
+.list-preview i {
+  position: relative;
+  display: block;
+  height: 8px;
+  color: #25272b;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 8px;
+}
+
+.list-preview i::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 39px;
+  height: 1.5px;
+  border-radius: 999px;
+  background: #a3a3a3;
+  transform: translateY(-50%);
+}
+
+.bullet-preview i::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #25272b;
+  transform: translateY(-50%);
+}
+
+.bullet-preview i::after {
+  width: 46px;
+}
+
+.bullet-circle i::before {
+  background: transparent;
+  border: 1.5px solid #25272b;
+}
+
+.bullet-square i::before {
+  border-radius: 1px;
+}
+
+.ordered-preview i {
+  padding-left: 1px;
+}
+
 .color-swatch {
   display: block;
   width: 16px;
@@ -1486,6 +1605,33 @@ tr:last-child td {
 
 .attendance-editor blockquote {
   margin: 0 0 0 1.25cm;
+}
+
+.attendance-editor ol[data-list-format] {
+  list-style: none;
+  counter-reset: custom-list;
+  padding-left: 1.25cm;
+}
+
+.attendance-editor ol[data-list-format] > li {
+  counter-increment: custom-list;
+  position: relative;
+}
+
+.attendance-editor ol[data-list-format] > li::before {
+  position: absolute;
+  left: -1.05cm;
+  min-width: 0.8cm;
+  color: currentColor;
+  text-align: right;
+}
+
+.attendance-editor ol[data-list-format="decimal-paren"] > li::before {
+  content: counter(custom-list) ")";
+}
+
+.attendance-editor ol[data-list-format="lower-alpha-paren"] > li::before {
+  content: counter(custom-list, lower-alpha) ")";
 }
 
 .attendance-editor:focus {
@@ -1698,11 +1844,26 @@ body.attendance-focus-mode .attendance-editor {
   min-width: 0;
 }
 
+.calendar-nav .icon-button {
+  width: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  color: var(--wine);
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .calendar-header strong {
   min-width: min(360px, 40vw);
   color: var(--ink);
-  text-transform: capitalize;
   text-align: center;
+}
+
+.calendar-mode-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .calendar-mode-toggle {
@@ -1730,6 +1891,26 @@ body.attendance-focus-mode .attendance-editor {
   color: #fff;
   background: var(--wine);
   box-shadow: 0 6px 14px rgba(47,48,50,0.14);
+}
+
+.calendar-add-button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--wine);
+  background: #fff;
+  font-size: 22px;
+  font-weight: 900;
+  box-shadow: 0 8px 18px rgba(47,48,50,0.08);
+}
+
+.calendar-add-button:hover {
+  color: #fff;
+  background: var(--wine);
 }
 
 .calendar-weekdays,
@@ -1800,6 +1981,11 @@ body.attendance-focus-mode .attendance-editor {
   box-shadow: inset 0 0 0 2px rgba(197,154,70,0.55);
 }
 
+.calendar-day.is-holiday {
+  background: #f4edff;
+  box-shadow: inset 0 0 0 2px rgba(122, 74, 173, 0.28);
+}
+
 .calendar-day.is-selected {
   background: #fff6d9;
   box-shadow: inset 0 0 0 2px rgba(92,41,55,0.78);
@@ -1825,6 +2011,30 @@ body.attendance-focus-mode .attendance-editor {
 .calendar-day strong {
   display: block;
   margin-bottom: 7px;
+}
+
+.holiday-badge,
+.holiday-detail {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 24px;
+  margin: 0 0 6px;
+  padding: 3px 8px;
+  overflow: hidden;
+  border: 1px solid rgba(122, 74, 173, 0.28);
+  border-radius: 999px;
+  color: #60329a;
+  background: #eadcff;
+  font-size: 11px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.holiday-detail {
+  width: fit-content;
+  min-height: 32px;
+  margin-bottom: 0;
 }
 
 .calendar-events {
@@ -2346,6 +2556,14 @@ dialog::backdrop {
 
 .prompt-actions button {
   min-height: 42px;
+}
+
+.danger-modal {
+  border-top: 4px solid #b42318;
+}
+
+.danger-modal h2 {
+  color: #7a1d16;
 }
 
 .danger-text {
