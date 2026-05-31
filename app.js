@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.16";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v116";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.17";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v117";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -45,6 +45,8 @@ let atendimentoAlterado = false;
 let atendimentoModoEditor = false;
 let selecaoAtendimento = null;
 let feriadoPendenteData = "";
+let atendimentoZoom = 100;
+let imagemAtivaAtendimento = null;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -115,6 +117,13 @@ const els = {
   btnFecharAtendimento: document.querySelector("#btnFecharAtendimento"),
   btnToolbarSalvarAtendimento: document.querySelector("#btnToolbarSalvarAtendimento"),
   btnToolbarFecharAtendimento: document.querySelector("#btnToolbarFecharAtendimento"),
+  btnExpandirAtendimento: document.querySelector("#btnExpandirAtendimento"),
+  btnZoomMenos: document.querySelector("#btnZoomMenos"),
+  btnZoomMais: document.querySelector("#btnZoomMais"),
+  atendimentoZoomRange: document.querySelector("#atendimentoZoomRange"),
+  atendimentoZoomValor: document.querySelector("#atendimentoZoomValor"),
+  imageLayoutPopover: document.querySelector("#imageLayoutPopover"),
+  btnFecharLayoutImagem: document.querySelector("#btnFecharLayoutImagem"),
   modalFecharAtendimento: document.querySelector("#modalFecharAtendimento"),
   modalExcluirAtendimento: document.querySelector("#modalExcluirAtendimento"),
   textoExcluirAtendimento: document.querySelector("#textoExcluirAtendimento"),
@@ -153,6 +162,7 @@ iniciar();
 
 function iniciar() {
   aplicarTamanhoPaginaAtendimento();
+  aplicarZoomAtendimento();
   aplicarTema();
   aplicarSidebar();
   popularLogin();
@@ -182,6 +192,7 @@ function configurarEventos() {
     if (!event.target.closest("#editorToolbar")) fecharMenusEditor();
     if (!event.target.closest(".version-popover-wrap")) fecharVersoesAtendimento();
     if (!event.target.closest(".holiday-popover") && !event.target.closest("[data-toggle-holiday]")) fecharPopoverFeriado();
+    if (!event.target.closest(".image-layout-popover") && !event.target.closest(".attendance-editor img")) fecharOpcoesImagemAtendimento();
   });
   document.addEventListener("click", fecharDialogo);
   document.addEventListener("input", aplicarMascara);
@@ -244,6 +255,9 @@ function configurarEventos() {
   els.atendimentoEditor.addEventListener("mouseup", atualizarSelecaoEditor);
   els.atendimentoEditor.addEventListener("focus", atualizarSelecaoEditor);
   els.atendimentoEditor.addEventListener("keydown", atalhosEditorAtendimento);
+  els.atendimentoEditor.addEventListener("paste", colarImagemAtendimento);
+  els.atendimentoEditor.addEventListener("drop", soltarImagemAtendimento);
+  els.atendimentoEditor.addEventListener("click", selecionarImagemAtendimento);
   els.atendimentoAgendar.addEventListener("change", sincronizarAgendaAtendimento);
   document.querySelector("#editorToolbar").addEventListener("mousedown", manterSelecaoAoClicarToolbar);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
@@ -252,6 +266,11 @@ function configurarEventos() {
   els.btnFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
   els.btnToolbarSalvarAtendimento.addEventListener("click", () => salvarAtendimentoAtual());
   els.btnToolbarFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
+  els.btnZoomMenos.addEventListener("click", () => alterarZoomAtendimento(-5));
+  els.btnZoomMais.addEventListener("click", () => alterarZoomAtendimento(5));
+  els.atendimentoZoomRange.addEventListener("input", (event) => definirZoomAtendimento(Number(event.target.value)));
+  els.imageLayoutPopover.addEventListener("click", aplicarLayoutImagemAtendimento);
+  els.btnFecharLayoutImagem.addEventListener("click", fecharOpcoesImagemAtendimento);
   els.btnVersoesAtendimento.addEventListener("click", alternarVersoesAtendimento);
   els.versoesAtendimento.addEventListener("click", restaurarVersaoAtendimento);
   document.querySelector("#btnAtendimentoCancelarFechar").addEventListener("click", () => els.modalFecharAtendimento.close());
@@ -271,7 +290,7 @@ function configurarEventos() {
   document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
   document.querySelector("#btnForceUpdateConfig").addEventListener("click", forcarAtualizacao);
   document.querySelector("#btnAbrirAvancadas").addEventListener("click", abrirModalAvancadas);
-  document.querySelector("#btnExpandirAtendimento").addEventListener("click", alternarFocoAtendimento);
+  els.btnExpandirAtendimento.addEventListener("click", alternarFocoAtendimento);
   document.querySelector("#btnToggleArquivados").addEventListener("click", alternarArquivadosAtendimento);
   document.querySelector("#btnAtendimentoProcesso").addEventListener("click", transformarAtendimentoEmProcesso);
   els.rascunhoAtendimento.addEventListener("click", abrirAtendimentoDaLista);
@@ -357,6 +376,21 @@ function aplicarTamanhoPaginaAtendimento() {
   document.documentElement.style.setProperty("--attendance-page-width", ATTENDANCE_PAGE_SIZE.width);
   document.documentElement.style.setProperty("--attendance-page-height", ATTENDANCE_PAGE_SIZE.height);
   document.documentElement.style.setProperty("--attendance-page-mobile-height", ATTENDANCE_PAGE_SIZE.mobileHeight);
+}
+
+function definirZoomAtendimento(valor) {
+  atendimentoZoom = Math.max(75, Math.min(140, Number(valor) || 100));
+  aplicarZoomAtendimento();
+}
+
+function alterarZoomAtendimento(delta) {
+  definirZoomAtendimento(atendimentoZoom + delta);
+}
+
+function aplicarZoomAtendimento() {
+  document.documentElement.style.setProperty("--attendance-editor-zoom", String(atendimentoZoom / 100));
+  if (els.atendimentoZoomRange) els.atendimentoZoomRange.value = String(atendimentoZoom);
+  if (els.atendimentoZoomValor) els.atendimentoZoomValor.textContent = `${atendimentoZoom}%`;
 }
 
 function abrirModalProcesso() {
@@ -1656,6 +1690,92 @@ function removerListaSelecionada() {
   lista.replaceWith(fragmento);
 }
 
+function colarImagemAtendimento(event) {
+  const item = [...(event.clipboardData?.items || [])].find((entrada) => entrada.type.startsWith("image/"));
+  if (!item) return;
+  event.preventDefault();
+  inserirArquivoImagemAtendimento(item.getAsFile());
+}
+
+function soltarImagemAtendimento(event) {
+  const arquivo = [...(event.dataTransfer?.files || [])].find((item) => item.type.startsWith("image/"));
+  if (!arquivo) return;
+  event.preventDefault();
+  inserirArquivoImagemAtendimento(arquivo);
+}
+
+function inserirArquivoImagemAtendimento(arquivo) {
+  if (!arquivo) return;
+  const leitor = new FileReader();
+  leitor.onload = () => inserirImagemAtendimento(leitor.result);
+  leitor.readAsDataURL(arquivo);
+}
+
+function inserirImagemAtendimento(src) {
+  restaurarSelecaoEditor();
+  const img = document.createElement("img");
+  img.src = src;
+  img.alt = "";
+  img.className = "editor-image image-layout-inline";
+  img.dataset.imageLayout = "inline";
+  const selection = window.getSelection?.();
+  if (selection?.rangeCount) {
+    const range = selection.getRangeAt(0);
+    range.deleteContents();
+    range.insertNode(img);
+    range.setStartAfter(img);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  } else {
+    els.atendimentoEditor.appendChild(img);
+  }
+  imagemAtivaAtendimento = img;
+  marcarAtendimentoAlterado();
+  abrirOpcoesImagemAtendimento(img);
+}
+
+function selecionarImagemAtendimento(event) {
+  const img = event.target.closest("img");
+  if (!img || !els.atendimentoEditor.contains(img)) return;
+  img.classList.add("editor-image");
+  if (!img.dataset.imageLayout) img.dataset.imageLayout = "inline";
+  abrirOpcoesImagemAtendimento(img);
+}
+
+function abrirOpcoesImagemAtendimento(img) {
+  imagemAtivaAtendimento = img;
+  els.atendimentoEditor.querySelectorAll("img.is-selected").forEach((item) => item.classList.remove("is-selected"));
+  img.classList.add("is-selected");
+  const rect = img.getBoundingClientRect();
+  els.imageLayoutPopover.style.left = `${Math.max(8, Math.min(rect.right + 14, window.innerWidth - 250))}px`;
+  els.imageLayoutPopover.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - 330))}px`;
+  els.imageLayoutPopover.classList.remove("is-hidden");
+  atualizarOpcoesLayoutImagem(img.dataset.imageLayout || "inline");
+}
+
+function fecharOpcoesImagemAtendimento() {
+  els.imageLayoutPopover?.classList.add("is-hidden");
+  els.atendimentoEditor?.querySelectorAll("img.is-selected").forEach((img) => img.classList.remove("is-selected"));
+}
+
+function aplicarLayoutImagemAtendimento(event) {
+  const botao = event.target.closest("[data-image-layout]");
+  if (!botao || !imagemAtivaAtendimento) return;
+  const layout = botao.dataset.imageLayout;
+  imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-right", "image-layout-center", "image-layout-full");
+  imagemAtivaAtendimento.classList.add(`image-layout-${layout}`);
+  imagemAtivaAtendimento.dataset.imageLayout = layout;
+  atualizarOpcoesLayoutImagem(layout);
+  marcarAtendimentoAlterado();
+}
+
+function atualizarOpcoesLayoutImagem(layout) {
+  els.imageLayoutPopover?.querySelectorAll("[data-image-layout]").forEach((botao) => {
+    botao.classList.toggle("is-active", botao.dataset.imageLayout === layout);
+  });
+}
+
 function atalhosEditorAtendimento(event) {
   if (event.key === "Tab") {
     event.preventDefault();
@@ -1758,12 +1878,19 @@ function sincronizarAgendaAtendimento() {
 
 function alternarFocoAtendimento() {
   document.body.classList.toggle("attendance-focus-mode");
-  document.querySelector("#btnExpandirAtendimento").textContent = document.body.classList.contains("attendance-focus-mode") ? "Sair do foco" : "Expandir";
+  atualizarBotaoFocoAtendimento();
 }
 
 function sairFocoAtendimento() {
   document.body.classList.remove("attendance-focus-mode");
-  document.querySelector("#btnExpandirAtendimento").textContent = "Expandir";
+  atualizarBotaoFocoAtendimento();
+}
+
+function atualizarBotaoFocoAtendimento() {
+  const emFoco = document.body.classList.contains("attendance-focus-mode");
+  els.btnExpandirAtendimento.textContent = "⛶";
+  els.btnExpandirAtendimento.title = emFoco ? "Sair do modo foco" : "Expandir atendimento";
+  els.btnExpandirAtendimento.setAttribute("aria-label", emFoco ? "Sair do modo foco" : "Expandir atendimento");
 }
 
 function alternarArquivadosAtendimento() {

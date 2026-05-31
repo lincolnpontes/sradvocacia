@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.16 */
+/* SR Advocacia v1.0.17 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -1113,24 +1113,23 @@ tr:last-child td {
 
 .attendance-editor-panel {
   position: relative;
-  margin-top: 42px;
+  margin-top: 0;
 }
 
 .attendance-expand {
-  position: absolute;
-  right: 0;
-  top: -44px;
+  display: none;
 }
 
 .attendance-form {
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .attendance-meta-grid {
-  grid-template-columns: minmax(220px, 1.2fr) minmax(170px, 0.9fr) minmax(180px, 0.9fr);
+  grid-template-columns: minmax(220px, 1.2fr) minmax(150px, 0.8fr) minmax(170px, 0.9fr) minmax(190px, 0.9fr);
   align-items: end;
-  margin-bottom: 4px;
+  gap: 9px;
+  margin-bottom: 0;
 }
 
 .switch-field {
@@ -1196,9 +1195,16 @@ tr:last-child td {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  padding: 8px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--line);
   background: #fffaf4;
+}
+
+.toolbar-left-actions,
+.toolbar-right-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .toolbar-format-group {
@@ -1221,7 +1227,7 @@ tr:last-child td {
   padding: 0 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--wine);
+  color: #2f3032;
   background: #fff;
   font-weight: 800;
 }
@@ -1229,8 +1235,9 @@ tr:last-child td {
 .editor-toolbar select {
   display: block;
   width: auto;
-  min-width: 68px;
-  padding: 0 8px;
+  min-width: 58px;
+  padding: 0 4px 0 8px;
+  color: #1f2328;
 }
 
 .toolbar-edge-action {
@@ -1254,6 +1261,56 @@ tr:last-child td {
 .toolbar-close-action {
   font-size: 20px;
   font-weight: 900 !important;
+}
+
+.toolbar-process-action span {
+  filter: grayscale(0.65) contrast(1.2);
+  font-size: 17px;
+}
+
+.toolbar-expand-action {
+  font-size: 18px;
+  font-weight: 900 !important;
+}
+
+.toolbar-zoom-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 7px;
+  border: 1px solid #b8b8b8;
+  border-radius: 6px;
+  color: #2f3032;
+  background: linear-gradient(180deg, #fdfdfd, #ececec);
+}
+
+.toolbar-zoom-control button {
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  color: #333 !important;
+  background: transparent !important;
+  font-weight: 900;
+}
+
+.toolbar-zoom-control input[type="range"] {
+  width: 76px;
+  height: 3px;
+  min-height: 0;
+  padding: 0;
+  accent-color: #777;
+}
+
+.toolbar-zoom-control span {
+  min-width: 38px;
+  color: #2f3032;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: right;
 }
 
 .editor-dropdown,
@@ -1587,38 +1644,30 @@ tr:last-child td {
 .spacing-icon {
   position: relative;
   display: grid;
-  gap: 3px;
-  width: 20px;
-  padding-left: 8px;
-}
-
-.spacing-icon::before,
-.spacing-icon::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  width: 4px;
-  height: 4px;
-  border-right: 1.5px solid currentColor;
-  border-bottom: 1.5px solid currentColor;
+  grid-template-columns: 6px 1fr;
+  gap: 2px 4px;
+  width: 22px;
+  color: #2b67a0;
 }
 
 .spacing-icon::before {
-  top: 1px;
-  transform: rotate(225deg);
-}
-
-.spacing-icon::after {
-  bottom: 1px;
-  transform: rotate(45deg);
+  content: "";
+  grid-row: 1 / span 3;
+  align-self: center;
+  width: 6px;
+  height: 16px;
+  background:
+    linear-gradient(currentColor, currentColor) 50% 50% / 1.5px 12px no-repeat,
+    linear-gradient(135deg, transparent 45%, currentColor 46% 58%, transparent 59%) 50% 0 / 6px 6px no-repeat,
+    linear-gradient(315deg, transparent 45%, currentColor 46% 58%, transparent 59%) 50% 100% / 6px 6px no-repeat;
 }
 
 .spacing-icon i {
   display: block;
-  width: 15px;
+  width: 13px;
   height: 1.5px;
   border-radius: 999px;
-  background: currentColor;
+  background: #2f3032;
 }
 
 .spacing-menu {
@@ -1670,14 +1719,167 @@ tr:last-child td {
 .attendance-editor {
   width: min(var(--attendance-page-width, 794px), calc(100% - 28px));
   min-height: var(--attendance-page-height, 1123px);
-  margin: 16px auto 20px;
-  padding: 96px 76px;
+  margin: 8px auto 14px;
+  padding: 74px 70px;
   outline: 0;
   color: #202124;
   background: #fff;
   box-shadow: 0 18px 45px rgba(47,48,50,0.14);
   font-size: 12pt;
   line-height: 1.5;
+  zoom: var(--attendance-editor-zoom, 1);
+}
+
+.attendance-editor img {
+  max-width: 100%;
+  height: auto;
+}
+
+.attendance-editor img.editor-image {
+  display: inline-block;
+  max-width: 92%;
+  margin: 6px;
+  vertical-align: baseline;
+  cursor: pointer;
+}
+
+.attendance-editor img.editor-image.is-selected {
+  outline: 2px solid #3973b7;
+  outline-offset: 3px;
+}
+
+.attendance-editor img.image-layout-left {
+  float: left;
+  max-width: 45%;
+  margin: 6px 14px 8px 0;
+}
+
+.attendance-editor img.image-layout-right {
+  float: right;
+  max-width: 45%;
+  margin: 6px 0 8px 14px;
+}
+
+.attendance-editor img.image-layout-center {
+  display: block;
+  margin: 10px auto;
+}
+
+.attendance-editor img.image-layout-full {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 10px 0;
+  clear: both;
+}
+
+.image-layout-popover {
+  position: fixed;
+  z-index: 40;
+  width: 238px;
+  padding: 10px;
+  border: 1px solid #5b5b5b;
+  border-radius: 4px;
+  color: #252525;
+  background: #c6c6c6;
+  box-shadow: 0 18px 42px rgba(0,0,0,0.26);
+}
+
+.image-layout-popover.is-hidden {
+  display: none;
+}
+
+.image-layout-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.image-layout-header strong {
+  color: #164f92;
+}
+
+.image-layout-header button {
+  width: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  border: 0;
+  color: #333;
+  background: transparent;
+  font-size: 18px;
+}
+
+.image-layout-popover > span {
+  display: block;
+  margin: 8px 0 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.image-layout-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 38px);
+  gap: 7px;
+}
+
+.image-layout-option {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: #d8d8d8;
+}
+
+.image-layout-option.is-active,
+.image-layout-option:hover {
+  border-color: #2b67a0;
+  background: #ececec;
+}
+
+.layout-icon {
+  position: relative;
+  display: block;
+  width: 25px;
+  height: 25px;
+}
+
+.layout-icon::before {
+  content: "";
+  position: absolute;
+  inset: 8px 5px 5px;
+  border: 3px solid #555;
+  border-top-left-radius: 14px;
+  border-top-right-radius: 14px;
+  border-bottom: 0;
+}
+
+.layout-icon::after {
+  content: "";
+  position: absolute;
+  inset: 2px 0 auto;
+  height: 20px;
+  background:
+    linear-gradient(#2b67a0, #2b67a0) 0 0 / 24px 2px no-repeat,
+    linear-gradient(#2b67a0, #2b67a0) 0 7px / 24px 2px no-repeat,
+    linear-gradient(#2b67a0, #2b67a0) 0 14px / 24px 2px no-repeat;
+}
+
+.layout-left::after { background-position: 10px 0, 10px 7px, 10px 14px; background-size: 14px 2px; }
+.layout-right::after { background-position: 0 0, 0 7px, 0 14px; background-size: 14px 2px; }
+.layout-center::after { background-position: 0 0, 5px 7px, 0 14px; background-size: 24px 2px, 14px 2px, 24px 2px; }
+.layout-full::after { background-position: 0 0, 0 18px; background-size: 24px 2px, 24px 2px; }
+
+.image-move-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  font-size: 13px;
 }
 
 .attendance-editor blockquote {
@@ -1849,7 +2051,7 @@ body.attendance-focus-mode.sidebar-collapsed .app-shell {
 }
 
 body.attendance-focus-mode .workspace {
-  padding: 22px;
+  padding: 8px 12px;
 }
 
 body.attendance-focus-mode .attendance-layout {
@@ -1858,10 +2060,44 @@ body.attendance-focus-mode .attendance-layout {
 
 body.attendance-focus-mode .attendance-editor-panel {
   display: block !important;
+  padding: 10px;
 }
 
 body.attendance-focus-mode .attendance-editor {
   min-height: var(--attendance-page-height, 1123px);
+  margin-top: 6px;
+  padding-top: 58px;
+}
+
+body.attendance-focus-mode .attendance-form {
+  gap: 5px;
+}
+
+body.attendance-focus-mode .attendance-meta-grid {
+  grid-template-columns: minmax(220px, 1.2fr) minmax(130px, 0.75fr) minmax(160px, 0.85fr) minmax(184px, 0.9fr);
+  gap: 7px;
+}
+
+body.attendance-focus-mode .attendance-meta-grid label {
+  gap: 3px;
+}
+
+body.attendance-focus-mode .attendance-meta-grid label span {
+  font-size: 12px;
+}
+
+body.attendance-focus-mode .attendance-meta-grid input,
+body.attendance-focus-mode .attendance-meta-grid select {
+  min-height: 34px;
+}
+
+body.attendance-focus-mode .editor-toolbar {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+body.attendance-focus-mode .attendance-savebar {
+  padding: 8px 10px;
 }
 
 .version-list {

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.16">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.16">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.16">
-  <link rel="stylesheet" href="style.css?v=1.0.16">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.17">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.17">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.17">
+  <link rel="stylesheet" href="style.css?v=1.0.17">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.16</small>
+        <small>Versão 1.0.17</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -183,7 +183,6 @@
       <section class="view" id="view-atendimentos" aria-labelledby="viewTitle">
         <div class="attendance-layout is-list-mode" id="attendanceLayout">
           <section class="panel attendance-editor-panel is-hidden" id="attendanceEditorPanel">
-            <button class="ghost-button attendance-expand" type="button" id="btnExpandirAtendimento">Expandir</button>
             <form id="formAtendimento" class="attendance-form">
               <input type="hidden" name="id">
               <div class="form-grid attendance-meta-grid">
@@ -212,9 +211,14 @@
               </div>
               <div class="editor-shell">
                 <div class="editor-toolbar" id="editorToolbar">
-                  <button class="toolbar-edge-action toolbar-save-action" type="button" id="btnToolbarSalvarAtendimento" title="Salvar atendimento" aria-label="Salvar atendimento">
-                    <span class="toolbar-save-emoji" aria-hidden="true">💾︎</span>
-                  </button>
+                  <div class="toolbar-left-actions">
+                    <button class="toolbar-edge-action toolbar-save-action" type="button" id="btnToolbarSalvarAtendimento" title="Salvar atendimento" aria-label="Salvar atendimento">
+                      <span class="toolbar-save-emoji" aria-hidden="true">💾︎</span>
+                    </button>
+                    <button class="toolbar-edge-action toolbar-process-action" type="button" id="btnAtendimentoProcesso" title="Transformar em processo" aria-label="Transformar em processo">
+                      <span aria-hidden="true">🗂️</span>
+                    </button>
+                  </div>
                   <div class="toolbar-format-group">
                   <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + N)" aria-label="Negrito">N</button>
                   <button type="button" data-editor-command="italic" title="I -> Itálico (Ctrl + I)" aria-label="Itálico">I</button>
@@ -334,9 +338,36 @@
                     </div>
                   </div>
                   </div>
-                  <button class="toolbar-edge-action toolbar-close-action" type="button" id="btnToolbarFecharAtendimento" title="Fechar atendimento" aria-label="Fechar atendimento">×</button>
+                  <div class="toolbar-right-actions">
+                    <div class="toolbar-zoom-control" aria-label="Zoom do atendimento">
+                      <button type="button" id="btnZoomMenos" title="Diminuir zoom" aria-label="Diminuir zoom">−</button>
+                      <input type="range" id="atendimentoZoomRange" min="75" max="140" step="5" value="100" aria-label="Zoom do atendimento">
+                      <button type="button" id="btnZoomMais" title="Aumentar zoom" aria-label="Aumentar zoom">+</button>
+                      <span id="atendimentoZoomValor">100%</span>
+                    </div>
+                    <button class="toolbar-edge-action toolbar-expand-action" type="button" id="btnExpandirAtendimento" title="Expandir atendimento" aria-label="Expandir atendimento">⛶</button>
+                    <button class="toolbar-edge-action toolbar-close-action" type="button" id="btnToolbarFecharAtendimento" title="Fechar atendimento" aria-label="Fechar atendimento">×</button>
+                  </div>
                 </div>
                 <div class="attendance-editor" id="atendimentoEditor" contenteditable="true" role="textbox" aria-label="Notas do atendimento"></div>
+                <div class="image-layout-popover is-hidden" id="imageLayoutPopover">
+                  <div class="image-layout-header">
+                    <strong>Opções de layout</strong>
+                    <button type="button" id="btnFecharLayoutImagem" aria-label="Fechar opções de layout">×</button>
+                  </div>
+                  <span>Alinhado com o texto</span>
+                  <button type="button" class="image-layout-option is-active" data-image-layout="inline" title="Alinhado com o texto">
+                    <i class="layout-icon layout-inline" aria-hidden="true"></i>
+                  </button>
+                  <span>Com disposição do texto</span>
+                  <div class="image-layout-grid">
+                    <button type="button" class="image-layout-option" data-image-layout="left" title="Texto ao redor, imagem à esquerda"><i class="layout-icon layout-left" aria-hidden="true"></i></button>
+                    <button type="button" class="image-layout-option" data-image-layout="right" title="Texto ao redor, imagem à direita"><i class="layout-icon layout-right" aria-hidden="true"></i></button>
+                    <button type="button" class="image-layout-option" data-image-layout="center" title="Centralizado"><i class="layout-icon layout-center" aria-hidden="true"></i></button>
+                    <button type="button" class="image-layout-option" data-image-layout="full" title="Quebra acima e abaixo"><i class="layout-icon layout-full" aria-hidden="true"></i></button>
+                  </div>
+                  <label class="image-move-option"><input type="radio" checked> Mover com o texto</label>
+                </div>
               </div>
               <div class="attendance-savebar">
                 <div class="attendance-status-tools">
@@ -347,7 +378,6 @@
                   </div>
                 </div>
                 <div>
-                  <button class="ghost-button warm-action" type="button" id="btnAtendimentoProcesso">Transformar em processo</button>
                   <button class="primary-button" type="submit">Salvar atendimento</button>
                   <button class="ghost-button" type="button" id="btnFecharAtendimento">Fechar</button>
                 </div>
@@ -991,6 +1021,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.16"></script>
+  <script src="app.js?v=1.0.17"></script>
 </body>
 </html>
