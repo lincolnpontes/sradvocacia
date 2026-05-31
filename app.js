@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.17";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v117";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.18";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v118";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -123,6 +123,7 @@ const els = {
   atendimentoZoomRange: document.querySelector("#atendimentoZoomRange"),
   atendimentoZoomValor: document.querySelector("#atendimentoZoomValor"),
   imageLayoutPopover: document.querySelector("#imageLayoutPopover"),
+  imageResizeOverlay: document.querySelector("#imageResizeOverlay"),
   btnFecharLayoutImagem: document.querySelector("#btnFecharLayoutImagem"),
   modalFecharAtendimento: document.querySelector("#modalFecharAtendimento"),
   modalExcluirAtendimento: document.querySelector("#modalExcluirAtendimento"),
@@ -192,7 +193,7 @@ function configurarEventos() {
     if (!event.target.closest("#editorToolbar")) fecharMenusEditor();
     if (!event.target.closest(".version-popover-wrap")) fecharVersoesAtendimento();
     if (!event.target.closest(".holiday-popover") && !event.target.closest("[data-toggle-holiday]")) fecharPopoverFeriado();
-    if (!event.target.closest(".image-layout-popover") && !event.target.closest(".attendance-editor img")) fecharOpcoesImagemAtendimento();
+    if (!event.target.closest(".image-layout-popover") && !event.target.closest(".image-resize-overlay") && !event.target.closest(".attendance-editor img")) fecharOpcoesImagemAtendimento();
   });
   document.addEventListener("click", fecharDialogo);
   document.addEventListener("input", aplicarMascara);
@@ -270,11 +271,12 @@ function configurarEventos() {
   els.btnZoomMais.addEventListener("click", () => alterarZoomAtendimento(5));
   els.atendimentoZoomRange.addEventListener("input", (event) => definirZoomAtendimento(Number(event.target.value)));
   els.imageLayoutPopover.addEventListener("click", aplicarLayoutImagemAtendimento);
+  els.imageResizeOverlay.addEventListener("pointerdown", iniciarAjusteImagemAtendimento);
   els.btnFecharLayoutImagem.addEventListener("click", fecharOpcoesImagemAtendimento);
   els.btnVersoesAtendimento.addEventListener("click", alternarVersoesAtendimento);
   els.versoesAtendimento.addEventListener("click", restaurarVersaoAtendimento);
   document.querySelector("#btnAtendimentoCancelarFechar").addEventListener("click", () => els.modalFecharAtendimento.close());
-  document.querySelector("#btnAtendimentoSalvarSemFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(false));
+  document.querySelector("#btnAtendimentoFecharSemSalvar").addEventListener("click", fecharAtendimentoSemSalvar);
   document.querySelector("#btnAtendimentoSalvarEFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(true));
   els.modalExcluirAtendimento.addEventListener("click", (event) => {
     if (event.target.closest("#btnConfirmarExcluirAtendimento")) confirmarExclusaoAtendimento(event);
@@ -1201,6 +1203,12 @@ function salvarAtendimentoPeloDialogo(fechar) {
   els.modalFecharAtendimento.close();
 }
 
+function fecharAtendimentoSemSalvar() {
+  atendimentoAlterado = false;
+  els.modalFecharAtendimento.close();
+  fecharEditorAtendimento();
+}
+
 function fecharEditorAtendimento() {
   sairFocoAtendimento();
   atendimentoModoEditor = false;
@@ -1732,7 +1740,6 @@ function inserirImagemAtendimento(src) {
   }
   imagemAtivaAtendimento = img;
   marcarAtendimentoAlterado();
-  abrirOpcoesImagemAtendimento(img);
 }
 
 function selecionarImagemAtendimento(event) {
@@ -1740,6 +1747,7 @@ function selecionarImagemAtendimento(event) {
   if (!img || !els.atendimentoEditor.contains(img)) return;
   img.classList.add("editor-image");
   if (!img.dataset.imageLayout) img.dataset.imageLayout = "inline";
+  if (!img.dataset.rotation) img.dataset.rotation = "0";
   abrirOpcoesImagemAtendimento(img);
 }
 
@@ -1748,6 +1756,7 @@ function abrirOpcoesImagemAtendimento(img) {
   els.atendimentoEditor.querySelectorAll("img.is-selected").forEach((item) => item.classList.remove("is-selected"));
   img.classList.add("is-selected");
   const rect = img.getBoundingClientRect();
+  posicionarOverlayImagem(img);
   els.imageLayoutPopover.style.left = `${Math.max(8, Math.min(rect.right + 14, window.innerWidth - 250))}px`;
   els.imageLayoutPopover.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - 330))}px`;
   els.imageLayoutPopover.classList.remove("is-hidden");
@@ -1756,6 +1765,7 @@ function abrirOpcoesImagemAtendimento(img) {
 
 function fecharOpcoesImagemAtendimento() {
   els.imageLayoutPopover?.classList.add("is-hidden");
+  els.imageResizeOverlay?.classList.add("is-hidden");
   els.atendimentoEditor?.querySelectorAll("img.is-selected").forEach((img) => img.classList.remove("is-selected"));
 }
 
@@ -1763,10 +1773,11 @@ function aplicarLayoutImagemAtendimento(event) {
   const botao = event.target.closest("[data-image-layout]");
   if (!botao || !imagemAtivaAtendimento) return;
   const layout = botao.dataset.imageLayout;
-  imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-right", "image-layout-center", "image-layout-full");
+  imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-tight-left", "image-layout-right", "image-layout-bottom-left", "image-layout-center", "image-layout-full");
   imagemAtivaAtendimento.classList.add(`image-layout-${layout}`);
   imagemAtivaAtendimento.dataset.imageLayout = layout;
   atualizarOpcoesLayoutImagem(layout);
+  posicionarOverlayImagem(imagemAtivaAtendimento);
   marcarAtendimentoAlterado();
 }
 
@@ -1774,6 +1785,63 @@ function atualizarOpcoesLayoutImagem(layout) {
   els.imageLayoutPopover?.querySelectorAll("[data-image-layout]").forEach((botao) => {
     botao.classList.toggle("is-active", botao.dataset.imageLayout === layout);
   });
+}
+
+function posicionarOverlayImagem(img) {
+  if (!img || !els.imageResizeOverlay) return;
+  const rect = img.getBoundingClientRect();
+  els.imageResizeOverlay.style.left = `${rect.left}px`;
+  els.imageResizeOverlay.style.top = `${rect.top}px`;
+  els.imageResizeOverlay.style.width = `${rect.width}px`;
+  els.imageResizeOverlay.style.height = `${rect.height}px`;
+  els.imageResizeOverlay.classList.remove("is-hidden");
+}
+
+function iniciarAjusteImagemAtendimento(event) {
+  if (!imagemAtivaAtendimento) return;
+  const handle = event.target.closest("[data-resize-handle]");
+  const rotacionar = event.target.closest("[data-image-rotate]");
+  if (!handle && !rotacionar) return;
+  event.preventDefault();
+  const inicioX = event.clientX;
+  const inicioY = event.clientY;
+  const rect = imagemAtivaAtendimento.getBoundingClientRect();
+  const larguraInicial = rect.width;
+  const alturaInicial = rect.height;
+  const rotacaoInicial = Number(imagemAtivaAtendimento.dataset.rotation || 0);
+  const centroX = rect.left + rect.width / 2;
+  const centroY = rect.top + rect.height / 2;
+  const proporcao = alturaInicial / larguraInicial || 1;
+
+  const mover = (moveEvent) => {
+    if (rotacionar) {
+      const angulo = Math.atan2(moveEvent.clientY - centroY, moveEvent.clientX - centroX) * 180 / Math.PI + 90;
+      const rotacao = Math.round(angulo / 5) * 5;
+      imagemAtivaAtendimento.dataset.rotation = String(rotacao);
+      imagemAtivaAtendimento.style.transform = `rotate(${rotacao}deg)`;
+      posicionarOverlayImagem(imagemAtivaAtendimento);
+      return;
+    }
+    const direcao = handle.dataset.resizeHandle;
+    let deltaX = moveEvent.clientX - inicioX;
+    let deltaY = moveEvent.clientY - inicioY;
+    if (direcao.includes("w")) deltaX *= -1;
+    if (direcao === "s" || direcao === "n") deltaX = (direcao === "n" ? -deltaY : deltaY) / proporcao;
+    const largura = Math.max(80, Math.round(larguraInicial + deltaX));
+    imagemAtivaAtendimento.style.width = `${largura}px`;
+    imagemAtivaAtendimento.style.height = "auto";
+    posicionarOverlayImagem(imagemAtivaAtendimento);
+  };
+
+  const soltar = () => {
+    document.removeEventListener("pointermove", mover);
+    document.removeEventListener("pointerup", soltar);
+    marcarAtendimentoAlterado();
+    guardarSelecaoEditor();
+  };
+
+  document.addEventListener("pointermove", mover);
+  document.addEventListener("pointerup", soltar, { once: true });
 }
 
 function atalhosEditorAtendimento(event) {

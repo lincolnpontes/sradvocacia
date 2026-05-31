@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.17">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.17">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.17">
-  <link rel="stylesheet" href="style.css?v=1.0.17">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.18">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.18">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.18">
+  <link rel="stylesheet" href="style.css?v=1.0.18">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.17</small>
+        <small>Versão 1.0.18</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -362,11 +362,23 @@
                   <span>Com disposição do texto</span>
                   <div class="image-layout-grid">
                     <button type="button" class="image-layout-option" data-image-layout="left" title="Texto ao redor, imagem à esquerda"><i class="layout-icon layout-left" aria-hidden="true"></i></button>
+                    <button type="button" class="image-layout-option" data-image-layout="tight-left" title="Próximo ao texto"><i class="layout-icon layout-tight-left" aria-hidden="true"></i></button>
                     <button type="button" class="image-layout-option" data-image-layout="right" title="Texto ao redor, imagem à direita"><i class="layout-icon layout-right" aria-hidden="true"></i></button>
+                    <button type="button" class="image-layout-option" data-image-layout="bottom-left" title="Texto acima e abaixo"><i class="layout-icon layout-bottom-left" aria-hidden="true"></i></button>
                     <button type="button" class="image-layout-option" data-image-layout="center" title="Centralizado"><i class="layout-icon layout-center" aria-hidden="true"></i></button>
                     <button type="button" class="image-layout-option" data-image-layout="full" title="Quebra acima e abaixo"><i class="layout-icon layout-full" aria-hidden="true"></i></button>
                   </div>
-                  <label class="image-move-option"><input type="radio" checked> Mover com o texto</label>
+                </div>
+                <div class="image-resize-overlay is-hidden" id="imageResizeOverlay">
+                  <button type="button" class="image-rotate-handle" data-image-rotate aria-label="Rotacionar imagem">⟳</button>
+                  <span class="image-resize-handle handle-nw" data-resize-handle="nw"></span>
+                  <span class="image-resize-handle handle-ne" data-resize-handle="ne"></span>
+                  <span class="image-resize-handle handle-sw" data-resize-handle="sw"></span>
+                  <span class="image-resize-handle handle-se" data-resize-handle="se"></span>
+                  <span class="image-resize-handle handle-n" data-resize-handle="n"></span>
+                  <span class="image-resize-handle handle-w" data-resize-handle="w"></span>
+                  <span class="image-resize-handle handle-e" data-resize-handle="e"></span>
+                  <span class="image-resize-handle handle-s" data-resize-handle="s"></span>
                 </div>
               </div>
               <div class="attendance-savebar">
@@ -889,7 +901,7 @@
       <p>Há informações ainda não salvas neste atendimento.</p>
       <div class="modal-actions prompt-actions">
         <button class="ghost-button" type="button" id="btnAtendimentoCancelarFechar">Cancelar</button>
-        <button class="ghost-button" type="button" id="btnAtendimentoSalvarSemFechar">Salvar sem fechar</button>
+        <button class="ghost-button" type="button" id="btnAtendimentoFecharSemSalvar">Fechar sem salvar</button>
         <button class="primary-button" type="button" id="btnAtendimentoSalvarEFechar">Salvar e fechar</button>
       </div>
     </div>
@@ -1021,6 +1033,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.17"></script>
+  <script src="app.js?v=1.0.18"></script>
 </body>
 </html>
