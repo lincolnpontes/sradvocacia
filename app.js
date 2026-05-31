@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.15";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v115";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.16";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v116";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -113,6 +113,8 @@ const els = {
   versoesAtendimento: document.querySelector("#versoesAtendimento"),
   btnVersoesAtendimento: document.querySelector("#btnVersoesAtendimento"),
   btnFecharAtendimento: document.querySelector("#btnFecharAtendimento"),
+  btnToolbarSalvarAtendimento: document.querySelector("#btnToolbarSalvarAtendimento"),
+  btnToolbarFecharAtendimento: document.querySelector("#btnToolbarFecharAtendimento"),
   modalFecharAtendimento: document.querySelector("#modalFecharAtendimento"),
   modalExcluirAtendimento: document.querySelector("#modalExcluirAtendimento"),
   textoExcluirAtendimento: document.querySelector("#textoExcluirAtendimento"),
@@ -248,6 +250,8 @@ function configurarEventos() {
   els.editorFontSize.addEventListener("change", aplicarTamanhoFonteSelecionado);
   document.addEventListener("selectionchange", atualizarSelecaoEditor);
   els.btnFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
+  els.btnToolbarSalvarAtendimento.addEventListener("click", () => salvarAtendimentoAtual());
+  els.btnToolbarFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
   els.btnVersoesAtendimento.addEventListener("click", alternarVersoesAtendimento);
   els.versoesAtendimento.addEventListener("click", restaurarVersaoAtendimento);
   document.querySelector("#btnAtendimentoCancelarFechar").addEventListener("click", () => els.modalFecharAtendimento.close());

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.15">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.15">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.15">
-  <link rel="stylesheet" href="style.css?v=1.0.15">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.16">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.16">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.16">
+  <link rel="stylesheet" href="style.css?v=1.0.16">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.15</small>
+        <small>Versão 1.0.16</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -106,7 +106,7 @@
         </div>
         <div class="topbar-actions">
           <label class="search-box" id="topSearchBox">
-            <span aria-hidden="true">⌕</span>
+            <span aria-hidden="true">🔎︎</span>
             <input id="buscaGlobal" type="search" placeholder="Buscar cliente, processo, vara..." autocomplete="off">
           </label>
           <div class="client-top-controls is-hidden" id="clientTopControls">
@@ -212,6 +212,10 @@
               </div>
               <div class="editor-shell">
                 <div class="editor-toolbar" id="editorToolbar">
+                  <button class="toolbar-edge-action toolbar-save-action" type="button" id="btnToolbarSalvarAtendimento" title="Salvar atendimento" aria-label="Salvar atendimento">
+                    <span class="toolbar-save-emoji" aria-hidden="true">💾︎</span>
+                  </button>
+                  <div class="toolbar-format-group">
                   <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + N)" aria-label="Negrito">N</button>
                   <button type="button" data-editor-command="italic" title="I -> Itálico (Ctrl + I)" aria-label="Itálico">I</button>
                   <button type="button" data-editor-command="underline" title="S -> Sublinhar (Ctrl + S)" aria-label="Sublinhar">S</button>
@@ -329,6 +333,8 @@
                       <button type="button" data-editor-command="toggleHighlight" data-editor-value="#ffd8d2" title="Rosa" aria-label="Rosa"><span class="color-swatch" style="--swatch-color:#ffd8d2" aria-hidden="true"></span></button>
                     </div>
                   </div>
+                  </div>
+                  <button class="toolbar-edge-action toolbar-close-action" type="button" id="btnToolbarFecharAtendimento" title="Fechar atendimento" aria-label="Fechar atendimento">×</button>
                 </div>
                 <div class="attendance-editor" id="atendimentoEditor" contenteditable="true" role="textbox" aria-label="Notas do atendimento"></div>
               </div>
@@ -985,6 +991,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.15"></script>
+  <script src="app.js?v=1.0.16"></script>
 </body>
 </html>
