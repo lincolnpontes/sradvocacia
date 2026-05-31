@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.12 */
+/* SR Advocacia v1.0.15 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -620,11 +620,11 @@ body.sidebar-collapsed .nav-item {
 .search-box span {
   display: grid;
   place-items: center;
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
   color: var(--wine);
-  font-size: 21px;
+  font-size: 25px;
   font-weight: 900;
   line-height: 1;
 }
@@ -1323,15 +1323,15 @@ tr:last-child td {
 .list-icon {
   display: grid;
   gap: 2.5px;
-  width: 22px;
+  width: 24px;
 }
 
 .list-icon i {
   position: relative;
   display: grid;
-  grid-template-columns: 7px 1fr;
+  grid-template-columns: 6px 1fr;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   height: 6px;
   color: currentColor;
   font-size: 11px;
@@ -1342,25 +1342,26 @@ tr:last-child td {
 
 .list-icon i::before {
   content: "";
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: currentColor;
 }
 
 .list-icon i::after {
   content: "";
+  width: 14px;
   height: 1.5px;
   border-radius: 999px;
   background: currentColor;
 }
 
 .list-icon i:nth-child(2)::after {
-  width: 15px;
+  width: 12px;
 }
 
 .list-icon i:nth-child(3)::after {
-  width: 20px;
+  width: 16px;
 }
 
 .list-circles i::before {
@@ -1373,30 +1374,48 @@ tr:last-child td {
 }
 
 .list-numbers i {
-  grid-template-columns: 11px 1fr;
+  grid-template-columns: 12px 1fr;
+  gap: 2px;
 }
 
 .list-numbers i::before {
   display: none;
 }
 
+.list-numbers i::after {
+  width: 9px;
+}
+
+.list-numbers i:nth-child(2)::after {
+  width: 10px;
+}
+
+.list-numbers i:nth-child(3)::after {
+  width: 11px;
+}
+
+.toolbar-split-button .list-gallery-menu {
+  right: 0;
+  left: auto;
+}
+
 .list-gallery-menu {
-  grid-template-columns: repeat(3, 78px);
-  gap: 8px;
-  min-width: 268px;
-  padding: 10px;
+  grid-template-columns: repeat(3, 64px);
+  gap: 7px;
+  min-width: auto;
+  padding: 8px;
 }
 
 .ordered-gallery-menu {
-  grid-template-columns: repeat(3, 78px);
+  grid-template-columns: repeat(3, 64px);
 }
 
 .list-style-tile {
-  width: 78px !important;
-  min-width: 78px !important;
-  height: 62px !important;
-  min-height: 62px !important;
-  padding: 6px !important;
+  width: 64px !important;
+  min-width: 64px !important;
+  height: 54px !important;
+  min-height: 54px !important;
+  padding: 5px !important;
   border-radius: 4px !important;
   color: #1f2328 !important;
   background: #fff !important;
@@ -1408,25 +1427,25 @@ tr:last-child td {
 }
 
 .list-style-none {
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500 !important;
 }
 
 .list-preview {
   display: grid;
-  gap: 6px;
+  gap: 5px;
   width: 100%;
 }
 
 .list-preview i {
   position: relative;
   display: block;
-  height: 8px;
+  height: 7px;
   color: #25272b;
-  font-size: 12px;
+  font-size: 11px;
   font-style: normal;
   font-weight: 500;
-  line-height: 8px;
+  line-height: 7px;
 }
 
 .list-preview i::after {
@@ -1434,8 +1453,8 @@ tr:last-child td {
   position: absolute;
   right: 0;
   top: 50%;
-  width: 39px;
-  height: 1.5px;
+  width: 32px;
+  height: 1.25px;
   border-radius: 999px;
   background: #a3a3a3;
   transform: translateY(-50%);
@@ -1444,17 +1463,17 @@ tr:last-child td {
 .bullet-preview i::before {
   content: "";
   position: absolute;
-  left: 4px;
+  left: 3px;
   top: 50%;
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #25272b;
   transform: translateY(-50%);
 }
 
 .bullet-preview i::after {
-  width: 46px;
+  width: 40px;
 }
 
 .bullet-circle i::before {
@@ -1467,7 +1486,7 @@ tr:last-child td {
 }
 
 .ordered-preview i {
-  padding-left: 1px;
+  padding-left: 0;
 }
 
 .color-swatch {
@@ -2037,6 +2056,37 @@ body.attendance-focus-mode .attendance-editor {
   margin-bottom: 0;
 }
 
+.holiday-popover {
+  position: fixed;
+  z-index: 30;
+  min-width: 190px;
+  padding: 8px;
+  border: 1px solid rgba(122, 74, 173, 0.28);
+  border-radius: 8px;
+  background: #fffdf8;
+  box-shadow: 0 18px 44px rgba(47,48,50,0.2);
+}
+
+.holiday-popover.is-hidden {
+  display: none;
+}
+
+.holiday-popover button {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  color: #60329a;
+  background: #f4edff;
+  font-weight: 900;
+  text-align: left;
+}
+
+.holiday-popover button:hover {
+  background: #eadcff;
+}
+
 .calendar-events {
   display: grid;
   gap: 5px;
@@ -2564,6 +2614,21 @@ dialog::backdrop {
 
 .danger-modal h2 {
   color: #7a1d16;
+}
+
+#modalExcluirAtendimento[open],
+#modalConfirmarFeriado[open] {
+  display: grid;
+  place-items: center;
+}
+
+#modalExcluirAtendimento .modal-card,
+#modalConfirmarFeriado .modal-card {
+  margin: auto;
+}
+
+.holiday-confirm-modal {
+  border-top: 4px solid #7a4aad;
 }
 
 .danger-text {

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.12">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.12">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.12">
-  <link rel="stylesheet" href="style.css?v=1.0.12">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.15">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.15">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.15">
+  <link rel="stylesheet" href="style.css?v=1.0.15">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.12</small>
+        <small>Versão 1.0.15</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -230,7 +230,7 @@
                     </div>
                   </div>
                   <div class="editor-dropdown toolbar-split-button">
-                    <button class="toolbar-icon-button" type="button" data-editor-command="insertUnorderedList" data-list-style="disc" data-list-type="ul" title="Marcadores" aria-label="Marcadores">
+                    <button class="toolbar-icon-button" id="btnUnorderedListTool" type="button" data-editor-command="insertUnorderedList" data-list-style="disc" data-list-type="ul" title="Marcadores" aria-label="Marcadores">
                       <span class="list-icon list-bullets" aria-hidden="true"><i></i><i></i><i></i></span>
                     </button>
                     <button class="toolbar-caret-button" type="button" data-editor-menu="unordered" title="Mais marcadores" aria-label="Mais marcadores">
@@ -250,7 +250,7 @@
                     </div>
                   </div>
                   <div class="editor-dropdown toolbar-split-button">
-                    <button class="toolbar-icon-button" type="button" data-editor-command="insertOrderedList" data-list-style="decimal" data-list-type="ol" title="Lista ordenada" aria-label="Lista ordenada">
+                    <button class="toolbar-icon-button" id="btnOrderedListTool" type="button" data-editor-command="insertOrderedList" data-list-style="decimal" data-list-type="ol" title="Lista ordenada" aria-label="Lista ordenada">
                       <span class="list-icon list-numbers" aria-hidden="true"><i>1</i><i>2</i><i>3</i></span>
                     </button>
                     <button class="toolbar-caret-button" type="button" data-editor-menu="ordered" title="Mais listas ordenadas" aria-label="Mais listas ordenadas">
@@ -385,6 +385,9 @@
             </div>
             <div class="calendar-grid" id="gradeAgenda"></div>
             <div class="calendar-day-detail is-hidden" id="agendaDetalheDia"></div>
+            <div class="holiday-popover is-hidden" id="holidayPopover">
+              <button type="button" id="btnAbrirConfirmarFeriado">Desmarcar feriado</button>
+            </div>
           </section>
 
           <aside class="panel agenda-side">
@@ -952,6 +955,23 @@
     </form>
   </dialog>
 
+  <dialog id="modalConfirmarFeriado">
+    <div class="modal-card prompt-modal holiday-confirm-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Agenda</p>
+          <h2>Desmarcar feriado?</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <p id="textoConfirmarFeriado">Esse dia deixará de aparecer como feriado no calendário.</p>
+      <div class="modal-actions prompt-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="danger-button" type="button" id="btnConfirmarDesmarcarFeriado">Desmarcar feriado</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="modalDetalheProcesso">
     <div class="modal-card detail-modal">
       <div class="modal-header">
@@ -965,6 +985,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.12"></script>
+  <script src="app.js?v=1.0.15"></script>
 </body>
 </html>
