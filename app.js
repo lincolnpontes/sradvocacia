@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.20";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v120";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.24";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v124";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -1859,6 +1859,7 @@ function inserirImagemAtendimento(src) {
   img.src = src;
   img.alt = "";
   img.className = "editor-image image-layout-block";
+  img.draggable = false;
   img.dataset.imageLayout = "block";
   const selection = window.getSelection?.();
   if (selection?.rangeCount) {
@@ -1880,6 +1881,7 @@ function selecionarImagemAtendimento(event) {
   const img = event.target.closest("img");
   if (!img || !els.atendimentoEditor.contains(img)) return;
   img.classList.add("editor-image");
+  img.draggable = false;
   if (!img.dataset.imageLayout || img.dataset.imageLayout === "inline") img.dataset.imageLayout = "block";
   if (!img.dataset.rotation) img.dataset.rotation = "0";
   if (!img.dataset.offsetX) img.dataset.offsetX = "0";
@@ -1904,6 +1906,10 @@ function fecharOpcoesImagemAtendimento() {
   els.imageLayoutPopover?.classList.add("is-hidden");
   els.imageResizeOverlay?.classList.add("is-hidden");
   els.atendimentoEditor?.querySelectorAll("img.is-selected").forEach((img) => {
+    if (img.classList.contains("is-cropping")) {
+      const rect = img.getBoundingClientRect();
+      finalizarCorteImagem(img, rect.width, rect.height, false);
+    }
     img.classList.remove("is-cropping");
     img.classList.remove("is-selected");
   });
@@ -1946,7 +1952,13 @@ function posicionarOverlayImagem(img) {
 
 function alternarCorteImagemAtendimento() {
   if (!imagemAtivaAtendimento) return;
-  imagemAtivaAtendimento.classList.toggle("is-cropping");
+  if (imagemAtivaAtendimento.classList.contains("is-cropping")) {
+    const rect = imagemAtivaAtendimento.getBoundingClientRect();
+    finalizarCorteImagem(imagemAtivaAtendimento, rect.width, rect.height);
+    marcarAtendimentoAlterado();
+    return;
+  }
+  imagemAtivaAtendimento.classList.add("is-cropping");
   posicionarOverlayImagem(imagemAtivaAtendimento);
 }
 
@@ -1975,6 +1987,56 @@ function aplicarCorteImagem(img, corte) {
   img.style.clipPath = top || right || bottom || left ? `inset(${top}% ${right}% ${bottom}% ${left}%)` : "";
 }
 
+function finalizarCorteImagem(img, larguraBase, alturaBase, reposicionar = true) {
+  const corte = dadosCorteImagem(img);
+  const left = limitarCorte(corte.left);
+  const right = limitarCorte(corte.right);
+  const top = limitarCorte(corte.top);
+  const bottom = limitarCorte(corte.bottom);
+  const larguraVisivelPct = Math.max(5, 100 - left - right);
+  const alturaVisivelPct = Math.max(5, 100 - top - bottom);
+  const larguraRenderizada = Number.parseFloat(img.style.width) || larguraBase;
+  const alturaRenderizada = Number.parseFloat(img.style.height) || alturaBase;
+
+  if (!left && !right && !top && !bottom) {
+    img.classList.remove("is-cropping");
+    if (reposicionar) posicionarOverlayImagem(img);
+    return;
+  }
+
+  const novaLargura = Math.max(40, Math.round(larguraRenderizada * larguraVisivelPct / 100));
+  const novaAltura = Math.max(30, Math.round(alturaRenderizada * alturaVisivelPct / 100));
+
+  try {
+    const naturalW = img.naturalWidth;
+    const naturalH = img.naturalHeight;
+    if (!img.complete || !naturalW || !naturalH) throw new Error("Imagem ainda nao carregada");
+    const sx = Math.min(naturalW - 1, Math.max(0, Math.round(naturalW * left / 100)));
+    const sy = Math.min(naturalH - 1, Math.max(0, Math.round(naturalH * top / 100)));
+    const sw = Math.max(1, Math.min(naturalW - sx, Math.round(naturalW * larguraVisivelPct / 100)));
+    const sh = Math.max(1, Math.min(naturalH - sy, Math.round(naturalH * alturaVisivelPct / 100)));
+    const canvas = document.createElement("canvas");
+    canvas.width = sw;
+    canvas.height = sh;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas indisponivel");
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+    img.src = canvas.toDataURL("image/png");
+  } catch {
+    // Mantem a imagem editavel mesmo quando o navegador ainda nao liberou o bitmap para canvas.
+  }
+
+  img.style.width = `${novaLargura}px`;
+  img.style.height = `${novaAltura}px`;
+  img.style.clipPath = "";
+  delete img.dataset.cropTop;
+  delete img.dataset.cropRight;
+  delete img.dataset.cropBottom;
+  delete img.dataset.cropLeft;
+  img.classList.remove("is-cropping");
+  if (reposicionar) setTimeout(() => posicionarOverlayImagem(img), 0);
+}
+
 function iniciarAjusteImagemAtendimento(event) {
   if (!imagemAtivaAtendimento) return;
   const handle = event.target.closest("[data-resize-handle]");
@@ -1995,6 +2057,7 @@ function iniciarArrasteImagemDireto(event) {
 function iniciarInteracaoImagemAtendimento(event, img, acao) {
   event.preventDefault();
   imagemAtivaAtendimento = img;
+  if (acao.moverImagem) els.atendimentoEditor.classList.add("is-image-moving");
   const inicioX = event.clientX;
   const inicioY = event.clientY;
   const rect = img.getBoundingClientRect();
@@ -2062,6 +2125,8 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
   const soltar = () => {
     document.removeEventListener("pointermove", mover);
     document.removeEventListener("pointerup", soltar);
+    els.atendimentoEditor.classList.remove("is-image-moving");
+    if (img.classList.contains("is-cropping") && acao.handle) finalizarCorteImagem(img, larguraInicial, alturaInicial);
     marcarAtendimentoAlterado();
     guardarSelecaoEditor();
   };
