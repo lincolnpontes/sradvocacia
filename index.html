@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.19">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.19">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.19">
-  <link rel="stylesheet" href="style.css?v=1.0.19">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.20">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.20">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.20">
+  <link rel="stylesheet" href="style.css?v=1.0.20">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.19</small>
+        <small>Versão 1.0.20</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -369,18 +369,18 @@
                     <strong>Opções de layout</strong>
                     <button type="button" id="btnFecharLayoutImagem" aria-label="Fechar opções de layout">×</button>
                   </div>
-                  <span>Alinhado com o texto</span>
-                  <button type="button" class="image-layout-option is-active" data-image-layout="inline" title="Alinhado com o texto">
-                    <i class="layout-icon layout-inline" aria-hidden="true"></i>
-                  </button>
-                  <span>Com disposição do texto</span>
-                  <div class="image-layout-grid">
-                    <button type="button" class="image-layout-option" data-image-layout="left" title="Texto ao redor, imagem à esquerda"><i class="layout-icon layout-left" aria-hidden="true"></i></button>
-                    <button type="button" class="image-layout-option" data-image-layout="tight-left" title="Próximo ao texto"><i class="layout-icon layout-tight-left" aria-hidden="true"></i></button>
-                    <button type="button" class="image-layout-option" data-image-layout="right" title="Texto ao redor, imagem à direita"><i class="layout-icon layout-right" aria-hidden="true"></i></button>
-                    <button type="button" class="image-layout-option" data-image-layout="bottom-left" title="Texto acima e abaixo"><i class="layout-icon layout-bottom-left" aria-hidden="true"></i></button>
-                    <button type="button" class="image-layout-option" data-image-layout="center" title="Centralizado"><i class="layout-icon layout-center" aria-hidden="true"></i></button>
-                    <button type="button" class="image-layout-option" data-image-layout="full" title="Quebra acima e abaixo"><i class="layout-icon layout-full" aria-hidden="true"></i></button>
+                  <span>Texto e imagem</span>
+                  <div class="image-layout-grid image-layout-grid-compact">
+                    <button type="button" class="image-layout-option image-layout-card is-active" data-image-layout="wrap" title="Texto ao redor da imagem" aria-label="Texto ao redor da imagem">
+                      <i class="layout-icon layout-wrap" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="image-layout-option image-layout-card" data-image-layout="block" title="Texto acima e abaixo da imagem" aria-label="Texto acima e abaixo da imagem">
+                      <i class="layout-icon layout-block" aria-hidden="true"></i>
+                    </button>
+                    <button type="button" class="image-layout-option crop-layout-card" data-image-crop-toggle title="Cortar imagem" aria-label="Cortar imagem">
+                      <i class="crop-tool-icon" aria-hidden="true"></i>
+                      <span>Cortar</span>
+                    </button>
                   </div>
                 </div>
                 <div class="image-resize-overlay is-hidden" id="imageResizeOverlay">
@@ -1047,6 +1047,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.19"></script>
+  <script src="app.js?v=1.0.20"></script>
 </body>
 </html>

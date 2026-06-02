@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.19";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v119";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.20";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v120";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -1858,8 +1858,8 @@ function inserirImagemAtendimento(src) {
   const img = document.createElement("img");
   img.src = src;
   img.alt = "";
-  img.className = "editor-image image-layout-inline";
-  img.dataset.imageLayout = "inline";
+  img.className = "editor-image image-layout-block";
+  img.dataset.imageLayout = "block";
   const selection = window.getSelection?.();
   if (selection?.rangeCount) {
     const range = selection.getRangeAt(0);
@@ -1880,7 +1880,7 @@ function selecionarImagemAtendimento(event) {
   const img = event.target.closest("img");
   if (!img || !els.atendimentoEditor.contains(img)) return;
   img.classList.add("editor-image");
-  if (!img.dataset.imageLayout) img.dataset.imageLayout = "inline";
+  if (!img.dataset.imageLayout || img.dataset.imageLayout === "inline") img.dataset.imageLayout = "block";
   if (!img.dataset.rotation) img.dataset.rotation = "0";
   if (!img.dataset.offsetX) img.dataset.offsetX = "0";
   if (!img.dataset.offsetY) img.dataset.offsetY = "0";
@@ -1897,20 +1897,28 @@ function abrirOpcoesImagemAtendimento(img) {
   els.imageLayoutPopover.style.left = `${Math.max(8, Math.min(rect.right + 14, window.innerWidth - 250))}px`;
   els.imageLayoutPopover.style.top = `${Math.max(8, Math.min(rect.top, window.innerHeight - 330))}px`;
   els.imageLayoutPopover.classList.remove("is-hidden");
-  atualizarOpcoesLayoutImagem(img.dataset.imageLayout || "inline");
+  atualizarOpcoesLayoutImagem(img.dataset.imageLayout || "block");
 }
 
 function fecharOpcoesImagemAtendimento() {
   els.imageLayoutPopover?.classList.add("is-hidden");
   els.imageResizeOverlay?.classList.add("is-hidden");
-  els.atendimentoEditor?.querySelectorAll("img.is-selected").forEach((img) => img.classList.remove("is-selected"));
+  els.atendimentoEditor?.querySelectorAll("img.is-selected").forEach((img) => {
+    img.classList.remove("is-cropping");
+    img.classList.remove("is-selected");
+  });
 }
 
 function aplicarLayoutImagemAtendimento(event) {
+  const cortar = event.target.closest("[data-image-crop-toggle]");
+  if (cortar && imagemAtivaAtendimento) {
+    alternarCorteImagemAtendimento();
+    return;
+  }
   const botao = event.target.closest("[data-image-layout]");
   if (!botao || !imagemAtivaAtendimento) return;
   const layout = botao.dataset.imageLayout;
-  imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-tight-left", "image-layout-right", "image-layout-bottom-left", "image-layout-center", "image-layout-full");
+  imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-tight-left", "image-layout-right", "image-layout-bottom-left", "image-layout-center", "image-layout-full", "image-layout-wrap", "image-layout-block");
   imagemAtivaAtendimento.classList.add(`image-layout-${layout}`);
   imagemAtivaAtendimento.dataset.imageLayout = layout;
   atualizarOpcoesLayoutImagem(layout);
@@ -1931,7 +1939,40 @@ function posicionarOverlayImagem(img) {
   els.imageResizeOverlay.style.top = `${rect.top}px`;
   els.imageResizeOverlay.style.width = `${rect.width}px`;
   els.imageResizeOverlay.style.height = `${rect.height}px`;
+  els.imageResizeOverlay.classList.toggle("is-cropping", img.classList.contains("is-cropping"));
+  els.imageLayoutPopover?.querySelector("[data-image-crop-toggle]")?.classList.toggle("is-active", img.classList.contains("is-cropping"));
   els.imageResizeOverlay.classList.remove("is-hidden");
+}
+
+function alternarCorteImagemAtendimento() {
+  if (!imagemAtivaAtendimento) return;
+  imagemAtivaAtendimento.classList.toggle("is-cropping");
+  posicionarOverlayImagem(imagemAtivaAtendimento);
+}
+
+function dadosCorteImagem(img) {
+  return {
+    top: Number(img.dataset.cropTop || 0),
+    right: Number(img.dataset.cropRight || 0),
+    bottom: Number(img.dataset.cropBottom || 0),
+    left: Number(img.dataset.cropLeft || 0)
+  };
+}
+
+function limitarCorte(valor) {
+  return Math.max(0, Math.min(85, valor));
+}
+
+function aplicarCorteImagem(img, corte) {
+  const top = limitarCorte(corte.top);
+  const right = limitarCorte(corte.right);
+  const bottom = limitarCorte(corte.bottom);
+  const left = limitarCorte(corte.left);
+  img.dataset.cropTop = String(top);
+  img.dataset.cropRight = String(right);
+  img.dataset.cropBottom = String(bottom);
+  img.dataset.cropLeft = String(left);
+  img.style.clipPath = top || right || bottom || left ? `inset(${top}% ${right}% ${bottom}% ${left}%)` : "";
 }
 
 function iniciarAjusteImagemAtendimento(event) {
@@ -1963,6 +2004,7 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
   const alturaEstiloInicial = Number.parseFloat(img.style.height) || alturaInicial;
   const offsetInicialX = Number(img.dataset.offsetX || 0);
   const offsetInicialY = Number(img.dataset.offsetY || 0);
+  const corteInicial = dadosCorteImagem(img);
   const centroX = rect.left + rect.width / 2;
   const centroY = rect.top + rect.height / 2;
   const proporcao = alturaInicial / larguraInicial || 1;
@@ -1986,6 +2028,16 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
       return;
     }
     const direcao = acao.handle.dataset.resizeHandle;
+    if (img.classList.contains("is-cropping")) {
+      const corte = { ...corteInicial };
+      if (direcao.includes("n")) corte.top = corteInicial.top + (deltaYOriginal / alturaInicial * 100);
+      if (direcao.includes("s")) corte.bottom = corteInicial.bottom - (deltaYOriginal / alturaInicial * 100);
+      if (direcao.includes("w")) corte.left = corteInicial.left + (deltaXOriginal / larguraInicial * 100);
+      if (direcao.includes("e")) corte.right = corteInicial.right - (deltaXOriginal / larguraInicial * 100);
+      aplicarCorteImagem(img, corte);
+      posicionarOverlayImagem(img);
+      return;
+    }
     const deltaX = direcao.includes("w") ? -deltaXOriginal : deltaXOriginal;
     const deltaY = direcao.includes("n") ? -deltaYOriginal : deltaYOriginal;
     let largura = larguraEstiloInicial;
