@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.24";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v124";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.25";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v125";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -125,6 +125,10 @@ const els = {
   btnFecharAtendimento: document.querySelector("#btnFecharAtendimento"),
   btnToolbarSalvarAtendimento: document.querySelector("#btnToolbarSalvarAtendimento"),
   btnToolbarFecharAtendimento: document.querySelector("#btnToolbarFecharAtendimento"),
+  btnExportarAtendimento: document.querySelector("#btnExportarAtendimento"),
+  menuExportarAtendimento: document.querySelector("#menuExportarAtendimento"),
+  btnImprimirAtendimento: document.querySelector("#btnImprimirAtendimento"),
+  btnAtendimentoProcessoRodape: document.querySelector("#btnAtendimentoProcessoRodape"),
   btnExpandirAtendimento: document.querySelector("#btnExpandirAtendimento"),
   btnZoomMenos: document.querySelector("#btnZoomMenos"),
   btnZoomMais: document.querySelector("#btnZoomMais"),
@@ -199,6 +203,7 @@ function configurarEventos() {
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".brand-wrap")) fecharMenuMarca();
     if (!event.target.closest("#editorToolbar")) fecharMenusEditor();
+    if (!event.target.closest(".toolbar-export-wrap")) fecharMenuExportarAtendimento();
     if (!event.target.closest(".version-popover-wrap")) fecharVersoesAtendimento();
     if (!event.target.closest(".holiday-popover") && !event.target.closest("[data-toggle-holiday]")) fecharPopoverFeriado();
     if (!event.target.closest(".image-layout-popover") && !event.target.closest(".image-resize-overlay") && !event.target.closest(".attendance-editor img")) fecharOpcoesImagemAtendimento();
@@ -279,6 +284,10 @@ function configurarEventos() {
   els.btnFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
   els.btnToolbarSalvarAtendimento.addEventListener("click", () => salvarAtendimentoAtual());
   els.btnToolbarFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
+  els.btnExportarAtendimento.addEventListener("click", alternarMenuExportarAtendimento);
+  els.menuExportarAtendimento.addEventListener("click", exportarAtendimentoPeloMenu);
+  els.btnImprimirAtendimento.addEventListener("click", () => imprimirAtendimentoAtual());
+  els.btnAtendimentoProcessoRodape.addEventListener("click", transformarAtendimentoEmProcesso);
   els.btnZoomMenos.addEventListener("click", () => alterarZoomAtendimento(-5));
   els.btnZoomMais.addEventListener("click", () => alterarZoomAtendimento(5));
   els.atendimentoZoomRange.addEventListener("input", (event) => definirZoomAtendimento(Number(event.target.value)));
@@ -3757,6 +3766,190 @@ function urlWhatsApp(valor) {
   if (!digitos) return "";
   const numero = digitos.startsWith("55") ? digitos : `55${digitos}`;
   return `https://wa.me/${numero}`;
+}
+
+function alternarMenuExportarAtendimento(event) {
+  event.preventDefault();
+  els.menuExportarAtendimento?.classList.toggle("is-hidden");
+}
+
+function fecharMenuExportarAtendimento() {
+  els.menuExportarAtendimento?.classList.add("is-hidden");
+}
+
+function exportarAtendimentoPeloMenu(event) {
+  const botao = event.target.closest("[data-export-attendance]");
+  if (!botao) return;
+  fecharMenuExportarAtendimento();
+  if (botao.dataset.exportAttendance === "docx") exportarAtendimentoDocx();
+  if (botao.dataset.exportAttendance === "pdf") imprimirAtendimentoAtual({ titulo: "Exportar PDF" });
+}
+
+function nomeArquivoAtendimento(extensao) {
+  const dados = dadosAtendimentoDoFormulario();
+  const cliente = normalizar(obterCliente(dados.clienteId)?.nome || "atendimento").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "atendimento";
+  return `atendimento-${cliente}-${String(dados.data || hojeIso()).slice(0, 10)}.${extensao}`;
+}
+
+function htmlAtendimentoExportacao() {
+  const dados = dadosAtendimentoDoFormulario();
+  const cliente = obterCliente(dados.clienteId);
+  const responsavel = obterUsuario(dados.responsavelId);
+  const linha = (rotulo, valor) => `<div><strong>${rotulo}</strong><span>${escapeHtml(valor || "-")}</span></div>`;
+  const conteudo = dados.conteudoHtml?.trim() || "<p></p>";
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>${escapeHtml(dados.assunto || "Atendimento")}</title>
+<style>
+  @page { size: A4; margin: 2cm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: #202124; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 12pt; line-height: 1.45; }
+  header { padding-bottom: 14px; margin-bottom: 18px; border-bottom: 2px solid #c59a46; }
+  h1 { margin: 0 0 12px; font-size: 18pt; color: #2f3032; }
+  .meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+  .meta div { display: grid; gap: 2px; }
+  .meta strong { color: #6f5d45; font-size: 9pt; text-transform: uppercase; }
+  .meta span { color: #202124; }
+  main img { max-width: 100%; height: auto; }
+  p { margin: 0 0 10px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border: 1px solid #ddd; padding: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Atendimento</h1>
+  <section class="meta">
+    ${linha("Cliente", cliente?.nome)}
+    ${linha("Área", dados.area)}
+    ${linha("Data", dataHoraCurta(dados.data))}
+    ${linha("Responsável", responsavel?.nome)}
+    ${linha("Assunto", dados.assunto)}
+  </section>
+</header>
+<main>${conteudo}</main>
+</body>
+</html>`;
+}
+
+function imprimirAtendimentoAtual({ titulo = "Imprimir atendimento" } = {}) {
+  const janela = window.open("", "_blank", "noopener,noreferrer");
+  if (!janela) {
+    alert("Permita pop-ups para imprimir ou exportar em PDF.");
+    return;
+  }
+  const html = htmlAtendimentoExportacao().replace("<title>", `<title>${escapeHtml(titulo)} - `);
+  janela.document.open();
+  janela.document.write(html);
+  janela.document.close();
+  setTimeout(() => {
+    janela.focus();
+    janela.print();
+  }, 350);
+}
+
+function exportarAtendimentoDocx() {
+  const html = htmlAtendimentoExportacao();
+  const entradas = [
+    { nome: "[Content_Types].xml", conteudo: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="html" ContentType="text/html"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>` },
+    { nome: "_rels/.rels", conteudo: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>` },
+    { nome: "word/document.xml", conteudo: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:altChunk r:id="htmlChunk"/><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>` },
+    { nome: "word/_rels/document.xml.rels", conteudo: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="htmlChunk" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk" Target="afchunk.html"/></Relationships>` },
+    { nome: "word/afchunk.html", conteudo: html }
+  ];
+  baixarBlob(new Blob([criarZipSemCompressao(entradas)], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), nomeArquivoAtendimento("docx"));
+}
+
+function baixarBlob(blob, nome) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = nome;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function criarZipSemCompressao(entradas) {
+  const encoder = new TextEncoder();
+  const partes = [];
+  const central = [];
+  let offset = 0;
+  entradas.forEach((entrada) => {
+    const nome = encoder.encode(entrada.nome);
+    const dados = typeof entrada.conteudo === "string" ? encoder.encode(entrada.conteudo) : entrada.conteudo;
+    const crc = crc32(dados);
+    const local = zipHeaderLocal(nome, dados.length, crc);
+    partes.push(local, dados);
+    central.push(zipHeaderCentral(nome, dados.length, crc, offset));
+    offset += local.length + dados.length;
+  });
+  const centralOffset = offset;
+  const centralSize = central.reduce((soma, item) => soma + item.length, 0);
+  const fim = zipHeaderFim(entradas.length, centralSize, centralOffset);
+  return unirBytes([...partes, ...central, fim]);
+}
+
+function zipHeaderLocal(nome, tamanho, crc) {
+  const bytes = new Uint8Array(30 + nome.length);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, tamanho, true);
+  view.setUint32(22, tamanho, true);
+  view.setUint16(26, nome.length, true);
+  bytes.set(nome, 30);
+  return bytes;
+}
+
+function zipHeaderCentral(nome, tamanho, crc, offset) {
+  const bytes = new Uint8Array(46 + nome.length);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, tamanho, true);
+  view.setUint32(24, tamanho, true);
+  view.setUint16(28, nome.length, true);
+  view.setUint32(42, offset, true);
+  bytes.set(nome, 46);
+  return bytes;
+}
+
+function zipHeaderFim(total, tamanhoCentral, offsetCentral) {
+  const bytes = new Uint8Array(22);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(8, total, true);
+  view.setUint16(10, total, true);
+  view.setUint32(12, tamanhoCentral, true);
+  view.setUint32(16, offsetCentral, true);
+  return bytes;
+}
+
+function unirBytes(lista) {
+  const tamanho = lista.reduce((soma, item) => soma + item.length, 0);
+  const saida = new Uint8Array(tamanho);
+  let offset = 0;
+  lista.forEach((item) => {
+    saida.set(item, offset);
+    offset += item.length;
+  });
+  return saida;
+}
+
+function crc32(bytes) {
+  let crc = -1;
+  for (let i = 0; i < bytes.length; i++) {
+    crc ^= bytes[i];
+    for (let j = 0; j < 8; j++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ -1) >>> 0;
 }
 
 function exportarDados() {

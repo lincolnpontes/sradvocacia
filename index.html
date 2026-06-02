@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.24">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.24">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.24">
-  <link rel="stylesheet" href="style.css?v=1.0.24">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.25">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.25">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.25">
+  <link rel="stylesheet" href="style.css?v=1.0.25">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.24</small>
+        <small>Versão 1.0.25</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -206,7 +206,7 @@
                 </label>
                 <label class="attendance-subject-field">
                   <span>Assunto</span>
-                  <input name="assunto" id="atendimentoAssunto" required placeholder="Ex.: reunião inicial, retorno, análise de documentos">
+                  <input name="assunto" id="atendimentoAssunto" required>
                 </label>
                 <div class="attendance-documents-field">
                   <span>Documentos</span>
@@ -232,6 +232,14 @@
                     <button class="toolbar-edge-action toolbar-process-action" type="button" id="btnAtendimentoProcesso" title="Transformar em processo" aria-label="Transformar em processo">
                       <span aria-hidden="true">🗂️</span>
                     </button>
+                    <div class="toolbar-export-wrap">
+                      <button class="toolbar-edge-action toolbar-export-action" type="button" id="btnExportarAtendimento" title="Exportar atendimento" aria-label="Exportar atendimento">⤓</button>
+                      <div class="toolbar-export-menu is-hidden" id="menuExportarAtendimento">
+                        <button type="button" data-export-attendance="docx">DOCX</button>
+                        <button type="button" data-export-attendance="pdf">PDF</button>
+                      </div>
+                    </div>
+                    <button class="toolbar-edge-action toolbar-print-action" type="button" id="btnImprimirAtendimento" title="Imprimir atendimento" aria-label="Imprimir atendimento">⎙</button>
                   </div>
                   <div class="toolbar-format-group">
                   <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + N)" aria-label="Negrito">N</button>
@@ -373,7 +381,7 @@
                   <div class="image-layout-grid image-layout-grid-compact">
                     <button type="button" class="image-layout-option image-layout-card is-active" data-image-layout="wrap" title="Texto ao redor da imagem" aria-label="Texto ao redor da imagem">
                       <svg class="layout-svg layout-svg-wrap" viewBox="0 0 64 48" aria-hidden="true">
-                        <path class="layout-line" d="M7 7h50M7 41h50M7 15h15M7 22h13M7 29h13M44 15h13M46 22h11M44 29h13"/>
+                        <path class="layout-line" d="M7 7h50M7 41h50M7 15h15M7 22h13M7 29h13M7 36h15M44 15h13M46 22h11M44 29h13M44 36h13"/>
                         <rect class="layout-picture" x="23" y="14" width="18" height="19" rx="2.5"/>
                         <path class="layout-picture-mark" d="M27 30c2.5-6 8.5-6 11 0"/>
                       </svg>
@@ -416,6 +424,7 @@
                   </div>
                 </div>
                 <div>
+                  <button class="ghost-button" type="button" id="btnAtendimentoProcessoRodape">Transformar em processo</button>
                   <button class="primary-button" type="submit">Salvar atendimento</button>
                   <button class="ghost-button" type="button" id="btnFecharAtendimento">Fechar</button>
                 </div>
@@ -1059,6 +1068,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.24"></script>
+  <script src="app.js?v=1.0.25"></script>
 </body>
 </html>
