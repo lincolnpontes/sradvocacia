@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.18">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.18">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.18">
-  <link rel="stylesheet" href="style.css?v=1.0.18">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.19">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.19">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.19">
+  <link rel="stylesheet" href="style.css?v=1.0.19">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.18</small>
+        <small>Versão 1.0.19</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -204,10 +204,24 @@
                   <span>Data</span>
                   <input name="data" type="datetime-local" id="atendimentoData" required>
                 </label>
-                <label class="span-3">
+                <label class="attendance-subject-field">
                   <span>Assunto</span>
                   <input name="assunto" id="atendimentoAssunto" required placeholder="Ex.: reunião inicial, retorno, análise de documentos">
                 </label>
+                <div class="attendance-documents-field">
+                  <span>Documentos</span>
+                  <input id="atendimentoDocumentoInput" type="file" multiple hidden>
+                  <button class="ghost-button document-add-button" type="button" id="btnAdicionarDocumentoAtendimento">
+                    <span aria-hidden="true">+</span> Adicionar documentos
+                  </button>
+                </div>
+                <div class="attendance-documents-panel is-hidden" id="atendimentoDocumentosPanel">
+                  <div class="documents-panel-header">
+                    <strong>Documentos do atendimento</strong>
+                    <small id="atendimentoDocumentosResumo">0 documentos</small>
+                  </div>
+                  <div class="document-list" id="atendimentoDocumentosLista"></div>
+                </div>
               </div>
               <div class="editor-shell">
                 <div class="editor-toolbar" id="editorToolbar">
@@ -1033,6 +1047,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.18"></script>
+  <script src="app.js?v=1.0.19"></script>
 </body>
 </html>
