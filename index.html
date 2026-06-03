@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.25">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.25">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.25">
-  <link rel="stylesheet" href="style.css?v=1.0.25">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.27">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.27">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.27">
+  <link rel="stylesheet" href="style.css?v=1.0.27">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.25</small>
+        <small>Versão 1.0.27</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -838,10 +838,26 @@
           <span>URL do Google Apps Script</span>
           <input name="googleScriptUrl" type="url" placeholder="https://script.google.com/macros/s/...">
         </label>
+        <label class="span-2 sync-token-field">
+          <span>Token de sincronização</span>
+          <input name="syncToken" type="password" autocomplete="off" spellcheck="false" placeholder="Cole o token secreto do Apps Script">
+        </label>
         <label class="span-2">
           <span>Observações técnicas</span>
           <textarea name="observacoesTecnicas" rows="3" placeholder="Anotações sobre integração, agenda e backup"></textarea>
         </label>
+        <div class="sync-panel span-2">
+          <div>
+            <span>Sincronização</span>
+            <strong id="syncStatus">Não configurada</strong>
+            <small id="syncDetails">Cole a URL do Apps Script para sincronizar PC, celular e tablet.</small>
+          </div>
+          <div class="sync-actions">
+            <button class="ghost-button" type="button" id="btnSyncNow">Sincronizar agora</button>
+            <button class="ghost-button" type="button" id="btnSyncPull">Baixar servidor</button>
+            <button class="ghost-button" type="button" id="btnSyncPush">Enviar este dispositivo</button>
+          </div>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="ghost-button" id="btnForceUpdateConfig" type="button">Forçar atualização</button>
@@ -1068,6 +1084,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.25"></script>
+  <script src="app.js?v=1.0.27"></script>
 </body>
 </html>

@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.25";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v125";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.27";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v127";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -8,6 +8,10 @@ const FONT_SIZE_OPTIONS = [8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36,
 const ATTENDANCE_INDENT_CM = 1.25;
 const MAX_DOCUMENT_FILE_BYTES = 3 * 1024 * 1024;
 const MAX_DOCUMENT_TOTAL_BYTES = 3 * 1024 * 1024;
+const SYNC_META_KEY = "sr-advocacia-sync-meta-v1";
+const SYNC_DEVICE_KEY = "sr-advocacia-sync-device-v1";
+const SYNC_CONFLICT_KEY = "sr-advocacia-sync-conflict-v1";
+const SYNC_DEBOUNCE_MS = 2500;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
   { mes: 4, dia: 21, nome: "Tiradentes" },
@@ -50,6 +54,11 @@ let feriadoPendenteData = "";
 let atendimentoZoom = 100;
 let imagemAtivaAtendimento = null;
 let documentosAtendimento = [];
+let syncMeta = carregarSyncMeta();
+let syncPronto = false;
+let syncEmAndamento = false;
+let syncAplicandoRemoto = false;
+let syncTimer = null;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -97,6 +106,11 @@ const els = {
   formUsuario: document.querySelector("#formUsuarioDetalhe"),
   formConfigItem: document.querySelector("#formConfigItem"),
   formAvancadas: document.querySelector("#formAvancadas"),
+  syncStatus: document.querySelector("#syncStatus"),
+  syncDetails: document.querySelector("#syncDetails"),
+  btnSyncNow: document.querySelector("#btnSyncNow"),
+  btnSyncPull: document.querySelector("#btnSyncPull"),
+  btnSyncPush: document.querySelector("#btnSyncPush"),
   formRecebimento: document.querySelector("#formRecebimento"),
   formContrato: document.querySelector("#formContrato"),
   formAtendimento: document.querySelector("#formAtendimento"),
@@ -257,6 +271,9 @@ function configurarEventos() {
   els.formUsuario.addEventListener("submit", salvarUsuario);
   els.formConfigItem.addEventListener("submit", adicionarItemConfig);
   els.formAvancadas.addEventListener("submit", salvarAvancadas);
+  els.btnSyncNow?.addEventListener("click", () => sincronizarComServidor({ manual: true }));
+  els.btnSyncPull?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePull: true }));
+  els.btnSyncPush?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePush: true }));
   els.formRecebimento.addEventListener("submit", salvarRecebimento);
   els.formContrato.addEventListener("submit", salvarContratoHonorarios);
   els.formAgendarAtendimento.addEventListener("submit", salvarAgendamentoAtendimento);
@@ -3032,6 +3049,7 @@ function desfazerUltimoRecebimento() {
 
 function abrirModalAvancadas() {
   els.formAvancadas.googleScriptUrl.value = state.avancadas?.googleScriptUrl || "";
+  els.formAvancadas.syncToken.value = state.avancadas?.syncToken || "";
   els.formAvancadas.observacoesTecnicas.value = state.avancadas?.observacoesTecnicas || "";
   els.modalAvancadas.showModal();
 }
@@ -3040,8 +3058,9 @@ function salvarAvancadas(event) {
   event.preventDefault();
   const dados = Object.fromEntries(new FormData(els.formAvancadas));
   state.avancadas = {
-    googleScriptUrl: dados.googleScriptUrl.trim(),
-    observacoesTecnicas: dados.observacoesTecnicas.trim()
+    googleScriptUrl: String(dados.googleScriptUrl || "").trim(),
+    syncToken: String(dados.syncToken || "").trim(),
+    observacoesTecnicas: String(dados.observacoesTecnicas || "").trim()
   };
   salvarEstado();
   els.modalAvancadas.close();
@@ -3402,6 +3421,7 @@ function normalizarEstado(raw) {
   estado.configs.movimentacoes = estado.configs.movimentacoes.map(migrarTextoParaPb);
   estado.avancadas = {
     googleScriptUrl: raw.avancadas?.googleScriptUrl || "",
+    syncToken: raw.avancadas?.syncToken || "",
     observacoesTecnicas: raw.avancadas?.observacoesTecnicas || ""
   };
   estado.clienteModo = estado.clienteModo || "cards";
@@ -3602,6 +3622,7 @@ function criarEstadoPadrao() {
     rascunhoAtendimento: null,
     avancadas: {
       googleScriptUrl: "",
+      syncToken: "",
       observacoesTecnicas: ""
     },
     usuarios,
@@ -3656,12 +3677,272 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
 
 function salvarEstado() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
+  if (syncPronto && !syncAplicandoRemoto) marcarSyncSujo();
 }
 
 function salvarEstadoNormalizado(estado) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...estado, usuarioAtivoId: null }));
 }
 
+function iniciarSincronizacao() {
+  syncPronto = true;
+  atualizarStatusSync();
+  window.addEventListener("online", () => agendarSincronizacao("online"));
+  if (urlSyncAppsScript() && tokenSyncAppsScript()) setTimeout(() => sincronizarComServidor({ motivo: "inicial" }), 700);
+}
+
+function carregarSyncMeta() {
+  try {
+    return JSON.parse(localStorage.getItem(SYNC_META_KEY) || "{}") || {};
+  } catch {
+    return {};
+  }
+}
+
+function salvarSyncMeta() {
+  localStorage.setItem(SYNC_META_KEY, JSON.stringify(syncMeta));
+}
+
+function idDispositivoSync() {
+  let id = localStorage.getItem(SYNC_DEVICE_KEY);
+  if (!id) {
+    id = `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(SYNC_DEVICE_KEY, id);
+  }
+  return id;
+}
+
+function nomeDispositivoSync() {
+  const base = navigator.userAgentData?.platform || navigator.platform || "Dispositivo";
+  return `${base} · ${screen.width}x${screen.height}`;
+}
+
+function urlSyncAppsScript() {
+  return String(state.avancadas?.googleScriptUrl || "").trim();
+}
+
+function tokenSyncAppsScript() {
+  return String(state.avancadas?.syncToken || "").trim();
+}
+
+function marcarSyncSujo() {
+  if (!syncPronto || syncAplicandoRemoto) return;
+  syncMeta.dirty = true;
+  syncMeta.localDirtyAt = new Date().toISOString();
+  syncMeta.conflict = false;
+  salvarSyncMeta();
+  atualizarStatusSync("Alterações aguardando sincronização");
+  agendarSincronizacao("alteracao-local");
+}
+
+function agendarSincronizacao(motivo = "auto") {
+  if (!syncPronto || !urlSyncAppsScript() || !tokenSyncAppsScript() || syncMeta.conflict) return;
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => sincronizarComServidor({ motivo }), SYNC_DEBOUNCE_MS);
+}
+
+function atualizarStatusSync(texto = "") {
+  if (!els.syncStatus || !els.syncDetails) return;
+  if (!urlSyncAppsScript()) {
+    els.syncStatus.textContent = "Não configurada";
+    els.syncDetails.textContent = "Cole a URL do Apps Script para sincronizar PC, celular e tablet.";
+    return;
+  }
+  if (!tokenSyncAppsScript()) {
+    els.syncStatus.textContent = "Token obrigatório";
+    els.syncDetails.textContent = "Cole o token secreto do Apps Script para liberar a sincronização.";
+    return;
+  }
+  if (syncMeta.conflict) {
+    els.syncStatus.textContent = "Conflito protegido";
+    els.syncDetails.textContent = "Há uma cópia local guardada. Use Baixar servidor ou Enviar este dispositivo.";
+    return;
+  }
+  if (texto) els.syncStatus.textContent = texto;
+  else if (syncEmAndamento) els.syncStatus.textContent = "Sincronizando...";
+  else if (syncMeta.dirty) els.syncStatus.textContent = "Pendente";
+  else els.syncStatus.textContent = "Sincronizada";
+  const quando = syncMeta.lastServerAt ? `Última hora do servidor: ${dataHoraCurta(syncMeta.lastServerAt)}` : "Ainda sem confirmação do servidor.";
+  els.syncDetails.textContent = quando;
+}
+
+async function sincronizarComServidor({ manual = false, forcePush = false, forcePull = false } = {}) {
+  if (!urlSyncAppsScript()) {
+    atualizarStatusSync();
+    if (manual) alert("Informe a URL do Google Apps Script em Configurações > Avançadas.");
+    return;
+  }
+  if (!tokenSyncAppsScript()) {
+    atualizarStatusSync();
+    if (manual) alert("Informe o token de sincronização em Configurações > Avançadas.");
+    return;
+  }
+  if (syncEmAndamento) return;
+  syncEmAndamento = true;
+  atualizarStatusSync("Sincronizando...");
+  try {
+    if (forcePush) {
+      await enviarEstadoServidor(true, manual);
+      return;
+    }
+    const resposta = await chamarAppsScriptSync(forcePull ? "forcePull" : "pull", {});
+    if (!resposta.ok) throw new Error(resposta.error || "Falha ao consultar servidor.");
+    const record = resposta.record || {};
+    if (forcePull) {
+      if (record.hasData) aplicarEstadoServidor(record);
+      else atualizarStatusSync("Servidor sem dados");
+      return;
+    }
+    if (record.hasData && record.serverVersion && record.serverVersion !== syncMeta.serverVersion) {
+      if (syncMeta.dirty) {
+        await enviarEstadoServidor(false, manual, record);
+      } else {
+        aplicarEstadoServidor(record);
+      }
+      return;
+    }
+    if (syncMeta.dirty || !record.hasData) await enviarEstadoServidor(false, manual);
+    else {
+      atualizarMetaSync(record);
+      atualizarStatusSync("Sincronizada");
+    }
+  } catch (error) {
+    atualizarStatusSync("Falha na sincronização");
+    els.syncDetails && (els.syncDetails.textContent = error.message || String(error));
+    if (manual) alert(`Não foi possível sincronizar: ${error.message || error}`);
+  } finally {
+    syncEmAndamento = false;
+    atualizarStatusSync();
+  }
+}
+
+async function enviarEstadoServidor(force = false, manual = false, recordAtual = null) {
+  const payload = {
+    appId: "sr-advocacia",
+    appVersion: APP_VERSION,
+    deviceId: idDispositivoSync(),
+    deviceName: nomeDispositivoSync(),
+    baseVersion: syncMeta.serverVersion || "",
+    baseHash: syncMeta.serverHash || "",
+    force,
+    data: estadoParaSync()
+  };
+  const resposta = await chamarAppsScriptSync("push", payload);
+  if (!resposta.ok) throw new Error(resposta.error || "Falha ao enviar dados.");
+  if (resposta.status === "conflict" || resposta.conflict) {
+    guardarConflitoSync(recordAtual || resposta.record, payload.data);
+    syncMeta.conflict = true;
+    syncMeta.dirty = true;
+    salvarSyncMeta();
+    atualizarStatusSync();
+    if (manual) alert("O servidor tem uma versão mais nova. A sua cópia local foi guardada neste navegador; escolha Baixar servidor ou Enviar este dispositivo.");
+    return false;
+  }
+  atualizarMetaSync(resposta.record);
+  syncMeta.dirty = false;
+  syncMeta.conflict = false;
+  salvarSyncMeta();
+  atualizarStatusSync("Sincronizada");
+  return true;
+}
+
+function aplicarEstadoServidor(record) {
+  if (!record?.data) return;
+  syncAplicandoRemoto = true;
+  const usuarioSessao = state.usuarioAtivoId;
+  const avancadasLocais = { ...(state.avancadas || {}) };
+  const normalizado = normalizarEstado(record.data);
+  Object.keys(state).forEach((key) => delete state[key]);
+  Object.assign(state, normalizado, { usuarioAtivoId: usuarioSessao || normalizado.usuarioAtivoId });
+  state.avancadas = {
+    ...(state.avancadas || {}),
+    googleScriptUrl: avancadasLocais.googleScriptUrl || state.avancadas?.googleScriptUrl || "",
+    syncToken: avancadasLocais.syncToken || "",
+    observacoesTecnicas: state.avancadas?.observacoesTecnicas || avancadasLocais.observacoesTecnicas || ""
+  };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
+  syncAplicandoRemoto = false;
+  atualizarMetaSync(record);
+  syncMeta.dirty = false;
+  syncMeta.conflict = false;
+  salvarSyncMeta();
+  aplicarTema();
+  aplicarSidebar();
+  atualizarPerfil();
+  renderizarTudo();
+  atualizarStatusSync("Atualizada pelo servidor");
+}
+
+function atualizarMetaSync(record = {}) {
+  if (!record) return;
+  syncMeta.serverVersion = record.serverVersion || syncMeta.serverVersion || "";
+  syncMeta.serverHash = record.hash || syncMeta.serverHash || "";
+  syncMeta.lastServerAt = record.updatedAtServer || syncMeta.lastServerAt || "";
+  syncMeta.revision = record.revision || syncMeta.revision || 0;
+  salvarSyncMeta();
+}
+
+function estadoParaSync() {
+  const clone = JSON.parse(JSON.stringify({ ...state, usuarioAtivoId: null }));
+  if (clone.avancadas) clone.avancadas.syncToken = "";
+  return clone;
+}
+
+function guardarConflitoSync(record, localData) {
+  localStorage.setItem(SYNC_CONFLICT_KEY, JSON.stringify({ salvoEmLocal: new Date().toISOString(), server: record || null, localData }));
+}
+
+function chamarAppsScriptSync(action, payload = {}) {
+  const url = urlSyncAppsScript();
+  if (!url) return Promise.reject(new Error("URL do Apps Script não configurada."));
+  const token = tokenSyncAppsScript();
+  if (!token) return Promise.reject(new Error("Token de sincronização não configurado."));
+  const requestId = `sync-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return new Promise((resolve, reject) => {
+    const frameName = `srSyncFrame_${requestId}`;
+    const iframe = document.createElement("iframe");
+    const form = document.createElement("form");
+    const timeout = setTimeout(() => finalizar(null, new Error("Tempo de resposta do servidor esgotado.")), 45000);
+
+    function campo(nome, valor, multiline = false) {
+      const input = document.createElement(multiline ? "textarea" : "input");
+      input.name = nome;
+      input.value = valor;
+      form.appendChild(input);
+    }
+
+    function finalizar(data, error) {
+      clearTimeout(timeout);
+      window.removeEventListener("message", receberMensagem);
+      setTimeout(() => {
+        iframe.remove();
+        form.remove();
+      }, 0);
+      if (error) reject(error);
+      else resolve(data);
+    }
+
+    function receberMensagem(event) {
+      const data = event.data || {};
+      if (!data.srAdvocaciaSync || data.requestId !== requestId) return;
+      finalizar(data, null);
+    }
+
+    iframe.name = frameName;
+    iframe.style.display = "none";
+    form.method = "POST";
+    form.action = url;
+    form.target = frameName;
+    form.style.display = "none";
+    campo("action", action);
+    campo("requestId", requestId);
+    campo("token", token);
+    campo("payload", JSON.stringify(payload), true);
+    window.addEventListener("message", receberMensagem);
+    document.body.append(iframe, form);
+    form.submit();
+  });
+}
 function obterCliente(id) {
   return state.clientes.find((cliente) => cliente.id === id);
 }
@@ -3953,7 +4234,9 @@ function crc32(bytes) {
 }
 
 function exportarDados() {
-  const blob = new Blob([JSON.stringify({ versao: APP_VERSION, ...state }, null, 2)], { type: "application/json" });
+  const backup = JSON.parse(JSON.stringify({ versao: APP_VERSION, ...state }));
+  if (backup.avancadas) backup.avancadas.syncToken = "";
+  const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

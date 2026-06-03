@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.25 */
+/* SR Advocacia v1.0.27 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -3914,4 +3914,49 @@ dd {
   .attendance-meta-grid {
     grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(150px, 1.3fr) minmax(150px, 1.3fr);
   }
+}
+/* Sincronização Google Apps Script */
+.sync-token-field input {
+  font-family: Consolas, "Courier New", monospace;
+  letter-spacing: 0.02em;
+}
+
+.sync-panel {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(197,154,70,0.34);
+  border-radius: 8px;
+  background: #fffaf4;
+}
+
+.sync-panel > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.sync-panel span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sync-panel strong {
+  color: var(--wine);
+  font-size: 16px;
+}
+
+.sync-panel small {
+  color: var(--muted);
+}
+
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.sync-actions .ghost-button {
+  min-height: 36px;
+  padding: 0 12px;
 }
