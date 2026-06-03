@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.27";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v127";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.28";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v128";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -11,6 +11,7 @@ const MAX_DOCUMENT_TOTAL_BYTES = 3 * 1024 * 1024;
 const SYNC_META_KEY = "sr-advocacia-sync-meta-v1";
 const SYNC_DEVICE_KEY = "sr-advocacia-sync-device-v1";
 const SYNC_CONFLICT_KEY = "sr-advocacia-sync-conflict-v1";
+const DEMO_CLEANUP_SYNC_KEY = "sr-advocacia-demo-cleanup-v128";
 const SYNC_DEBOUNCE_MS = 2500;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
@@ -622,10 +623,21 @@ function abrirConfig(event) {
 function editarOuExcluirConfig(event) {
   const salvar = event.target.closest("[data-save-config]");
   const excluir = event.target.closest("[data-delete-config]");
-  if (!configAberta || (!salvar && !excluir)) return;
+  const mover = event.target.closest("[data-move-config]");
+  if (!configAberta || (!salvar && !excluir && !mover)) return;
   const row = event.target.closest("[data-config-row]");
   const index = Number(row.dataset.configRow);
   const valorAtual = state.configs[configAberta][index];
+
+  if (mover) {
+    const destino = mover.dataset.moveConfig === "up" ? index - 1 : index + 1;
+    if (destino < 0 || destino >= state.configs[configAberta].length) return;
+    [state.configs[configAberta][index], state.configs[configAberta][destino]] = [state.configs[configAberta][destino], state.configs[configAberta][index]];
+    salvarEstado();
+    renderConfigModal();
+    renderizarTudo();
+    return;
+  }
 
   if (salvar) {
     const novoValor = row.querySelector("input").value.trim();
@@ -684,6 +696,10 @@ function salvarItemProcesso(event) {
     }
 
     processo.movimentacoes.unshift(movimentacao);
+  }
+
+  if (form.dataset.detailForm === "status") {
+    processo.status = dados.status || processo.status;
   }
 
   if (form.dataset.detailForm === "prazo") {
@@ -2697,6 +2713,10 @@ function renderConfigModal() {
   if (!configAberta) return;
   els.listaConfigModal.innerHTML = state.configs[configAberta].map((valor, index) => `
     <div class="config-edit-row" data-config-row="${index}">
+      <div class="config-order-actions">
+        <button class="ghost-button icon-only" type="button" data-move-config="up" title="Subir na lista" ${index === 0 ? "disabled" : ""}>↑</button>
+        <button class="ghost-button icon-only" type="button" data-move-config="down" title="Descer na lista" ${index === state.configs[configAberta].length - 1 ? "disabled" : ""}>↓</button>
+      </div>
       <input value="${escapeHtml(valor)}" aria-label="Editar item">
       <button class="ghost-button" type="button" data-save-config>Salvar</button>
       <button class="ghost-button danger-text" type="button" data-delete-config>Excluir</button>
@@ -2741,6 +2761,15 @@ function abrirDetalheProcesso(id) {
       <div class="detail-board">
         <section class="detail-panel detail-main">
           <h3>Dados do processo</h3>
+          <form class="process-status-form" data-detail-form="status">
+            <label>
+              <span>Status do processo</span>
+              <select name="status">
+                ${state.configs.status.map((status) => `<option value="${escapeHtml(status)}" ${status === processo.status ? "selected" : ""}>${escapeHtml(status)}</option>`).join("")}
+              </select>
+            </label>
+            <button class="ghost-button" type="submit">Atualizar status</button>
+          </form>
           <dl>
             <dt>Área</dt><dd>${escapeHtml(processo.area)}</dd>
             <dt>Vara/Fórum</dt><dd>${escapeHtml(processo.orgao)}</dd>
@@ -3477,7 +3506,12 @@ function normalizarEstado(raw) {
     estado.rascunhoAtendimento.numero = estado.atendimentos.find((atendimento) => atendimento.id === estado.rascunhoAtendimento.id)?.numero || "";
   }
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
-  estado.usuarioAtivoId = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
+  if (removerDadosDemonstrativos(estado) && typeof localStorage !== "undefined") {
+    localStorage.setItem(DEMO_CLEANUP_SYNC_KEY, "1");
+  }
+  const usuarioSessao = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
+  estado.usuarioAtivoId = estado.usuarios.some((usuario) => usuario.id === usuarioSessao) ? usuarioSessao : estado.usuarios[0]?.id || null;
+  if (typeof sessionStorage !== "undefined" && estado.usuarioAtivoId) sessionStorage.setItem(SESSION_KEY, estado.usuarioAtivoId);
   salvarEstadoNormalizado(estado);
   return estado;
 }
@@ -3597,17 +3631,107 @@ function normalizarProcesso(processo, estado) {
   };
 }
 
+function usuarioAdministradorPadrao() {
+  return {
+    id: uid(),
+    nome: "Administrador",
+    email: "",
+    senha: "1234",
+    cargo: "Administrador",
+    telefone: "",
+    oab: "",
+    permissoes: permissoesPadrao()
+  };
+}
+
+function removerDadosDemonstrativos(estado) {
+  const usuariosDemo = [
+    ["Letícia Ramos", "leticia@sradvocacia.com"],
+    ["Renato Silva", "renato@sradvocacia.com"]
+  ];
+  const processosDemo = new Set([
+    "0804126-31.2026.8.15.2001",
+    "0009824-78.2025.5.13.0012",
+    "3001142-59.2026.8.15.2001"
+  ]);
+  const documentosClientesDemo = new Set([
+    "184.552.930-10",
+    "22.981.440/0001-70",
+    "039.118.260-54",
+    "31.550.020/0001-88"
+  ]);
+  const nomesClientesDemo = new Set(["Mariana Azevedo", "Nobre Serviços LTDA", "Paulo Henrique Sales", "Clínica Aurora"]);
+  const usuariosRemovidos = new Set();
+  let alterou = false;
+
+  estado.usuarios = (estado.usuarios || []).filter((usuario) => {
+    const demo = usuariosDemo.some(([nome, email]) => usuario.nome === nome && usuario.email === email);
+    if (demo) {
+      usuariosRemovidos.add(usuario.id);
+      alterou = true;
+    }
+    return !demo;
+  });
+  if (!estado.usuarios.length) {
+    estado.usuarios.push(usuarioAdministradorPadrao());
+    alterou = true;
+  }
+
+  const responsavelPadrao = estado.usuarios[0]?.id || "";
+  const processosRemovidos = new Set();
+  estado.processos = (estado.processos || []).filter((processo) => {
+    if (processosDemo.has(processo.numero)) {
+      processosRemovidos.add(processo.id);
+      alterou = true;
+      return false;
+    }
+    if (usuariosRemovidos.has(processo.responsavelId)) {
+      processo.responsavelId = responsavelPadrao;
+      alterou = true;
+    }
+    (processo.prazos || []).forEach((prazo) => {
+      if (usuariosRemovidos.has(prazo.responsavelId)) {
+        prazo.responsavelId = responsavelPadrao;
+        alterou = true;
+      }
+    });
+    return true;
+  });
+
+  estado.atendimentos = (estado.atendimentos || []).filter((atendimento) => {
+    const remover = processosRemovidos.has(atendimento.processoId);
+    if (remover) alterou = true;
+    return !remover;
+  });
+  estado.atendimentos.forEach((atendimento) => {
+    if (usuariosRemovidos.has(atendimento.responsavelId)) {
+      atendimento.responsavelId = responsavelPadrao;
+      alterou = true;
+    }
+  });
+  if (estado.rascunhoAtendimento && usuariosRemovidos.has(estado.rascunhoAtendimento.responsavelId)) {
+    estado.rascunhoAtendimento.responsavelId = responsavelPadrao;
+    alterou = true;
+  }
+
+  const clientesEmUso = new Set([
+    ...estado.processos.map((processo) => processo.clienteId),
+    ...estado.atendimentos.map((atendimento) => atendimento.clienteId),
+    estado.rascunhoAtendimento?.clienteId
+  ].filter(Boolean));
+  estado.clientes = (estado.clientes || []).filter((cliente) => {
+    const documento = cliente.documento || cliente.cpf || "";
+    const demo = documentosClientesDemo.has(documento) || nomesClientesDemo.has(cliente.nome);
+    const remover = demo && !clientesEmUso.has(cliente.id);
+    if (remover) alterou = true;
+    return !remover;
+  });
+  return alterou;
+}
+
 function criarEstadoPadrao() {
-  const usuarios = [
-    { id: uid(), nome: "Letícia Ramos", email: "leticia@sradvocacia.com", senha: "1234", cargo: "Advogada", telefone: "(83) 99999-1000", oab: "OAB/PB 00000", permissoes: permissoesPadrao() },
-    { id: uid(), nome: "Renato Silva", email: "renato@sradvocacia.com", senha: "1234", cargo: "Advogado", telefone: "(83) 99999-2000", oab: "OAB/PB 00001", permissoes: ["dashboard", "processos", "clientes", "atendimentos", "agenda", "financeiro"] }
-  ];
-  const clientes = [
-    { id: uid(), criadoEm: "2026-05-01", nome: "Mariana Azevedo", tipoDocumento: "CPF", documento: "184.552.930-10", cpf: "184.552.930-10", email: "mariana@email.com", whatsapp: "(83) 99991-1030", estadoCivil: "Casado(a)", profissao: "Arquiteta", nacionalidade: "Brasileira", rg: "3.245.810 SSP/PB", nascimento: "1988-08-14", domicilio: "João Pessoa/PB", observacoes: "Prefere contato por Whatsapp no fim da tarde." },
-    { id: uid(), criadoEm: "2026-04-20", nome: "Nobre Serviços LTDA", tipoDocumento: "CNPJ", documento: "22.981.440/0001-70", cpf: "22.981.440/0001-70", email: "juridico@nobre.com", whatsapp: "(83) 98822-4410", estadoCivil: "", profissao: "Pessoa jurídica", nomeFantasia: "Nobre Serviços", inscricaoEstadual: "16.000.000-0", representante: "Roberto Nobre", representanteCpf: "487.321.990-00", representanteCargo: "Sócio-administrador", domicilio: "João Pessoa/PB", observacoes: "Cliente empresarial com demandas trabalhistas recorrentes." },
-    { id: uid(), criadoEm: "2026-04-12", nome: "Paulo Henrique Sales", tipoDocumento: "CPF", documento: "039.118.260-54", cpf: "039.118.260-54", email: "paulo@email.com", whatsapp: "(83) 99777-2600", estadoCivil: "Solteiro(a)", profissao: "Engenheiro", nacionalidade: "Brasileiro", rg: "2.998.441 SSP/PB", nascimento: "1991-03-22", domicilio: "Cabedelo/PB", observacoes: "Solicita relatórios mensais do caso." },
-    { id: uid(), criadoEm: "2026-05-08", nome: "Clínica Aurora", tipoDocumento: "CNPJ", documento: "31.550.020/0001-88", cpf: "31.550.020/0001-88", email: "financeiro@aurora.com", whatsapp: "(83) 98888-0201", estadoCivil: "", profissao: "Pessoa jurídica", nomeFantasia: "Aurora Saúde", inscricaoEstadual: "16.111.000-0", representante: "Ana Beatriz Lima", representanteCpf: "612.340.880-20", representanteCargo: "Diretora", domicilio: "João Pessoa/PB", observacoes: "Enviar boletos para o financeiro." }
-  ];
+  const usuarios = [usuarioAdministradorPadrao()];
+  const clientes = [];
   return {
     usuarioAtivoId: null,
     tema: "classico",
@@ -3634,18 +3758,7 @@ function criarEstadoPadrao() {
     },
     clientes,
     atendimentos: [],
-    processos: [
-      processoPadrao("0804126-31.2026.8.15.2001", clientes[0].id, "Família", "Aguardando audiência", "3ª Vara de Família de João Pessoa", "2026-05-22", usuarios[0].id, 6200, 3200, "Ação de guarda com pedido de regulamentação de convivência.", [
-        { data: "2026-05-22", tipo: "Audiência", descricao: "Audiência de conciliação.", responsavelId: usuarios[0].id },
-        { data: "2026-05-29", tipo: "Manifestação", descricao: "Juntar documentos complementares.", responsavelId: usuarios[0].id }
-      ]),
-      processoPadrao("0009824-78.2025.5.13.0012", clientes[1].id, "Trabalhista", "Ativo", "12ª Vara do Trabalho de João Pessoa", "2026-05-27", usuarios[1].id, 9800, 6800, "Defesa em reclamação trabalhista com perícia técnica designada.", [
-        { data: "2026-05-27", tipo: "Perícia", descricao: "Acompanhar perícia técnica.", responsavelId: usuarios[1].id }
-      ]),
-      processoPadrao("3001142-59.2026.8.15.2001", clientes[2].id, "Cível", "Recurso", "1ª Vara Cível de João Pessoa", "2026-06-02", usuarios[0].id, 7500, 7500, "Apelação em ação indenizatória por vício em imóvel.", [
-        { data: "2026-06-02", tipo: "Contrarrazões", descricao: "Protocolar contrarrazões.", responsavelId: usuarios[0].id }
-      ])
-    ]
+    processos: []
   };
 }
 
@@ -3686,6 +3799,11 @@ function salvarEstadoNormalizado(estado) {
 
 function iniciarSincronizacao() {
   syncPronto = true;
+  if (localStorage.getItem(DEMO_CLEANUP_SYNC_KEY) === "1") {
+    syncMeta.dirty = true;
+    syncMeta.localDirtyAt = new Date().toISOString();
+    salvarSyncMeta();
+  }
   atualizarStatusSync();
   window.addEventListener("online", () => agendarSincronizacao("online"));
   if (urlSyncAppsScript() && tokenSyncAppsScript()) setTimeout(() => sincronizarComServidor({ motivo: "inicial" }), 700);
@@ -3839,6 +3957,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     return false;
   }
   atualizarMetaSync(resposta.record);
+  localStorage.removeItem(DEMO_CLEANUP_SYNC_KEY);
   syncMeta.dirty = false;
   syncMeta.conflict = false;
   salvarSyncMeta();

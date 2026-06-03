@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.27 */
+/* SR Advocacia v1.0.28 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -3280,12 +3280,32 @@ dialog::backdrop {
 
 .config-edit-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   gap: 8px;
+  align-items: center;
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
+}
+
+.config-order-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.config-order-actions .icon-only {
+  width: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.config-order-actions .icon-only:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .receipt-summary {
@@ -3459,6 +3479,33 @@ dialog::backdrop {
 
 .movement-form-card {
   grid-column: 1 / -1;
+}
+
+.process-status-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid rgba(197,154,70,0.34);
+  border-radius: 8px;
+  background: #fffaf4;
+}
+
+.process-status-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.process-status-form label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.process-status-form select {
+  min-height: 38px;
 }
 
 .movement-grid,
