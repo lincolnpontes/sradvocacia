@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.29";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v129";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.30";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v130";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -13,6 +13,7 @@ const SYNC_DEVICE_KEY = "sr-advocacia-sync-device-v1";
 const SYNC_CONFLICT_KEY = "sr-advocacia-sync-conflict-v1";
 const DEMO_CLEANUP_SYNC_KEY = "sr-advocacia-demo-cleanup-v128";
 const SYNC_DEBOUNCE_MS = 2500;
+const SYNC_INTERVAL_MS = 20000;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
   { mes: 4, dia: 21, nome: "Tiradentes" },
@@ -60,6 +61,7 @@ let syncPronto = false;
 let syncEmAndamento = false;
 let syncAplicandoRemoto = false;
 let syncTimer = null;
+let syncInterval = null;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -1971,6 +1973,14 @@ function aplicarLayoutImagemAtendimento(event) {
   imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-tight-left", "image-layout-right", "image-layout-bottom-left", "image-layout-center", "image-layout-full", "image-layout-wrap", "image-layout-block");
   imagemAtivaAtendimento.classList.add(`image-layout-${layout}`);
   imagemAtivaAtendimento.dataset.imageLayout = layout;
+  if (layout === "wrap") {
+    imagemAtivaAtendimento.dataset.offsetX = "0";
+    imagemAtivaAtendimento.dataset.offsetY = "0";
+    imagemAtivaAtendimento.dataset.wrapSide = imagemAtivaAtendimento.dataset.wrapSide || "left";
+  } else {
+    delete imagemAtivaAtendimento.dataset.wrapSide;
+  }
+  aplicarTransformImagemAtendimento(imagemAtivaAtendimento);
   atualizarOpcoesLayoutImagem(layout);
   posicionarOverlayImagem(imagemAtivaAtendimento);
   marcarAtendimentoAlterado();
@@ -2128,6 +2138,11 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
     const deltaXOriginal = moveEvent.clientX - inicioX;
     const deltaYOriginal = moveEvent.clientY - inicioY;
     if (acao.moverImagem) {
+      if (img.dataset.imageLayout === "wrap") {
+        moverImagemComTextoAoRedor(img, moveEvent.clientX, moveEvent.clientY);
+        posicionarOverlayImagem(img);
+        return;
+      }
       img.dataset.offsetX = String(Math.round(offsetInicialX + deltaXOriginal));
       img.dataset.offsetY = String(Math.round(offsetInicialY + deltaYOriginal));
       aplicarTransformImagemAtendimento(img);
@@ -2184,6 +2199,48 @@ function aplicarTransformImagemAtendimento(img) {
   const y = Number(img.dataset.offsetY || 0);
   const rotacao = Number(img.dataset.rotation || 0);
   img.style.transform = `translate(${x}px, ${y}px) rotate(${rotacao}deg)`;
+}
+
+function moverImagemComTextoAoRedor(img, clientX, clientY) {
+  if (!img || !els.atendimentoEditor?.contains(img)) return;
+  img.dataset.offsetX = "0";
+  img.dataset.offsetY = "0";
+  img.dataset.wrapSide = clientX > centroHorizontalEditorAtendimento() ? "right" : "left";
+  aplicarTransformImagemAtendimento(img);
+  const range = rangeEditorNoPonto(clientX, clientY);
+  if (!range || !els.atendimentoEditor.contains(range.startContainer)) return;
+  const referencia = blocoMaisProximoDoRange(range);
+  if (!referencia || referencia === img || referencia.contains?.(img)) return;
+  const rect = referencia.getBoundingClientRect();
+  const depois = clientY > rect.top + rect.height / 2;
+  referencia.parentNode.insertBefore(img, depois ? referencia.nextSibling : referencia);
+}
+
+function centroHorizontalEditorAtendimento() {
+  const rect = els.atendimentoEditor.getBoundingClientRect();
+  return rect.left + rect.width / 2;
+}
+
+function rangeEditorNoPonto(clientX, clientY) {
+  const overlay = els.imageResizeOverlay;
+  const pointerEventsAnterior = overlay?.style.pointerEvents || "";
+  if (overlay) overlay.style.pointerEvents = "none";
+  let range = document.caretRangeFromPoint?.(clientX, clientY) || null;
+  if (!range && document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(clientX, clientY);
+    if (pos) {
+      range = document.createRange();
+      range.setStart(pos.offsetNode, pos.offset);
+      range.collapse(true);
+    }
+  }
+  if (overlay) overlay.style.pointerEvents = pointerEventsAnterior;
+  return range;
+}
+
+function blocoMaisProximoDoRange(range) {
+  const node = range.startContainer?.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
+  return node?.closest?.("p, div, li, h1, h2, h3, h4, h5, h6, blockquote") || null;
 }
 
 function atalhosEditorAtendimento(event) {
@@ -3157,16 +3214,41 @@ function confirmarExclusaoAtendimento(event) {
   event?.preventDefault();
   const id = els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
   if (!id) return;
-  state.atendimentos = state.atendimentos.filter((atendimento) => atendimento.id !== id);
+  const alvo = state.atendimentos.find((atendimento) => atendimento.id === id);
+  if (!alvo) {
+    delete els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
+    els.modalExcluirAtendimento.close();
+    renderizarTudo();
+    return;
+  }
+  const idsRemovidos = new Set(state.atendimentos
+    .filter((atendimento) => atendimento.id === alvo.id || (alvo.numero && atendimento.numero === alvo.numero))
+    .map((atendimento) => atendimento.id)
+    .filter(Boolean));
+  const numerosRemovidos = new Set(state.atendimentos
+    .filter((atendimento) => atendimento.id === alvo.id || (alvo.numero && atendimento.numero === alvo.numero))
+    .map((atendimento) => atendimento.numero)
+    .filter(Boolean));
+  registrarExclusaoAtendimento(alvo);
+  state.atendimentos = state.atendimentos.filter((atendimento) => !idsRemovidos.has(atendimento.id) && !numerosRemovidos.has(atendimento.numero));
   state.processos.forEach((processo) => {
-    processo.atendimentos = (processo.atendimentos || []).filter((atendimentoId) => atendimentoId !== id);
+    processo.atendimentos = (processo.atendimentos || []).filter((atendimentoId) => !idsRemovidos.has(atendimentoId));
   });
-  if (state.rascunhoAtendimento?.id === id) state.rascunhoAtendimento = null;
-  if (atendimentoAbertoId === id) fecharEditorAtendimento();
+  if (state.rascunhoAtendimento && (idsRemovidos.has(state.rascunhoAtendimento.id) || numerosRemovidos.has(state.rascunhoAtendimento.numero))) state.rascunhoAtendimento = null;
+  if (idsRemovidos.has(atendimentoAbertoId)) fecharEditorAtendimento();
   delete els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
   salvarEstado();
   els.modalExcluirAtendimento.close();
   renderizarTudo();
+}
+
+function registrarExclusaoAtendimento(atendimento = {}) {
+  if (!state.exclusoesAtendimentos) state.exclusoesAtendimentos = [];
+  const item = { id: atendimento.id || "", numero: atendimento.numero || "", excluidoEm: new Date().toISOString() };
+  state.exclusoesAtendimentos = [
+    ...state.exclusoesAtendimentos.filter((exclusao) => exclusao.id !== item.id && exclusao.numero !== item.numero),
+    item
+  ].slice(-500);
 }
 
 function filtrarClientes() {
@@ -3462,6 +3544,11 @@ function normalizarEstado(raw) {
   estado.clienteModo = estado.clienteModo || "cards";
   estado.clienteOrdenacao = estado.clienteOrdenacao || "nome";
   estado.atendimentoMostrarArquivados = !!estado.atendimentoMostrarArquivados;
+  estado.exclusoesAtendimentos = Array.isArray(raw.exclusoesAtendimentos) ? raw.exclusoesAtendimentos.map((item) => ({
+    id: item.id || "",
+    numero: item.numero || "",
+    excluidoEm: item.excluidoEm || hojeIso()
+  })).filter((item) => item.id || item.numero).slice(-500) : [];
   estado.sidebarRecolhida = !!estado.sidebarRecolhida;
   estado.agendaModo = ["mes", "semana", "dia"].includes(raw.agendaModo) ? raw.agendaModo : "mes";
   estado.agendaDiaSelecionado = raw.agendaDiaSelecionado || hojeIso();
@@ -3506,12 +3593,15 @@ function normalizarEstado(raw) {
     observacoes: cliente.observacoes || ""
   }));
   estado.atendimentos = (estado.atendimentos || []).map(normalizarAtendimento);
-  normalizarNumeracaoAtendimentos(estado.atendimentos);
+  aplicarExclusoesAtendimentos(estado);
+  deduplicarAtendimentos(estado);
+  normalizarNumeracaoAtendimentos(estado.atendimentos, estado.exclusoesAtendimentos);
   estado.rascunhoAtendimento = raw.rascunhoAtendimento ? normalizarAtendimento(raw.rascunhoAtendimento) : null;
   if (estado.rascunhoAtendimento?.id && !estado.rascunhoAtendimento.numero) {
     estado.rascunhoAtendimento.numero = estado.atendimentos.find((atendimento) => atendimento.id === estado.rascunhoAtendimento.id)?.numero || "";
   }
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
+  aplicarExclusoesAtendimentos(estado);
   if (removerDadosDemonstrativos(estado) && typeof localStorage !== "undefined") {
     localStorage.setItem(DEMO_CLEANUP_SYNC_KEY, "1");
   }
@@ -3560,8 +3650,50 @@ function normalizarAnexoAtendimento(anexo = {}) {
   };
 }
 
-function normalizarNumeracaoAtendimentos(atendimentos) {
-  let maiorNumero = Math.max(0, ...atendimentos.map((atendimento) => Number(atendimento.numero || 0)).filter((numero) => Number.isFinite(numero)));
+function aplicarExclusoesAtendimentos(estado) {
+  const exclusoes = estado.exclusoesAtendimentos || [];
+  if (!exclusoes.length) return;
+  const ids = new Set(exclusoes.map((item) => item.id).filter(Boolean));
+  const numeros = new Set(exclusoes.map((item) => item.numero).filter(Boolean));
+  estado.atendimentos = (estado.atendimentos || []).filter((atendimento) => !ids.has(atendimento.id) && !numeros.has(atendimento.numero));
+  estado.processos = (estado.processos || []).map((processo) => ({
+    ...processo,
+    atendimentos: (processo.atendimentos || []).filter((id) => !ids.has(id))
+  }));
+  if (estado.rascunhoAtendimento && (ids.has(estado.rascunhoAtendimento.id) || numeros.has(estado.rascunhoAtendimento.numero))) {
+    estado.rascunhoAtendimento = null;
+  }
+}
+
+function deduplicarAtendimentos(estado) {
+  const escolhidos = new Map();
+  (estado.atendimentos || []).forEach((atendimento) => {
+    const chaves = [atendimento.id ? `id:${atendimento.id}` : "", atendimento.numero ? `numero:${atendimento.numero}` : ""].filter(Boolean);
+    const existentes = chaves.map((chave) => escolhidos.get(chave)).filter(Boolean);
+    const vencedor = existentes.reduce((melhor, atual) => atendimentoMaisRecente(atual, melhor), atendimento);
+    chaves.forEach((chave) => escolhidos.set(chave, vencedor));
+  });
+  const vistos = new Set();
+  estado.atendimentos = Array.from(escolhidos.values()).filter((atendimento) => {
+    const chave = atendimento.id || atendimento.numero || JSON.stringify(atendimento);
+    if (vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+}
+
+function atendimentoMaisRecente(a, b) {
+  return timestampAtendimento(a) >= timestampAtendimento(b) ? a : b;
+}
+
+function timestampAtendimento(atendimento = {}) {
+  return new Date(atendimento.atualizadoEm || atendimento.salvoEm || atendimento.data || atendimento.criadoEm || 0).getTime() || 0;
+}
+
+function normalizarNumeracaoAtendimentos(atendimentos, exclusoes = []) {
+  const numerosAtivos = atendimentos.map((atendimento) => Number(atendimento.numero || 0));
+  const numerosExcluidos = exclusoes.map((exclusao) => Number(exclusao.numero || 0));
+  let maiorNumero = Math.max(0, ...[...numerosAtivos, ...numerosExcluidos].filter((numero) => Number.isFinite(numero)));
   atendimentos.forEach((atendimento) => {
     if (!atendimento.numero) {
       maiorNumero += 1;
@@ -3744,6 +3876,7 @@ function criarEstadoPadrao() {
     clienteModo: "cards",
     clienteOrdenacao: "nome",
     atendimentoMostrarArquivados: false,
+    exclusoesAtendimentos: [],
     sidebarRecolhida: false,
     agendaModo: "mes",
     agendaDiaSelecionado: hojeIso(),
@@ -3812,6 +3945,30 @@ function iniciarSincronizacao() {
   }
   atualizarStatusSync();
   window.addEventListener("online", () => agendarSincronizacao("online"));
+  window.addEventListener("focus", () => agendarSincronizacao("foco"));
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) agendarSincronizacao("aba-visivel");
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key === STORAGE_KEY && event.newValue !== event.oldValue) {
+      if (!syncMeta.dirty && !syncAplicandoRemoto && event.newValue) {
+        try {
+          aplicarDadosSync(JSON.parse(event.newValue));
+          aplicarTema();
+          aplicarSidebar();
+          atualizarPerfil();
+          renderizarTudo();
+          atualizarStatusSync("Atualizada por outra aba");
+        } catch {
+          agendarSincronizacao("armazenamento-local");
+        }
+      } else {
+        agendarSincronizacao("armazenamento-local");
+      }
+    }
+  });
+  clearInterval(syncInterval);
+  syncInterval = setInterval(() => agendarSincronizacao("periodico"), SYNC_INTERVAL_MS);
   if (urlSyncAppsScript() && tokenSyncAppsScript()) setTimeout(() => sincronizarComServidor({ motivo: "inicial" }), 700);
 }
 
@@ -3917,8 +4074,15 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
       else atualizarStatusSync("Servidor sem dados");
       return;
     }
-    if (record.hasData && record.serverVersion && record.serverVersion !== syncMeta.serverVersion) {
+    const servidorMudou = record.hasData && ((record.serverVersion && record.serverVersion !== syncMeta.serverVersion) || (record.hash && record.hash !== syncMeta.serverHash));
+    if (servidorMudou) {
       if (syncMeta.dirty) {
+        const mesclado = mesclarEstadosSync(record.data, estadoParaSync());
+        aplicarDadosSync(mesclado);
+        atualizarMetaSync(record);
+        syncMeta.dirty = true;
+        syncMeta.conflict = false;
+        salvarSyncMeta();
         await enviarEstadoServidor(false, manual, record);
       } else {
         aplicarEstadoServidor(record);
@@ -3973,10 +4137,23 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
 
 function aplicarEstadoServidor(record) {
   if (!record?.data) return;
-  syncAplicandoRemoto = true;
+  aplicarDadosSync(record.data);
+  atualizarMetaSync(record);
+  syncMeta.dirty = false;
+  syncMeta.conflict = false;
+  salvarSyncMeta();
+  aplicarTema();
+  aplicarSidebar();
+  atualizarPerfil();
+  renderizarTudo();
+  atualizarStatusSync("Atualizada pelo servidor");
+}
+
+function aplicarDadosSync(dados) {
   const usuarioSessao = state.usuarioAtivoId;
   const avancadasLocais = { ...(state.avancadas || {}) };
-  const normalizado = normalizarEstado(record.data);
+  syncAplicandoRemoto = true;
+  const normalizado = normalizarEstado(dados);
   Object.keys(state).forEach((key) => delete state[key]);
   Object.assign(state, normalizado, { usuarioAtivoId: usuarioSessao || normalizado.usuarioAtivoId });
   state.avancadas = {
@@ -3987,15 +4164,102 @@ function aplicarEstadoServidor(record) {
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
   syncAplicandoRemoto = false;
-  atualizarMetaSync(record);
-  syncMeta.dirty = false;
-  syncMeta.conflict = false;
-  salvarSyncMeta();
-  aplicarTema();
-  aplicarSidebar();
-  atualizarPerfil();
-  renderizarTudo();
-  atualizarStatusSync("Atualizada pelo servidor");
+}
+
+function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
+  const remoto = cloneSync(remotoRaw);
+  const local = cloneSync(localRaw);
+  const mesclado = { ...remoto, ...local };
+  mesclado.configs = mesclarConfigsSync(remoto.configs, local.configs);
+  mesclado.avancadas = { ...(remoto.avancadas || {}), ...(local.avancadas || {}) };
+  mesclado.usuarios = mesclarArrayPorIdSync(remoto.usuarios, local.usuarios);
+  mesclado.clientes = mesclarArrayPorIdSync(remoto.clientes, local.clientes);
+  mesclado.processos = mesclarProcessosSync(remoto.processos, local.processos);
+  mesclado.atendimentos = mesclarArrayPorIdSync(remoto.atendimentos, local.atendimentos, timestampAtendimento);
+  mesclado.exclusoesAtendimentos = mesclarExclusoesAtendimentosSync(remoto.exclusoesAtendimentos, local.exclusoesAtendimentos);
+  mesclado.feriadosDesmarcados = Array.from(new Set([...(remoto.feriadosDesmarcados || []), ...(local.feriadosDesmarcados || [])]));
+  mesclado.feriadosExtras = mesclarArrayPorIdSync(remoto.feriadosExtras, local.feriadosExtras);
+  aplicarExclusoesAtendimentos(mesclado);
+  deduplicarAtendimentos(mesclado);
+  return mesclado;
+}
+
+function cloneSync(valor) {
+  return JSON.parse(JSON.stringify(valor || {}));
+}
+
+function mesclarConfigsSync(remoto = {}, local = {}) {
+  return {
+    status: mesclarListaTextoSync(remoto.status, local.status),
+    areas: mesclarListaTextoSync(remoto.areas, local.areas),
+    orgaos: mesclarListaTextoSync(remoto.orgaos, local.orgaos),
+    movimentacoes: mesclarListaTextoSync(remoto.movimentacoes, local.movimentacoes)
+  };
+}
+
+function mesclarListaTextoSync(remota = [], local = []) {
+  const vistos = new Set();
+  return [...(local || []), ...(remota || [])].filter((item) => {
+    const chave = normalizar(String(item || ""));
+    if (!chave || vistos.has(chave)) return false;
+    vistos.add(chave);
+    return true;
+  });
+}
+
+function mesclarArrayPorIdSync(remoto = [], local = [], timestamp = timestampGenericoSync) {
+  const mapa = new Map();
+  [...(remoto || []), ...(local || [])].forEach((item) => {
+    if (!item || typeof item !== "object") return;
+    const chave = item.id || item.numero || JSON.stringify(item);
+    const anterior = mapa.get(chave);
+    if (!anterior || timestamp(item) >= timestamp(anterior)) mapa.set(chave, cloneSync(item));
+  });
+  return Array.from(mapa.values());
+}
+
+function mesclarProcessosSync(remoto = [], local = []) {
+  const mapa = new Map();
+  [...(remoto || []), ...(local || [])].forEach((processo) => {
+    if (!processo || typeof processo !== "object") return;
+    const chave = processo.id || processo.numero || JSON.stringify(processo);
+    const anterior = mapa.get(chave);
+    mapa.set(chave, anterior ? mesclarProcessoSync(anterior, processo) : cloneSync(processo));
+  });
+  return Array.from(mapa.values());
+}
+
+function mesclarProcessoSync(a = {}, b = {}) {
+  const maisNovo = timestampProcessoSync(b) >= timestampProcessoSync(a) ? b : a;
+  const base = { ...a, ...b, ...maisNovo };
+  base.prazos = mesclarArrayPorIdSync(a.prazos, b.prazos, timestampGenericoSync);
+  base.movimentacoes = mesclarArrayPorIdSync(a.movimentacoes, b.movimentacoes, timestampGenericoSync);
+  base.recebimentos = mesclarArrayPorIdSync(a.recebimentos, b.recebimentos, timestampGenericoSync);
+  base.descontos = mesclarArrayPorIdSync(a.descontos, b.descontos, timestampGenericoSync);
+  base.atendimentos = Array.from(new Set([...(a.atendimentos || []), ...(b.atendimentos || [])].filter(Boolean)));
+  return base;
+}
+
+function mesclarExclusoesAtendimentosSync(remotas = [], locais = []) {
+  return mesclarArrayPorIdSync(remotas, locais, timestampGenericoSync)
+    .filter((item) => item.id || item.numero)
+    .sort((a, b) => timestampGenericoSync(a) - timestampGenericoSync(b))
+    .slice(-500);
+}
+
+function timestampGenericoSync(item = {}) {
+  return new Date(item.atualizadoEm || item.salvoEm || item.excluidoEm || item.adicionadoEm || item.data || item.dataInicio || item.criadoEm || 0).getTime() || 0;
+}
+
+function timestampProcessoSync(processo = {}) {
+  const datas = [
+    timestampGenericoSync(processo),
+    ...(processo.prazos || []).map(timestampGenericoSync),
+    ...(processo.movimentacoes || []).map(timestampGenericoSync),
+    ...(processo.recebimentos || []).map(timestampGenericoSync),
+    ...(processo.descontos || []).map(timestampGenericoSync)
+  ];
+  return Math.max(0, ...datas);
 }
 
 function atualizarMetaSync(record = {}) {
@@ -4089,8 +4353,8 @@ function rotuloAtendimento(atendimento = {}) {
 }
 
 function proximoNumeroAtendimento() {
-  const numeros = state.atendimentos
-    .map((atendimento) => Number(atendimento.numero || 0))
+  const numeros = [...state.atendimentos, ...(state.exclusoesAtendimentos || [])]
+    .map((item) => Number(item.numero || 0))
     .filter((numero) => Number.isFinite(numero));
   return String(Math.max(0, ...numeros) + 1).padStart(4, "0");
 }

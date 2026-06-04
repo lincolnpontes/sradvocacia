@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.29 */
+/* SR Advocacia v1.0.30 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -1870,7 +1870,22 @@ tr:last-child td {
   outline: 0;
   color: #202124;
   background-color: #fff;
-  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--attendance-page-height, 1123px) - 2px), rgba(197,154,70,0.34) calc(var(--attendance-page-height, 1123px) - 2px) var(--attendance-page-height, 1123px));
+  background-image:
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(var(--attendance-page-height, 1123px) - 14px),
+      rgba(197,154,70,0.34) calc(var(--attendance-page-height, 1123px) - 14px) calc(var(--attendance-page-height, 1123px) - 7px),
+      rgba(246,239,226,0.98) calc(var(--attendance-page-height, 1123px) - 7px) calc(var(--attendance-page-height, 1123px) + 18px)
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0 calc(var(--attendance-page-height, 1123px) - 14px),
+      rgba(197,154,70,0.34) calc(var(--attendance-page-height, 1123px) - 14px) calc(var(--attendance-page-height, 1123px) - 7px),
+      rgba(246,239,226,0.98) calc(var(--attendance-page-height, 1123px) - 7px) calc(var(--attendance-page-height, 1123px) + 18px)
+    );
+  background-size: var(--editor-pad-x) calc(var(--attendance-page-height, 1123px) + 18px), var(--editor-pad-x) calc(var(--attendance-page-height, 1123px) + 18px);
+  background-position: left top, right top;
+  background-repeat: repeat-y;
   box-shadow: 0 18px 45px rgba(47,48,50,0.14);
   font-size: 12pt;
   line-height: 1.5;
@@ -1914,6 +1929,7 @@ tr:last-child td {
   cursor: pointer;
   transform-origin: center center;
   touch-action: none;
+  z-index: 2;
 }
 
 .attendance-editor img.editor-image.is-selected {
@@ -1925,6 +1941,13 @@ tr:last-child td {
   float: left;
   max-width: 52%;
   margin: 6px 14px 8px 0;
+  clear: none;
+  z-index: 2;
+}
+
+.attendance-editor img.image-layout-wrap[data-wrap-side="right"] {
+  float: right;
+  margin: 6px 0 8px 14px;
 }
 
 .attendance-editor img.image-layout-block {
@@ -3946,7 +3969,7 @@ dd {
   background: transparent;
 }
 
-/* Ajustes v1.0.29 */
+/* Ajustes v1.0.30 */
 .attendance-meta-grid {
   grid-template-columns: repeat(6, minmax(120px, 1fr));
 }
