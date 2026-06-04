@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.28 */
+/* SR Advocacia v1.0.29 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -102,6 +102,8 @@ body[data-theme="petroleo"] {
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   color: var(--ink);
   background:
     linear-gradient(110deg, rgba(197, 154, 70, 0.12), transparent 42%),
@@ -1124,7 +1126,7 @@ tr:last-child td {
 }
 
 .attendance-meta-grid {
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(170px, 1.3fr) minmax(170px, 1.3fr);
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
   align-items: end;
   gap: 9px;
   margin-bottom: 0;
@@ -1132,22 +1134,22 @@ tr:last-child td {
 
 .attendance-client-field,
 .attendance-meta-grid > label:nth-of-type(1) {
-  grid-column: 1 / span 2;
+  grid-column: 1 / span 3;
 }
 
 .attendance-area-field,
 .attendance-meta-grid > label:nth-of-type(2) {
-  grid-column: 3 / span 2;
+  grid-column: 4 / span 3;
 }
 
 .attendance-responsible-field,
 .attendance-meta-grid > label:nth-of-type(3) {
-  grid-column: 1 / span 2;
+  grid-column: 1 / span 3;
 }
 
 .attendance-date-field,
 .attendance-meta-grid > label:nth-of-type(4) {
-  grid-column: 3 / span 2;
+  grid-column: 4 / span 3;
 }
 
 .attendance-subject-field {
@@ -1155,7 +1157,7 @@ tr:last-child td {
 }
 
 .attendance-documents-field {
-  grid-column: 4;
+  grid-column: 4 / span 3;
   display: flex;
   align-items: flex-end;
   justify-content: stretch;
@@ -1170,8 +1172,8 @@ tr:last-child td {
   min-width: 0;
   min-height: 42px;
   padding: 0 12px;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
 }
@@ -1370,6 +1372,8 @@ tr:last-child td {
   border-color: rgba(47,48,50,0.18) !important;
   color: #2f3032 !important;
   background: linear-gradient(180deg, #fff, #f2f2f2) !important;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1;
 }
 
 .toolbar-edge-action:hover {
@@ -2344,7 +2348,7 @@ body.attendance-focus-mode .attendance-form {
 }
 
 body.attendance-focus-mode .attendance-meta-grid {
-  grid-template-columns: minmax(220px, 1.1fr) minmax(160px, 0.9fr) minmax(180px, 1fr) minmax(200px, 1.1fr);
+  grid-template-columns: repeat(8, minmax(105px, 1fr));
   gap: 7px;
 }
 
@@ -2355,12 +2359,19 @@ body.attendance-focus-mode .attendance-meta-grid > label:nth-of-type(4) {
   grid-column: auto;
 }
 
+body.attendance-focus-mode .attendance-client-field,
+body.attendance-focus-mode .attendance-area-field,
+body.attendance-focus-mode .attendance-responsible-field,
+body.attendance-focus-mode .attendance-date-field {
+  grid-column: span 2;
+}
+
 body.attendance-focus-mode .attendance-subject-field {
-  grid-column: 1 / span 3;
+  grid-column: 1 / span 6;
 }
 
 body.attendance-focus-mode .attendance-documents-field {
-  grid-column: 4;
+  grid-column: 7 / span 2;
 }
 
 body.attendance-focus-mode .attendance-meta-grid label {
@@ -3289,6 +3300,31 @@ dialog::backdrop {
   background: #fff;
 }
 
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(92, 71, 34, 0.72) rgba(229, 215, 191, 0.45);
+}
+
+::-webkit-scrollbar {
+  width: 13px;
+  height: 13px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(229, 215, 191, 0.42);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid rgba(229, 215, 191, 0.42);
+  border-radius: 999px;
+  background: rgba(92, 71, 34, 0.72);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--wine);
+}
+
 .config-order-actions {
   display: inline-flex;
   gap: 4px;
@@ -3751,10 +3787,20 @@ dd {
   }
 
   .attendance-meta-grid {
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(170px, 1.3fr) minmax(170px, 1.3fr);
-  align-items: end;
-  gap: 9px;
-  margin-bottom: 0;
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+    align-items: end;
+    gap: 9px;
+    margin-bottom: 0;
+  }
+
+  .attendance-client-field,
+  .attendance-area-field,
+  .attendance-responsible-field,
+  .attendance-date-field,
+  .attendance-subject-field,
+  .attendance-documents-field {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 760px) {
@@ -3831,10 +3877,20 @@ dd {
   }
 
   .attendance-meta-grid {
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(170px, 1.3fr) minmax(170px, 1.3fr);
-  align-items: end;
-  gap: 9px;
-  margin-bottom: 0;
+    grid-template-columns: 1fr;
+    align-items: end;
+    gap: 9px;
+    margin-bottom: 0;
+  }
+
+  .attendance-client-field,
+  .attendance-area-field,
+  .attendance-responsible-field,
+  .attendance-date-field,
+  .attendance-subject-field,
+  .attendance-documents-field {
+    grid-column: 1;
+  }
 }
 
 .image-resize-overlay.is-cropping {
@@ -3890,9 +3946,9 @@ dd {
   background: transparent;
 }
 
-/* Ajustes v1.0.25 */
+/* Ajustes v1.0.29 */
 .attendance-meta-grid {
-  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(170px, 1.3fr) minmax(170px, 1.3fr);
+  grid-template-columns: repeat(6, minmax(120px, 1fr));
 }
 
 .attendance-documents-field {
@@ -3904,8 +3960,8 @@ dd {
   min-width: 0;
   min-height: 42px;
   padding: 0 12px;
-  font-size: 15px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 800;
   line-height: 1;
   white-space: nowrap;
 }
@@ -3922,8 +3978,13 @@ dd {
 
 .toolbar-export-action,
 .toolbar-print-action {
-  font-size: 19px;
+  font-size: 18px;
   font-weight: 900 !important;
+}
+
+.toolbar-export-action,
+.toolbar-print-action {
+  border-radius: 7px !important;
 }
 
 .toolbar-export-menu {
@@ -3932,8 +3993,10 @@ dd {
   top: calc(100% + 6px);
   z-index: 20;
   display: grid;
-  min-width: 96px;
-  padding: 6px;
+  grid-template-columns: repeat(2, minmax(74px, 1fr));
+  gap: 7px;
+  min-width: 168px;
+  padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fff;
@@ -3945,21 +4008,66 @@ dd {
 }
 
 .toolbar-export-menu button {
+  display: grid;
+  gap: 4px;
+  place-items: center;
   width: 100%;
   min-width: 0;
-  justify-content: start;
-  place-items: center start;
+  min-height: 66px;
+  padding: 8px;
   border: 0;
-  background: transparent;
+  border-radius: 7px;
+  color: var(--ink);
+  background: #fffaf4;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .toolbar-export-menu button:hover {
   background: #fff6e9;
 }
 
+.export-choice strong {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 7px;
+  border: 1px solid rgba(197,154,70,0.54);
+  border-radius: 6px;
+  color: #252629;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.export-choice span {
+  color: var(--muted);
+}
+
+.print-frame {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 1180px) {
   .attendance-meta-grid {
-    grid-template-columns: minmax(160px, 1fr) minmax(160px, 1fr) minmax(150px, 1.3fr) minmax(150px, 1.3fr);
+    grid-template-columns: repeat(4, minmax(150px, 1fr));
+  }
+
+  .attendance-client-field,
+  .attendance-area-field,
+  .attendance-responsible-field,
+  .attendance-date-field,
+  .attendance-subject-field,
+  .attendance-documents-field {
+    grid-column: span 2;
   }
 }
 /* Sincronização Google Apps Script */
