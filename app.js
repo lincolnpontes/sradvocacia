@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.28";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v128";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.29";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v129";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -317,9 +317,7 @@ function configurarEventos() {
   document.querySelector("#btnAtendimentoCancelarFechar").addEventListener("click", () => els.modalFecharAtendimento.close());
   document.querySelector("#btnAtendimentoFecharSemSalvar").addEventListener("click", fecharAtendimentoSemSalvar);
   document.querySelector("#btnAtendimentoSalvarEFechar").addEventListener("click", () => salvarAtendimentoPeloDialogo(true));
-  els.modalExcluirAtendimento.addEventListener("click", (event) => {
-    if (event.target.closest("#btnConfirmarExcluirAtendimento")) confirmarExclusaoAtendimento(event);
-  });
+  els.btnConfirmarExcluirAtendimento.addEventListener("click", confirmarExclusaoAtendimento);
   document.querySelector("#settingsLists").addEventListener("click", abrirConfig);
   document.querySelector("#listaUsuarios").addEventListener("click", abrirUsuarioOuExcluir);
   document.querySelector("#temaPicker").addEventListener("click", escolherTema);
@@ -1329,11 +1327,15 @@ function normalizarHtmlComparacao(html = "") {
 function abrirAtendimentoDaLista(event) {
   const excluir = event.target.closest("[data-delete-attendance]");
   if (excluir) {
+    event.preventDefault();
+    event.stopPropagation();
     pedirExclusaoAtendimento(excluir.dataset.deleteAttendance);
     return;
   }
   const arquivar = event.target.closest("[data-toggle-archive-attendance]");
   if (arquivar) {
+    event.preventDefault();
+    event.stopPropagation();
     alternarArquivoAtendimento(arquivar.dataset.toggleArchiveAttendance);
     return;
   }
@@ -3143,10 +3145,11 @@ function abrirAtendimentoPorId(id) {
 }
 
 function pedirExclusaoAtendimento(id) {
-  const atendimento = state.atendimentos.find((item) => item.id === id && item.arquivado);
+  const atendimento = state.atendimentos.find((item) => item.id === id);
   if (!atendimento) return;
+  const cliente = obterCliente(atendimento.clienteId);
   els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance = atendimento.id;
-  els.textoExcluirAtendimento.textContent = `O atendimento ${rotuloAtendimento(atendimento)} será removido definitivamente. Essa ação não pode ser desfeita.`;
+  els.textoExcluirAtendimento.textContent = `O atendimento ${rotuloAtendimento(atendimento)}${cliente?.nome ? ` de ${cliente.nome}` : ""} será removido definitivamente. Essa ação não pode ser desfeita.`;
   els.modalExcluirAtendimento.showModal();
 }
 
@@ -3155,6 +3158,9 @@ function confirmarExclusaoAtendimento(event) {
   const id = els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
   if (!id) return;
   state.atendimentos = state.atendimentos.filter((atendimento) => atendimento.id !== id);
+  state.processos.forEach((processo) => {
+    processo.atendimentos = (processo.atendimentos || []).filter((atendimentoId) => atendimentoId !== id);
+  });
   if (state.rascunhoAtendimento?.id === id) state.rascunhoAtendimento = null;
   if (atendimentoAbertoId === id) fecharEditorAtendimento();
   delete els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
@@ -4182,7 +4188,7 @@ function exportarAtendimentoPeloMenu(event) {
   if (!botao) return;
   fecharMenuExportarAtendimento();
   if (botao.dataset.exportAttendance === "docx") exportarAtendimentoDocx();
-  if (botao.dataset.exportAttendance === "pdf") imprimirAtendimentoAtual({ titulo: "Exportar PDF" });
+  if (botao.dataset.exportAttendance === "pdf") imprimirAtendimentoAtual({ titulo: nomeArquivoAtendimento("pdf").replace(/\.pdf$/i, ""), modo: "pdf" });
 }
 
 function nomeArquivoAtendimento(extensao) {
@@ -4191,20 +4197,22 @@ function nomeArquivoAtendimento(extensao) {
   return `atendimento-${cliente}-${String(dados.data || hojeIso()).slice(0, 10)}.${extensao}`;
 }
 
-function htmlAtendimentoExportacao() {
+function htmlAtendimentoExportacao({ tituloDocumento = "" } = {}) {
   const dados = dadosAtendimentoDoFormulario();
   const cliente = obterCliente(dados.clienteId);
   const responsavel = obterUsuario(dados.responsavelId);
   const linha = (rotulo, valor) => `<div><strong>${rotulo}</strong><span>${escapeHtml(valor || "-")}</span></div>`;
   const conteudo = dados.conteudoHtml?.trim() || "<p></p>";
+  const titulo = tituloDocumento || dados.assunto || "Atendimento";
   return `<!doctype html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<title>${escapeHtml(dados.assunto || "Atendimento")}</title>
+<title>${escapeHtml(titulo)}</title>
 <style>
   @page { size: A4; margin: 2cm; }
   * { box-sizing: border-box; }
+  html, body { min-height: 100%; }
   body { margin: 0; color: #202124; background: #fff; font-family: Arial, Helvetica, sans-serif; font-size: 12pt; line-height: 1.45; }
   header { padding-bottom: 14px; margin-bottom: 18px; border-bottom: 2px solid #c59a46; }
   h1 { margin: 0 0 12px; font-size: 18pt; color: #2f3032; }
@@ -4216,6 +4224,9 @@ function htmlAtendimentoExportacao() {
   p { margin: 0 0 10px; }
   table { border-collapse: collapse; width: 100%; }
   td, th { border: 1px solid #ddd; padding: 6px; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 </style>
 </head>
 <body>
@@ -4234,20 +4245,58 @@ function htmlAtendimentoExportacao() {
 </html>`;
 }
 
-function imprimirAtendimentoAtual({ titulo = "Imprimir atendimento" } = {}) {
-  const janela = window.open("", "_blank", "noopener,noreferrer");
-  if (!janela) {
-    alert("Permita pop-ups para imprimir ou exportar em PDF.");
+function imprimirAtendimentoAtual({ titulo = "Imprimir atendimento", modo = "print" } = {}) {
+  const frameAnterior = document.querySelector("#printAtendimentoFrame");
+  frameAnterior?.remove();
+  const iframe = document.createElement("iframe");
+  iframe.id = "printAtendimentoFrame";
+  iframe.title = titulo;
+  iframe.className = "print-frame";
+  iframe.setAttribute("aria-hidden", "true");
+  document.body.appendChild(iframe);
+
+  const documento = iframe.contentDocument || iframe.contentWindow?.document;
+  if (!documento) {
+    iframe.remove();
+    alert("Não foi possível preparar a impressão neste navegador.");
     return;
   }
-  const html = htmlAtendimentoExportacao().replace("<title>", `<title>${escapeHtml(titulo)} - `);
-  janela.document.open();
-  janela.document.write(html);
-  janela.document.close();
-  setTimeout(() => {
-    janela.focus();
-    janela.print();
-  }, 350);
+
+  documento.open();
+  documento.write(htmlAtendimentoExportacao({ tituloDocumento: titulo }));
+  documento.close();
+
+  const imprimir = () => {
+    try {
+      iframe.contentWindow?.focus();
+      iframe.contentWindow?.print();
+      if (modo === "pdf") {
+        els.atendimentoStatus.textContent = "Na janela de impressão, escolha salvar em PDF";
+      }
+    } catch (error) {
+      alert("Não foi possível abrir a impressão neste navegador.");
+      iframe.remove();
+      return;
+    }
+    setTimeout(() => iframe.remove(), 1500);
+  };
+
+  const preparar = () => esperarMidiaImpressao(documento).then(() => setTimeout(imprimir, 120));
+  if (iframe.contentWindow?.document.readyState === "complete") preparar();
+  else iframe.onload = preparar;
+}
+
+function esperarMidiaImpressao(documento) {
+  const imagens = [...documento.images].map((img) => {
+    if (img.complete) return Promise.resolve();
+    return new Promise((resolve) => {
+      img.onload = resolve;
+      img.onerror = resolve;
+      setTimeout(resolve, 1200);
+    });
+  });
+  const fontes = documento.fonts?.ready?.catch(() => null) || Promise.resolve();
+  return Promise.all([...imagens, fontes]);
 }
 
 function exportarAtendimentoDocx() {
