@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.30";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v130";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.31";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v131";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -1062,19 +1062,20 @@ function renderAtendimentos() {
   renderRascunhoAtendimento();
   const atendimentos = filtrarAtendimentos();
   els.listaAtendimentos.innerHTML = vazioOu(atendimentos, (atendimento) => {
+    const referencia = referenciaAtendimento(atendimento);
     const cliente = obterCliente(atendimento.clienteId);
     const responsavel = obterUsuario(atendimento.responsavelId);
     const agenda = atendimento.agendadoEm ? ` · Agendado: ${dataHoraCurta(atendimento.agendadoEm)}` : "";
     return `
-      <article class="attendance-item clickable ${atendimento.arquivado ? "is-archived" : ""}" data-open-attendance="${atendimento.id}">
+      <article class="attendance-item clickable ${atendimento.arquivado ? "is-archived" : ""}" data-open-attendance="${escapeHtml(referencia)}">
         <strong><span class="attendance-number">${rotuloAtendimento(atendimento)}</span>${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
         <span>${escapeHtml(cliente?.nome || "Cliente não informado")} · ${escapeHtml(atendimento.area)} · ${dataHoraCurta(atendimento.data)}</span>
         <small>Responsável: ${escapeHtml(responsavel?.nome || "")}${agenda}</small>
         <div class="attendance-actions">
-          <button class="ghost-button table-action" type="button" data-toggle-archive-attendance="${atendimento.id}">
+          <button class="ghost-button table-action" type="button" data-toggle-archive-attendance="${escapeHtml(referencia)}">
             ${atendimento.arquivado ? "Desarquivar" : "Arquivar"}
           </button>
-          ${atendimento.arquivado ? `<button class="danger-button table-action" type="button" data-delete-attendance="${atendimento.id}">Excluir</button>` : ""}
+          ${atendimento.arquivado ? `<button class="danger-button table-action" type="button" data-delete-attendance="${escapeHtml(referencia)}">Excluir</button>` : ""}
         </div>
       </article>
     `;
@@ -1347,7 +1348,7 @@ function abrirAtendimentoDaLista(event) {
   }
   const botao = event.target.closest("[data-open-attendance]");
   if (!botao) return;
-  const atendimento = state.atendimentos.find((item) => item.id === botao.dataset.openAttendance);
+  const atendimento = resolverAtendimentoReferencia(botao.dataset.openAttendance);
   if (!atendimento) return;
   preencherFormularioAtendimento(atendimento);
 }
@@ -1976,7 +1977,6 @@ function aplicarLayoutImagemAtendimento(event) {
   if (layout === "wrap") {
     imagemAtivaAtendimento.dataset.offsetX = "0";
     imagemAtivaAtendimento.dataset.offsetY = "0";
-    imagemAtivaAtendimento.dataset.wrapSide = imagemAtivaAtendimento.dataset.wrapSide || "left";
   } else {
     delete imagemAtivaAtendimento.dataset.wrapSide;
   }
@@ -2205,20 +2205,22 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   if (!img || !els.atendimentoEditor?.contains(img)) return;
   img.dataset.offsetX = "0";
   img.dataset.offsetY = "0";
-  img.dataset.wrapSide = clientX > centroHorizontalEditorAtendimento() ? "right" : "left";
+  delete img.dataset.wrapSide;
   aplicarTransformImagemAtendimento(img);
   const range = rangeEditorNoPonto(clientX, clientY);
   if (!range || !els.atendimentoEditor.contains(range.startContainer)) return;
-  const referencia = blocoMaisProximoDoRange(range);
-  if (!referencia || referencia === img || referencia.contains?.(img)) return;
-  const rect = referencia.getBoundingClientRect();
-  const depois = clientY > rect.top + rect.height / 2;
-  referencia.parentNode.insertBefore(img, depois ? referencia.nextSibling : referencia);
-}
-
-function centroHorizontalEditorAtendimento() {
-  const rect = els.atendimentoEditor.getBoundingClientRect();
-  return rect.left + rect.width / 2;
+  range.collapse(true);
+  range.insertNode(img);
+  const espacoDepois = document.createTextNode("\u00a0");
+  img.after(espacoDepois);
+  const selection = window.getSelection?.();
+  if (selection) {
+    const proximoRange = document.createRange();
+    proximoRange.setStartAfter(espacoDepois);
+    proximoRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(proximoRange);
+  }
 }
 
 function rangeEditorNoPonto(clientX, clientY) {
@@ -2236,11 +2238,6 @@ function rangeEditorNoPonto(clientX, clientY) {
   }
   if (overlay) overlay.style.pointerEvents = pointerEventsAnterior;
   return range;
-}
-
-function blocoMaisProximoDoRange(range) {
-  const node = range.startContainer?.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer;
-  return node?.closest?.("p, div, li, h1, h2, h3, h4, h5, h6, blockquote") || null;
 }
 
 function atalhosEditorAtendimento(event) {
@@ -2366,8 +2363,8 @@ function alternarArquivadosAtendimento() {
   renderAtendimentos();
 }
 
-function alternarArquivoAtendimento(id) {
-  const atendimento = state.atendimentos.find((item) => item.id === id);
+function alternarArquivoAtendimento(referencia) {
+  const atendimento = resolverAtendimentoReferencia(referencia);
   if (!atendimento) return;
   atendimento.arquivado = !atendimento.arquivado;
   atendimento.atualizadoEm = new Date().toISOString();
@@ -3201,34 +3198,28 @@ function abrirAtendimentoPorId(id) {
   preencherFormularioAtendimento(atendimento);
 }
 
-function pedirExclusaoAtendimento(id) {
-  const atendimento = state.atendimentos.find((item) => item.id === id);
+function pedirExclusaoAtendimento(referencia) {
+  const atendimento = resolverAtendimentoReferencia(referencia);
   if (!atendimento) return;
   const cliente = obterCliente(atendimento.clienteId);
-  els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance = atendimento.id;
+  els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance = referenciaAtendimento(atendimento);
   els.textoExcluirAtendimento.textContent = `O atendimento ${rotuloAtendimento(atendimento)}${cliente?.nome ? ` de ${cliente.nome}` : ""} será removido definitivamente. Essa ação não pode ser desfeita.`;
   els.modalExcluirAtendimento.showModal();
 }
 
 function confirmarExclusaoAtendimento(event) {
   event?.preventDefault();
-  const id = els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
-  if (!id) return;
-  const alvo = state.atendimentos.find((atendimento) => atendimento.id === id);
+  const referencia = els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
+  if (!referencia) return;
+  const alvo = resolverAtendimentoReferencia(referencia);
   if (!alvo) {
     delete els.btnConfirmarExcluirAtendimento.dataset.confirmDeleteAttendance;
     els.modalExcluirAtendimento.close();
     renderizarTudo();
     return;
   }
-  const idsRemovidos = new Set(state.atendimentos
-    .filter((atendimento) => atendimento.id === alvo.id || (alvo.numero && atendimento.numero === alvo.numero))
-    .map((atendimento) => atendimento.id)
-    .filter(Boolean));
-  const numerosRemovidos = new Set(state.atendimentos
-    .filter((atendimento) => atendimento.id === alvo.id || (alvo.numero && atendimento.numero === alvo.numero))
-    .map((atendimento) => atendimento.numero)
-    .filter(Boolean));
+  const idsRemovidos = new Set([alvo.id].filter(Boolean));
+  const numerosRemovidos = new Set(!alvo.id && alvo.numero ? [alvo.numero] : []);
   registrarExclusaoAtendimento(alvo);
   state.atendimentos = state.atendimentos.filter((atendimento) => !idsRemovidos.has(atendimento.id) && !numerosRemovidos.has(atendimento.numero));
   state.processos.forEach((processo) => {
@@ -3592,11 +3583,12 @@ function normalizarEstado(raw) {
     domicilio: migrarTextoParaPb(cliente.domicilio || ""),
     observacoes: cliente.observacoes || ""
   }));
-  estado.atendimentos = (estado.atendimentos || []).map(normalizarAtendimento);
+  estado.atendimentos = (estado.atendimentos || []).map((atendimento) => normalizarAtendimento(atendimento, { gerarId: true }));
+  normalizarIdentidadeAtendimentos(estado);
   aplicarExclusoesAtendimentos(estado);
   deduplicarAtendimentos(estado);
   normalizarNumeracaoAtendimentos(estado.atendimentos, estado.exclusoesAtendimentos);
-  estado.rascunhoAtendimento = raw.rascunhoAtendimento ? normalizarAtendimento(raw.rascunhoAtendimento) : null;
+  estado.rascunhoAtendimento = raw.rascunhoAtendimento ? normalizarAtendimento(raw.rascunhoAtendimento, { gerarId: false }) : null;
   if (estado.rascunhoAtendimento?.id && !estado.rascunhoAtendimento.numero) {
     estado.rascunhoAtendimento.numero = estado.atendimentos.find((atendimento) => atendimento.id === estado.rascunhoAtendimento.id)?.numero || "";
   }
@@ -3612,9 +3604,10 @@ function normalizarEstado(raw) {
   return estado;
 }
 
-function normalizarAtendimento(atendimento = {}) {
+function normalizarAtendimento(atendimento = {}, opcoes = {}) {
+  const gerarId = opcoes.gerarId !== false;
   return {
-    id: atendimento.id || "",
+    id: atendimento.id || (gerarId ? uid() : ""),
     numero: atendimento.numero || "",
     criadoEm: atendimento.criadoEm || hojeIso(),
     salvoEm: atendimento.salvoEm || "",
@@ -3650,6 +3643,14 @@ function normalizarAnexoAtendimento(anexo = {}) {
   };
 }
 
+function normalizarIdentidadeAtendimentos(estado) {
+  const idsUsados = new Set();
+  (estado.atendimentos || []).forEach((atendimento) => {
+    if (!atendimento.id || idsUsados.has(atendimento.id)) atendimento.id = uid();
+    idsUsados.add(atendimento.id);
+  });
+}
+
 function aplicarExclusoesAtendimentos(estado) {
   const exclusoes = estado.exclusoesAtendimentos || [];
   if (!exclusoes.length) return;
@@ -3668,18 +3669,11 @@ function aplicarExclusoesAtendimentos(estado) {
 function deduplicarAtendimentos(estado) {
   const escolhidos = new Map();
   (estado.atendimentos || []).forEach((atendimento) => {
-    const chaves = [atendimento.id ? `id:${atendimento.id}` : "", atendimento.numero ? `numero:${atendimento.numero}` : ""].filter(Boolean);
-    const existentes = chaves.map((chave) => escolhidos.get(chave)).filter(Boolean);
-    const vencedor = existentes.reduce((melhor, atual) => atendimentoMaisRecente(atual, melhor), atendimento);
-    chaves.forEach((chave) => escolhidos.set(chave, vencedor));
+    const chave = atendimento.id || JSON.stringify(assinaturaAtendimento(atendimento));
+    const anterior = escolhidos.get(chave);
+    escolhidos.set(chave, anterior ? atendimentoMaisRecente(atendimento, anterior) : atendimento);
   });
-  const vistos = new Set();
-  estado.atendimentos = Array.from(escolhidos.values()).filter((atendimento) => {
-    const chave = atendimento.id || atendimento.numero || JSON.stringify(atendimento);
-    if (vistos.has(chave)) return false;
-    vistos.add(chave);
-    return true;
-  });
+  estado.atendimentos = Array.from(escolhidos.values());
 }
 
 function atendimentoMaisRecente(a, b) {
@@ -3694,11 +3688,19 @@ function normalizarNumeracaoAtendimentos(atendimentos, exclusoes = []) {
   const numerosAtivos = atendimentos.map((atendimento) => Number(atendimento.numero || 0));
   const numerosExcluidos = exclusoes.map((exclusao) => Number(exclusao.numero || 0));
   let maiorNumero = Math.max(0, ...[...numerosAtivos, ...numerosExcluidos].filter((numero) => Number.isFinite(numero)));
+  const numerosReservados = new Set(exclusoes.map((exclusao) => numeroAtendimentoNormalizado(exclusao.numero)).filter(Boolean));
   atendimentos.forEach((atendimento) => {
-    if (!atendimento.numero) {
+    let numero = numeroAtendimentoNormalizado(atendimento.numero);
+    if (!numero || numerosReservados.has(numero)) {
       maiorNumero += 1;
-      atendimento.numero = String(maiorNumero).padStart(4, "0");
+      numero = String(maiorNumero).padStart(4, "0");
+      while (numerosReservados.has(numero)) {
+        maiorNumero += 1;
+        numero = String(maiorNumero).padStart(4, "0");
+      }
     }
+    atendimento.numero = numero;
+    numerosReservados.add(numero);
   });
 }
 
@@ -4348,8 +4350,29 @@ function atendimentoAberto() {
   return state.atendimentos.find((atendimento) => atendimento.id === atendimentoAbertoId) || state.rascunhoAtendimento;
 }
 
+function referenciaAtendimento(atendimento = {}) {
+  if (atendimento.id) return `id:${atendimento.id}`;
+  const indice = state.atendimentos.indexOf(atendimento);
+  return indice >= 0 ? `idx:${indice}` : "";
+}
+
+function resolverAtendimentoReferencia(referencia = "") {
+  if (!referencia) return null;
+  if (referencia.startsWith("idx:")) {
+    const indice = Number(referencia.slice(4));
+    return Number.isInteger(indice) ? state.atendimentos[indice] || null : null;
+  }
+  const id = referencia.startsWith("id:") ? referencia.slice(3) : referencia;
+  return state.atendimentos.find((atendimento) => atendimento.id === id) || null;
+}
+
 function rotuloAtendimento(atendimento = {}) {
   return atendimento.numero ? `#${String(atendimento.numero).padStart(4, "0")}` : "#----";
+}
+
+function numeroAtendimentoNormalizado(valor = "") {
+  const numero = Number(valor || 0);
+  return Number.isFinite(numero) && numero > 0 ? String(numero).padStart(4, "0") : "";
 }
 
 function proximoNumeroAtendimento() {
