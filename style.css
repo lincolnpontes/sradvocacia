@@ -1,4 +1,4 @@
-/* SR Advocacia v1.0.31 */
+/* SR Advocacia v1.0.32 */
 :root {
   --ink: #2f3032;
   --muted: #6f6961;
@@ -1882,19 +1882,16 @@ tr:last-child td {
   min-height: var(--attendance-page-height, 1123px);
   margin: 8px auto 14px;
   padding: var(--editor-pad-y) var(--editor-pad-x);
+  overflow-x: hidden;
+  border: 1px solid var(--line);
   outline: 0;
   color: #202124;
-  background-color: #545454;
-  background-image: repeating-linear-gradient(
-    to bottom,
-    #fff 0 var(--attendance-page-height, 1123px),
-    #545454 var(--attendance-page-height, 1123px) calc(var(--attendance-page-height, 1123px) + var(--attendance-page-gap))
-  );
-  background-size: 100% calc(var(--attendance-page-height, 1123px) + var(--attendance-page-gap));
-  background-repeat: repeat-y;
+  background: #fff;
   box-shadow: 0 18px 45px rgba(47,48,50,0.14);
   font-size: 12pt;
   line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: normal;
   zoom: var(--attendance-editor-zoom, 1);
 }
 
@@ -1919,6 +1916,49 @@ tr:last-child td {
 .attendance-editor > * {
   position: relative;
   z-index: 1;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.attendance-editor * {
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
+}
+
+.attendance-editor [style*="white-space"] {
+  white-space: pre-wrap !important;
+}
+
+.attendance-editor table {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.attendance-editor pre {
+  white-space: pre-wrap;
+}
+
+.attendance-editor .editor-page-break {
+  --page-break-before: 0px;
+  position: relative;
+  z-index: 3;
+  width: calc(100% + (var(--editor-pad-x) * 2));
+  max-width: none;
+  margin-right: calc(0px - var(--editor-pad-x));
+  margin-left: calc(0px - var(--editor-pad-x));
+  padding: 0;
+  border: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      #fff 0 max(0px, calc(var(--page-break-before) - 1px)),
+      var(--line) max(0px, calc(var(--page-break-before) - 1px)) var(--page-break-before),
+      #545454 var(--page-break-before) calc(var(--page-break-before) + var(--attendance-page-gap)),
+      var(--line) calc(var(--page-break-before) + var(--attendance-page-gap)) calc(var(--page-break-before) + var(--attendance-page-gap) + 1px),
+      #fff calc(var(--page-break-before) + var(--attendance-page-gap) + 1px) 100%
+    );
+  pointer-events: none;
+  user-select: none;
 }
 
 .attendance-editor img {
@@ -1944,13 +1984,19 @@ tr:last-child td {
 }
 
 .attendance-editor img.image-layout-wrap {
-  display: inline-block;
-  float: none;
-  max-width: 55%;
-  margin: 0 8px 4px;
-  vertical-align: middle;
+  display: block;
+  float: left;
+  max-width: 52%;
+  margin: 6px 14px 8px 0;
   clear: none;
+  shape-outside: margin-box;
   z-index: 2;
+}
+
+.attendance-editor img.image-layout-wrap[data-wrap-side="right"] {
+  float: right;
+  margin-right: 0;
+  margin-left: 14px;
 }
 
 .attendance-editor img.image-layout-block {
@@ -2364,8 +2410,10 @@ body.attendance-focus-mode .attendance-editor-panel {
 
 body.attendance-focus-mode .attendance-editor {
   --editor-pad-y: 58px;
+  width: min(var(--attendance-page-width, 794px), calc(100vw - 56px));
+  max-width: var(--attendance-page-width, 794px);
   min-height: var(--attendance-page-height, 1123px);
-  margin-top: 6px;
+  margin: 6px auto 14px;
   padding-top: var(--editor-pad-y);
 }
 
@@ -3972,7 +4020,7 @@ dd {
   background: transparent;
 }
 
-/* Ajustes v1.0.31 */
+/* Ajustes v1.0.32 */
 .attendance-meta-grid {
   grid-template-columns: repeat(6, minmax(120px, 1fr));
 }

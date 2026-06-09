@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.31";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v131";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.32";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v132";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -12,8 +12,8 @@ const SYNC_META_KEY = "sr-advocacia-sync-meta-v1";
 const SYNC_DEVICE_KEY = "sr-advocacia-sync-device-v1";
 const SYNC_CONFLICT_KEY = "sr-advocacia-sync-conflict-v1";
 const DEMO_CLEANUP_SYNC_KEY = "sr-advocacia-demo-cleanup-v128";
-const SYNC_DEBOUNCE_MS = 2500;
-const SYNC_INTERVAL_MS = 20000;
+const SYNC_DEBOUNCE_MS = 700;
+const SYNC_INTERVAL_MS = 5000;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
   { mes: 4, dia: 21, nome: "Tiradentes" },
@@ -62,6 +62,7 @@ let syncEmAndamento = false;
 let syncAplicandoRemoto = false;
 let syncTimer = null;
 let syncInterval = null;
+let paginacaoTimer = null;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -335,6 +336,7 @@ function configurarEventos() {
   document.querySelector("#btnToggleArquivados").addEventListener("click", alternarArquivadosAtendimento);
   document.querySelector("#btnAtendimentoProcesso").addEventListener("click", transformarAtendimentoEmProcesso);
   els.rascunhoAtendimento.addEventListener("click", abrirAtendimentoDaLista);
+  window.addEventListener("resize", agendarPaginacaoAtendimento);
   els.listaAtendimentos.addEventListener("click", abrirAtendimentoDaLista);
   document.addEventListener("click", abrirRecebimentoPorBotao);
   document.addEventListener("click", abrirContratoPorBotao);
@@ -432,6 +434,7 @@ function aplicarZoomAtendimento() {
   document.documentElement.style.setProperty("--attendance-editor-zoom", String(atendimentoZoom / 100));
   if (els.atendimentoZoomRange) els.atendimentoZoomRange.value = String(atendimentoZoom);
   if (els.atendimentoZoomValor) els.atendimentoZoomValor.textContent = `${atendimentoZoom}%`;
+  agendarPaginacaoAtendimento();
 }
 
 function abrirModalProcesso() {
@@ -460,11 +463,21 @@ function abrirModalUsuario(id = "") {
   els.modalUsuario.showModal();
 }
 
+function agoraSyncIso() {
+  const ajuste = Number(syncMeta?.serverClockOffsetMs || 0);
+  return new Date(Date.now() + ajuste).toISOString();
+}
+
+function marcarEntidadeAtualizada(entidade) {
+  if (entidade && typeof entidade === "object") entidade.atualizadoEm = agoraSyncIso();
+  return entidade;
+}
+
 function salvarCliente(event) {
   event.preventDefault();
   const dados = Object.fromEntries(new FormData(els.formCliente));
   const atual = dados.id ? obterCliente(dados.id) : null;
-  const cliente = atual || { id: uid(), criadoEm: hojeIso() };
+  const cliente = atual || { id: uid(), criadoEm: agoraSyncIso() };
 
   Object.assign(cliente, {
     nome: dados.nome.trim(),
@@ -484,7 +497,8 @@ function salvarCliente(event) {
     representanteCpf: formatarDocumento(dados.representanteCpf || "", "CPF"),
     representanteCargo: dados.representanteCargo?.trim() || "",
     domicilio: dados.domicilio.trim(),
-    observacoes: dados.observacoes.trim()
+    observacoes: dados.observacoes.trim(),
+    atualizadoEm: agoraSyncIso()
   });
 
   if (!atual) state.clientes.unshift(cliente);
@@ -504,6 +518,8 @@ function salvarProcesso(event) {
   const atendimentoOrigem = dados.atendimentoOrigemId ? state.atendimentos.find((item) => item.id === dados.atendimentoOrigemId) : null;
   const processo = {
     id: uid(),
+    criadoEm: agoraSyncIso(),
+    atualizadoEm: agoraSyncIso(),
     numero: dados.numero.trim(),
     clienteId: dados.clienteId,
     area: dados.area,
@@ -513,7 +529,7 @@ function salvarProcesso(event) {
     responsavelId: dados.responsavelId,
     honorarios: Number(dados.honorarios || 0),
     recebido: Number(dados.recebido || 0),
-    recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "" }] : [],
+    recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "", atualizadoEm: agoraSyncIso() }] : [],
     descontoHonorarios: 0,
     descontos: [],
     observacaoHonorarios: "",
@@ -526,16 +542,18 @@ function salvarProcesso(event) {
         tipo: "Prazo inicial",
         descricao: "Prazo cadastrado na abertura do processo.",
         responsavelId: dados.responsavelId,
-        concluido: false
+        concluido: false,
+        atualizadoEm: agoraSyncIso()
       }
     ],
     movimentacoes: [
-      { id: uid(), data: hojeIso(), descricao: atendimentoOrigem ? "Processo criado a partir de atendimento." : "Processo cadastrado no sistema." }
+      { id: uid(), data: hojeIso(), descricao: atendimentoOrigem ? "Processo criado a partir de atendimento." : "Processo cadastrado no sistema.", atualizadoEm: agoraSyncIso() }
     ]
   };
   if (atendimentoOrigem) {
     processo.atendimentos = [atendimentoOrigem.id];
     atendimentoOrigem.processoId = processo.id;
+    atendimentoOrigem.atualizadoEm = agoraSyncIso();
   }
   state.processos.unshift(processo);
   salvarEstado();
@@ -556,7 +574,7 @@ function salvarUsuario(event) {
   }
 
   const atual = dados.id ? obterUsuario(dados.id) : null;
-  const usuario = atual || { id: uid() };
+  const usuario = atual || { id: uid(), criadoEm: agoraSyncIso() };
   Object.assign(usuario, {
     nome: dados.nome.trim(),
     email: dados.email.trim(),
@@ -564,7 +582,8 @@ function salvarUsuario(event) {
     cargo: dados.cargo.trim(),
     telefone: formatarTelefone(dados.telefone),
     oab: dados.oab.trim(),
-    permissoes
+    permissoes,
+    atualizadoEm: agoraSyncIso()
   });
 
   if (!atual) state.usuarios.push(usuario);
@@ -585,10 +604,19 @@ function excluirUsuarioAberto() {
   state.usuarios = state.usuarios.filter((item) => item.id !== id);
   const substituto = state.usuarios[0]?.id || "";
   state.processos.forEach((processo) => {
-    if (processo.responsavelId === id) processo.responsavelId = substituto;
+    let alterado = false;
+    if (processo.responsavelId === id) {
+      processo.responsavelId = substituto;
+      alterado = true;
+    }
     processo.prazos.forEach((prazo) => {
-      if (prazo.responsavelId === id) prazo.responsavelId = substituto;
+      if (prazo.responsavelId === id) {
+        prazo.responsavelId = substituto;
+        prazo.atualizadoEm = agoraSyncIso();
+        alterado = true;
+      }
     });
+    if (alterado) marcarEntidadeAtualizada(processo);
   });
   if (state.usuarioAtivoId === id) state.usuarioAtivoId = substituto;
   salvarEstado();
@@ -603,7 +631,10 @@ function adicionarItemConfig(event) {
   event.preventDefault();
   const valor = new FormData(els.formConfigItem).get("valor").trim();
   if (!configAberta || !valor) return;
-  if (!state.configs[configAberta].includes(valor)) state.configs[configAberta].push(valor);
+  if (!state.configs[configAberta].includes(valor)) {
+    state.configs[configAberta].push(valor);
+    state.configsAtualizadoEm = agoraSyncIso();
+  }
   els.formConfigItem.reset();
   salvarEstado();
   renderConfigModal();
@@ -633,6 +664,7 @@ function editarOuExcluirConfig(event) {
     const destino = mover.dataset.moveConfig === "up" ? index - 1 : index + 1;
     if (destino < 0 || destino >= state.configs[configAberta].length) return;
     [state.configs[configAberta][index], state.configs[configAberta][destino]] = [state.configs[configAberta][destino], state.configs[configAberta][index]];
+    state.configsAtualizadoEm = agoraSyncIso();
     salvarEstado();
     renderConfigModal();
     renderizarTudo();
@@ -643,6 +675,7 @@ function editarOuExcluirConfig(event) {
     const novoValor = row.querySelector("input").value.trim();
     if (!novoValor) return;
     state.configs[configAberta][index] = novoValor;
+    state.configsAtualizadoEm = agoraSyncIso();
   }
 
   if (excluir) {
@@ -652,6 +685,7 @@ function editarOuExcluirConfig(event) {
     }
     if (!confirm(`Excluir "${valorAtual}" de ${CONFIG_META[configAberta].titulo}?`)) return;
     state.configs[configAberta].splice(index, 1);
+    state.configsAtualizadoEm = agoraSyncIso();
   }
 
   salvarEstado();
@@ -674,7 +708,8 @@ function salvarItemProcesso(event) {
       data: dados.data || hojeIso(),
       tipo: tipoSelecionado || "Andamento",
       descricao: dados.descricao?.trim() || "",
-      prazoId: ""
+      prazoId: "",
+      atualizadoEm: agoraSyncIso()
     };
 
     if (dados.gerarPrazo === "sim") {
@@ -688,7 +723,8 @@ function salvarItemProcesso(event) {
         tipo: dados.prazoTipo.trim(),
         descricao: dados.prazoDescricao?.trim() || movimentacao.descricao || movimentacao.tipo,
         responsavelId: dados.responsavelId || processo.responsavelId,
-        concluido: false
+        concluido: false,
+        atualizadoEm: agoraSyncIso()
       };
       processo.prazos.push(prazo);
       processo.prazo = proximoPrazoDoProcesso(processo);
@@ -709,15 +745,17 @@ function salvarItemProcesso(event) {
       tipo: dados.tipo.trim(),
       descricao: dados.descricao.trim(),
       responsavelId: dados.responsavelId,
-      concluido: false
+      concluido: false,
+      atualizadoEm: agoraSyncIso()
     });
     processo.prazo = proximoPrazoDoProcesso(processo);
   }
 
   if (form.dataset.detailForm === "movimentacao") {
-    processo.movimentacoes.unshift({ id: uid(), data: dados.data, descricao: dados.descricao.trim() });
+    processo.movimentacoes.unshift({ id: uid(), data: dados.data, descricao: dados.descricao.trim(), atualizadoEm: agoraSyncIso() });
   }
 
+  marcarEntidadeAtualizada(processo);
   form.reset();
   salvarEstado();
   renderizarTudo();
@@ -731,7 +769,9 @@ function concluirPrazo(event) {
   const prazo = processo?.prazos.find((item) => item.id === button.dataset.togglePrazo);
   if (!prazo) return;
   prazo.concluido = !prazo.concluido;
+  prazo.atualizadoEm = agoraSyncIso();
   processo.prazo = proximoPrazoDoProcesso(processo);
+  marcarEntidadeAtualizada(processo);
   salvarEstado();
   abrirDetalheProcesso(processo.id);
   renderizarTudo();
@@ -1099,9 +1139,9 @@ function salvarAgendamentoAtendimento(event) {
   const atendimento = {
     id: uid(),
     numero: proximoNumeroAtendimento(),
-    criadoEm: hojeIso(),
-    salvoEm: new Date().toISOString(),
-    atualizadoEm: new Date().toISOString(),
+    criadoEm: agoraSyncIso(),
+    salvoEm: agoraSyncIso(),
+    atualizadoEm: agoraSyncIso(),
     clienteId: dados.clienteId,
     area: dados.area || "",
     responsavelId: dados.responsavelId,
@@ -1171,11 +1211,13 @@ function novoAtendimento() {
   renderVersoesAtendimento(null);
   renderPainelEditorAtendimento();
   els.atendimentoEditor.focus();
+  agendarPaginacaoAtendimento();
 }
 
 function marcarAtendimentoAlterado() {
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = "Alterações em rascunho";
+  agendarPaginacaoAtendimento();
 }
 
 function salvarRascunhoAtendimento(forcar = false) {
@@ -1188,7 +1230,7 @@ function salvarRascunhoAtendimento(forcar = false) {
   const atendimentoExistente = rascunho.id ? state.atendimentos.find((item) => item.id === rascunho.id) : null;
   if (atendimentoExistente?.numero) rascunho.numero = atendimentoExistente.numero;
   state.rascunhoAtendimento = manterTresVersoes(state.rascunhoAtendimento || {}, rascunho);
-  Object.assign(state.rascunhoAtendimento, rascunho, { salvoEm: new Date().toISOString() });
+  Object.assign(state.rascunhoAtendimento, rascunho, { salvoEm: agoraSyncIso(), atualizadoEm: agoraSyncIso() });
   atendimentoAlterado = false;
   els.atendimentoStatus.textContent = `Rascunho salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
   salvarEstado();
@@ -1214,7 +1256,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
   let atendimento = idReferencia ? state.atendimentos.find((item) => item.id === idReferencia) : null;
   if (!dados.id && atendimento) dados.id = atendimento.id;
   if (!atendimento) {
-    atendimento = { id: uid(), numero: proximoNumeroAtendimento(), criadoEm: hojeIso(), versoes: [] };
+    atendimento = { id: uid(), numero: proximoNumeroAtendimento(), criadoEm: agoraSyncIso(), versoes: [] };
     dados.id = atendimento.id;
     state.atendimentos.unshift(atendimento);
   } else {
@@ -1228,7 +1270,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
     }
     atendimento.versoes = manterTresVersoes(atendimento, { ...atendimento }).versoes;
   }
-  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, salvoEm: new Date().toISOString(), atualizadoEm: new Date().toISOString() });
+  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, salvoEm: agoraSyncIso(), atualizadoEm: agoraSyncIso() });
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
@@ -1263,6 +1305,8 @@ function salvarAtendimentoPeloDialogo(fechar) {
 
 function fecharAtendimentoSemSalvar() {
   atendimentoAlterado = false;
+  state.rascunhoAtendimento = null;
+  salvarEstado();
   els.modalFecharAtendimento.close();
   fecharEditorAtendimento();
 }
@@ -1283,6 +1327,7 @@ function fecharEditorAtendimento() {
   renderVersoesAtendimento(null);
   sincronizarAgendaAtendimento();
   renderPainelEditorAtendimento();
+  renderRascunhoAtendimento();
 }
 
 function dadosAtendimentoDoFormulario() {
@@ -1297,8 +1342,55 @@ function dadosAtendimentoDoFormulario() {
     agendadoEm: els.atendimentoAgendar.checked ? (dados.agendadoEm || dados.data || agoraLocalInput()) : "",
     assunto: dados.assunto.trim(),
     anexos: documentosAtendimento.map((anexo) => ({ ...anexo })),
-    conteudoHtml: els.atendimentoEditor.innerHTML
+    conteudoHtml: htmlPersistenteAtendimento()
   };
+}
+
+function htmlPersistenteAtendimento() {
+  if (!els.atendimentoEditor) return "";
+  const clone = els.atendimentoEditor.cloneNode(true);
+  clone.querySelectorAll(".editor-page-break").forEach((item) => item.remove());
+  clone.querySelectorAll("img").forEach((img) => {
+    img.classList.remove("is-selected", "is-cropping");
+    img.removeAttribute("contenteditable");
+  });
+  return clone.innerHTML;
+}
+
+function agendarPaginacaoAtendimento() {
+  clearTimeout(paginacaoTimer);
+  paginacaoTimer = setTimeout(atualizarPaginacaoAtendimento, 70);
+}
+
+function atualizarPaginacaoAtendimento() {
+  const editor = els.atendimentoEditor;
+  if (!editor?.isConnected || !editor.offsetWidth) return;
+  editor.querySelectorAll(":scope > .editor-page-break").forEach((item) => item.remove());
+
+  const estilo = getComputedStyle(editor);
+  const alturaPagina = Number.parseFloat(estilo.getPropertyValue("--attendance-page-height")) || 1123;
+  const espacoPagina = Number.parseFloat(estilo.getPropertyValue("--attendance-page-gap")) || 22;
+  const margemVertical = Number.parseFloat(estilo.getPropertyValue("--editor-pad-y")) || 74;
+  const blocos = [...editor.children].filter((item) => !item.classList.contains("editor-page-break"));
+  let inicioPagina = 0;
+
+  blocos.forEach((bloco) => {
+    const topo = bloco.offsetTop;
+    const base = topo + bloco.offsetHeight;
+    const inicioConteudo = inicioPagina + margemVertical;
+    const fimConteudo = inicioPagina + alturaPagina - margemVertical;
+    if (base <= fimConteudo || topo <= inicioConteudo + 10) return;
+
+    const separador = document.createElement("div");
+    const ateBordaPagina = Math.max(0, inicioPagina + alturaPagina - topo);
+    separador.className = "editor-page-break";
+    separador.contentEditable = "false";
+    separador.setAttribute("aria-hidden", "true");
+    separador.style.setProperty("--page-break-before", `${ateBordaPagina}px`);
+    separador.style.height = `${ateBordaPagina + espacoPagina + margemVertical}px`;
+    bloco.before(separador);
+    inicioPagina += alturaPagina + espacoPagina;
+  });
 }
 
 function assinaturaAtendimento(atendimento = {}) {
@@ -1372,6 +1464,7 @@ function preencherFormularioAtendimento(atendimento) {
   renderVersoesAtendimento(atendimento);
   renderPainelEditorAtendimento();
   sincronizarAgendaAtendimento();
+  agendarPaginacaoAtendimento();
 }
 
 function carregarRascunhoAtendimento() {
@@ -1529,6 +1622,7 @@ function restaurarVersaoAtendimento(event) {
   els.atendimentoEditor.innerHTML = versao.conteudoHtml || "";
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = "Versão restaurada em rascunho";
+  agendarPaginacaoAtendimento();
   renderVersoesAtendimento(atendimento);
   fecharVersoesAtendimento();
 }
@@ -1543,7 +1637,7 @@ function resumoVersaoAtendimento(item) {
     id: item.id || uid(),
     assunto: item.assunto || "",
     conteudoHtml: item.conteudoHtml || "",
-    salvoEm: new Date().toISOString()
+    salvoEm: agoraSyncIso()
   };
 }
 
@@ -1881,9 +1975,45 @@ function removerListaSelecionada() {
 
 function colarImagemAtendimento(event) {
   const item = [...(event.clipboardData?.items || [])].find((entrada) => entrada.type.startsWith("image/"));
-  if (!item) return;
+  if (item) {
+    event.preventDefault();
+    inserirArquivoImagemAtendimento(item.getAsFile());
+    return;
+  }
+  const texto = event.clipboardData?.getData("text/plain");
+  if (!texto) return;
   event.preventDefault();
-  inserirArquivoImagemAtendimento(item.getAsFile());
+  inserirTextoLimpoAtendimento(texto);
+}
+
+function inserirTextoLimpoAtendimento(texto) {
+  restaurarSelecaoEditor();
+  const limpo = String(texto || "").replace(/\r\n?/g, "\n");
+  if (document.queryCommandSupported?.("insertText")) {
+    document.execCommand("insertText", false, limpo);
+  } else {
+    const selection = window.getSelection?.();
+    const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+    if (!range || !els.atendimentoEditor.contains(range.commonAncestorContainer)) {
+      els.atendimentoEditor.append(document.createTextNode(limpo));
+    } else {
+      range.deleteContents();
+      const fragmento = document.createDocumentFragment();
+      limpo.split("\n").forEach((linha, index) => {
+        if (index) fragmento.appendChild(document.createElement("br"));
+        fragmento.appendChild(document.createTextNode(linha));
+      });
+      const ultimo = fragmento.lastChild;
+      range.insertNode(fragmento);
+      if (ultimo) {
+        range.setStartAfter(ultimo);
+        range.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    }
+  }
+  marcarAtendimentoAlterado();
 }
 
 function soltarImagemAtendimento(event) {
@@ -1922,6 +2052,7 @@ function inserirImagemAtendimento(src) {
   }
   imagemAtivaAtendimento = img;
   marcarAtendimentoAlterado();
+  agendarPaginacaoAtendimento();
 }
 
 function selecionarImagemAtendimento(event) {
@@ -1975,8 +2106,10 @@ function aplicarLayoutImagemAtendimento(event) {
   imagemAtivaAtendimento.classList.add(`image-layout-${layout}`);
   imagemAtivaAtendimento.dataset.imageLayout = layout;
   if (layout === "wrap") {
+    ancorarImagemNoFluxo(imagemAtivaAtendimento);
     imagemAtivaAtendimento.dataset.offsetX = "0";
     imagemAtivaAtendimento.dataset.offsetY = "0";
+    imagemAtivaAtendimento.dataset.wrapSide ||= "left";
   } else {
     delete imagemAtivaAtendimento.dataset.wrapSide;
   }
@@ -1984,6 +2117,11 @@ function aplicarLayoutImagemAtendimento(event) {
   atualizarOpcoesLayoutImagem(layout);
   posicionarOverlayImagem(imagemAtivaAtendimento);
   marcarAtendimentoAlterado();
+}
+
+function ancorarImagemNoFluxo(img) {
+  const bloco = blocoSuperiorDoEditor(img);
+  if (bloco && bloco !== img) bloco.before(img);
 }
 
 function atualizarOpcoesLayoutImagem(layout) {
@@ -2205,22 +2343,26 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   if (!img || !els.atendimentoEditor?.contains(img)) return;
   img.dataset.offsetX = "0";
   img.dataset.offsetY = "0";
-  delete img.dataset.wrapSide;
+  const editorRect = els.atendimentoEditor.getBoundingClientRect();
+  img.dataset.wrapSide = clientX >= editorRect.left + editorRect.width / 2 ? "right" : "left";
   aplicarTransformImagemAtendimento(img);
   const range = rangeEditorNoPonto(clientX, clientY);
   if (!range || !els.atendimentoEditor.contains(range.startContainer)) return;
-  range.collapse(true);
-  range.insertNode(img);
-  const espacoDepois = document.createTextNode("\u00a0");
-  img.after(espacoDepois);
-  const selection = window.getSelection?.();
-  if (selection) {
-    const proximoRange = document.createRange();
-    proximoRange.setStartAfter(espacoDepois);
-    proximoRange.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(proximoRange);
+  const bloco = blocoSuperiorDoEditor(range.startContainer);
+  if (!bloco || bloco === img) {
+    els.atendimentoEditor.appendChild(img);
+    return;
   }
+  const rect = bloco.getBoundingClientRect?.();
+  if (rect && clientY > rect.top + rect.height / 2) bloco.after(img);
+  else bloco.before(img);
+  agendarPaginacaoAtendimento();
+}
+
+function blocoSuperiorDoEditor(node) {
+  let atual = node?.nodeType === Node.TEXT_NODE ? node.parentElement : node;
+  while (atual?.parentElement && atual.parentElement !== els.atendimentoEditor) atual = atual.parentElement;
+  return atual?.parentElement === els.atendimentoEditor ? atual : null;
 }
 
 function rangeEditorNoPonto(clientX, clientY) {
@@ -2343,11 +2485,13 @@ function sincronizarAgendaAtendimento() {
 function alternarFocoAtendimento() {
   document.body.classList.toggle("attendance-focus-mode");
   atualizarBotaoFocoAtendimento();
+  agendarPaginacaoAtendimento();
 }
 
 function sairFocoAtendimento() {
   document.body.classList.remove("attendance-focus-mode");
   atualizarBotaoFocoAtendimento();
+  agendarPaginacaoAtendimento();
 }
 
 function atualizarBotaoFocoAtendimento() {
@@ -2367,7 +2511,7 @@ function alternarArquivoAtendimento(referencia) {
   const atendimento = resolverAtendimentoReferencia(referencia);
   if (!atendimento) return;
   atendimento.arquivado = !atendimento.arquivado;
-  atendimento.atualizadoEm = new Date().toISOString();
+  atendimento.atualizadoEm = agoraSyncIso();
   salvarEstado();
   renderAtendimentos();
 }
@@ -2592,8 +2736,10 @@ function salvarFeriadoExtra(event) {
     tipo: dados.tipo,
     nome: dados.nome.trim(),
     dataInicio: inicio,
-    dataFim: fim
+    dataFim: fim,
+    atualizadoEm: agoraSyncIso()
   });
+  state.feriadosAtualizadoEm = agoraSyncIso();
   salvarEstado();
   els.modalFeriadoExtra.close();
   renderAgenda();
@@ -2604,6 +2750,7 @@ function alternarFeriadoAgenda(data) {
   if (set.has(data)) set.delete(data);
   else set.add(data);
   state.feriadosDesmarcados = [...set];
+  state.feriadosAtualizadoEm = agoraSyncIso();
   salvarEstado();
   renderAgenda();
 }
@@ -3007,6 +3154,7 @@ function salvarContratoHonorarios(event) {
   processo.descontoHonorarios = Number(String(dados.descontoHonorarios || "0").replace(",", "."));
   processo.observacaoHonorarios = dados.observacaoHonorarios.trim();
   processo.descontos = [];
+  marcarEntidadeAtualizada(processo);
   salvarEstado();
   els.modalContrato.close();
   renderizarTudo();
@@ -3104,9 +3252,11 @@ function salvarRecebimento(event) {
     data: dados.data || hojeIso(),
     forma: dados.forma,
     notaFiscal: dados.notaFiscal,
-    observacoes: dados.observacoes.trim()
+    observacoes: dados.observacoes.trim(),
+    atualizadoEm: agoraSyncIso()
   });
   recalcularRecebido(processo);
+  marcarEntidadeAtualizada(processo);
   salvarEstado();
   els.modalRecebimento.close();
   renderizarTudo();
@@ -3126,6 +3276,7 @@ function desfazerUltimoRecebimento() {
   if (!confirm("Desfazer o último recebimento deste processo?")) return;
   processo.recebimentos.pop();
   recalcularRecebido(processo);
+  marcarEntidadeAtualizada(processo);
   salvarEstado();
   abrirModalRecebimento(processo.id);
   renderizarTudo();
@@ -3516,6 +3667,9 @@ function normalizarEstado(raw) {
   raw = raw || {};
   const padrao = criarEstadoPadrao();
   const estado = { ...padrao, ...raw };
+  estado.atualizadoEm = raw.atualizadoEm || padrao.atualizadoEm;
+  estado.configsAtualizadoEm = raw.configsAtualizadoEm || "";
+  estado.feriadosAtualizadoEm = raw.feriadosAtualizadoEm || "";
   const orgaosSalvos = raw.configs?.orgaos || [...(raw.configs?.varas || []), ...(raw.configs?.foruns || [])];
   estado.configs = {
     status: raw.configs?.status || padrao.configs.status,
@@ -3549,10 +3703,13 @@ function normalizarEstado(raw) {
     tipo: feriado.tipo || "Feriado extra",
     nome: feriado.nome || "Feriado extra",
     dataInicio: feriado.dataInicio || feriado.data || hojeIso(),
-    dataFim: feriado.dataFim || feriado.dataInicio || feriado.data || hojeIso()
+    dataFim: feriado.dataFim || feriado.dataInicio || feriado.data || hojeIso(),
+    atualizadoEm: feriado.atualizadoEm || ""
   })) : [];
   estado.usuarios = (estado.usuarios || padrao.usuarios).map((usuario, index) => ({
     id: usuario.id || uid(),
+    criadoEm: usuario.criadoEm || "",
+    atualizadoEm: usuario.atualizadoEm || usuario.criadoEm || "",
     nome: usuario.nome || `Usuário ${index + 1}`,
     email: usuario.email || "",
     senha: usuario.senha || "1234",
@@ -3564,6 +3721,7 @@ function normalizarEstado(raw) {
   estado.clientes = (estado.clientes || []).map((cliente) => ({
     id: cliente.id || uid(),
     criadoEm: cliente.criadoEm || hojeIso(),
+    atualizadoEm: cliente.atualizadoEm || cliente.criadoEm || "",
     nome: cliente.nome || cliente.cliente || "",
     tipoDocumento: cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || ""),
     documento: formatarDocumento(cliente.documento || cliente.cpf || "", cliente.tipoDocumento || inferirTipoDocumento(cliente.documento || cliente.cpf || "")),
@@ -3722,7 +3880,8 @@ function normalizarProcesso(processo, estado) {
     tipo: prazo.tipo || "Prazo",
     descricao: migrarTextoParaPb(prazo.descricao || ""),
     responsavelId: prazo.responsavelId || responsavelId,
-    concluido: !!prazo.concluido
+    concluido: !!prazo.concluido,
+    atualizadoEm: prazo.atualizadoEm || ""
   }));
   const recebimentos = (processo.recebimentos?.length
     ? processo.recebimentos
@@ -3735,16 +3894,20 @@ function normalizarProcesso(processo, estado) {
     data: recebimento.data || hojeIso(),
     forma: recebimento.forma || "Pix",
     notaFiscal: recebimento.notaFiscal || "nao",
-    observacoes: recebimento.observacoes || ""
+    observacoes: recebimento.observacoes || "",
+    atualizadoEm: recebimento.atualizadoEm || ""
   }));
   const descontos = (processo.descontos || []).map((desconto) => ({
     id: desconto.id || uid(),
     valor: Number(desconto.valor || 0),
     data: desconto.data || hojeIso(),
-    motivo: desconto.motivo || ""
+    motivo: desconto.motivo || "",
+    atualizadoEm: desconto.atualizadoEm || ""
   }));
   return {
     id: processo.id || uid(),
+    criadoEm: processo.criadoEm || "",
+    atualizadoEm: processo.atualizadoEm || processo.criadoEm || "",
     numero: migrarTextoParaPb(processo.numero || ""),
     clienteId,
     area: migrarTextoParaPb(processo.area || estado.configs.areas[0]),
@@ -3766,14 +3929,18 @@ function normalizarProcesso(processo, estado) {
       data: mov.data || hojeIso(),
       tipo: migrarTextoParaPb(mov.tipo || "Andamento"),
       descricao: migrarTextoParaPb(mov.descricao || ""),
-      prazoId: mov.prazoId || ""
+      prazoId: mov.prazoId || "",
+      atualizadoEm: mov.atualizadoEm || ""
     }))
   };
 }
 
 function usuarioAdministradorPadrao() {
+  const agora = new Date().toISOString();
   return {
     id: uid(),
+    criadoEm: agora,
+    atualizadoEm: agora,
     nome: "Administrador",
     email: "",
     senha: "1234",
@@ -3872,7 +4039,11 @@ function removerDadosDemonstrativos(estado) {
 function criarEstadoPadrao() {
   const usuarios = [usuarioAdministradorPadrao()];
   const clientes = [];
+  const agora = new Date().toISOString();
   return {
+    atualizadoEm: agora,
+    configsAtualizadoEm: agora,
+    feriadosAtualizadoEm: agora,
     usuarioAtivoId: null,
     tema: "classico",
     clienteModo: "cards",
@@ -3930,6 +4101,7 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
 }
 
 function salvarEstado() {
+  if (!syncAplicandoRemoto) state.atualizadoEm = agoraSyncIso();
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
   if (syncPronto && !syncAplicandoRemoto) marcarSyncSujo();
 }
@@ -4011,7 +4183,7 @@ function tokenSyncAppsScript() {
 function marcarSyncSujo() {
   if (!syncPronto || syncAplicandoRemoto) return;
   syncMeta.dirty = true;
-  syncMeta.localDirtyAt = new Date().toISOString();
+  syncMeta.localDirtyAt = agoraSyncIso();
   syncMeta.conflict = false;
   salvarSyncMeta();
   atualizarStatusSync("Alterações aguardando sincronização");
@@ -4069,6 +4241,7 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
       return;
     }
     const resposta = await chamarAppsScriptSync(forcePull ? "forcePull" : "pull", {});
+    atualizarRelogioServidorSync(resposta.serverNow);
     if (!resposta.ok) throw new Error(resposta.error || "Falha ao consultar servidor.");
     const record = resposta.record || {};
     if (forcePull) {
@@ -4118,6 +4291,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     data: estadoParaSync()
   };
   const resposta = await chamarAppsScriptSync("push", payload);
+  atualizarRelogioServidorSync(resposta.serverNow);
   if (!resposta.ok) throw new Error(resposta.error || "Falha ao enviar dados.");
   if (resposta.status === "conflict" || resposta.conflict) {
     guardarConflitoSync(recordAtual || resposta.record, payload.data);
@@ -4127,6 +4301,13 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     atualizarStatusSync();
     if (manual) alert("O servidor tem uma versão mais nova. A sua cópia local foi guardada neste navegador; escolha Baixar servidor ou Enviar este dispositivo.");
     return false;
+  }
+  if (resposta.status === "merged" && resposta.record?.data) {
+    aplicarDadosSync(resposta.record.data);
+    aplicarTema();
+    aplicarSidebar();
+    atualizarPerfil();
+    renderizarTudo();
   }
   atualizarMetaSync(resposta.record);
   localStorage.removeItem(DEMO_CLEANUP_SYNC_KEY);
@@ -4171,16 +4352,35 @@ function aplicarDadosSync(dados) {
 function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
   const remoto = cloneSync(remotoRaw);
   const local = cloneSync(localRaw);
-  const mesclado = { ...remoto, ...local };
-  mesclado.configs = mesclarConfigsSync(remoto.configs, local.configs);
+  const remotoMaisNovo = timestampGenericoSync(remoto) > timestampGenericoSync(local);
+  const preferido = remotoMaisNovo ? remoto : local;
+  const secundario = remotoMaisNovo ? local : remoto;
+  const mesclado = { ...secundario, ...preferido };
+  const configsRemotasMaisNovas = timestampIsoSync(remoto.configsAtualizadoEm) > timestampIsoSync(local.configsAtualizadoEm);
+  if (timestampIsoSync(remoto.configsAtualizadoEm) === timestampIsoSync(local.configsAtualizadoEm)) {
+    mesclado.configs = mesclarConfigsSync(remoto.configs, local.configs);
+  } else {
+    mesclado.configs = cloneSync(configsRemotasMaisNovas ? remoto.configs : local.configs);
+  }
+  mesclado.configsAtualizadoEm = configsRemotasMaisNovas ? remoto.configsAtualizadoEm : (local.configsAtualizadoEm || remoto.configsAtualizadoEm || "");
   mesclado.avancadas = { ...(remoto.avancadas || {}), ...(local.avancadas || {}) };
-  mesclado.usuarios = mesclarArrayPorIdSync(remoto.usuarios, local.usuarios);
-  mesclado.clientes = mesclarArrayPorIdSync(remoto.clientes, local.clientes);
-  mesclado.processos = mesclarProcessosSync(remoto.processos, local.processos);
-  mesclado.atendimentos = mesclarArrayPorIdSync(remoto.atendimentos, local.atendimentos, timestampAtendimento);
+  mesclado.usuarios = mesclarArrayPorIdSync(remoto.usuarios, local.usuarios, timestampGenericoSync, remotoMaisNovo);
+  mesclado.clientes = mesclarArrayPorIdSync(remoto.clientes, local.clientes, timestampGenericoSync, remotoMaisNovo);
+  mesclado.processos = mesclarProcessosSync(remoto.processos, local.processos, remotoMaisNovo);
+  mesclado.atendimentos = mesclarArrayPorIdSync(remoto.atendimentos, local.atendimentos, timestampAtendimento, remotoMaisNovo);
   mesclado.exclusoesAtendimentos = mesclarExclusoesAtendimentosSync(remoto.exclusoesAtendimentos, local.exclusoesAtendimentos);
-  mesclado.feriadosDesmarcados = Array.from(new Set([...(remoto.feriadosDesmarcados || []), ...(local.feriadosDesmarcados || [])]));
-  mesclado.feriadosExtras = mesclarArrayPorIdSync(remoto.feriadosExtras, local.feriadosExtras);
+  const feriadosRemotosMaisNovos = timestampIsoSync(remoto.feriadosAtualizadoEm) > timestampIsoSync(local.feriadosAtualizadoEm);
+  if (timestampIsoSync(remoto.feriadosAtualizadoEm) === timestampIsoSync(local.feriadosAtualizadoEm)) {
+    mesclado.feriadosDesmarcados = Array.from(new Set([...(remoto.feriadosDesmarcados || []), ...(local.feriadosDesmarcados || [])]));
+    mesclado.feriadosExtras = mesclarArrayPorIdSync(remoto.feriadosExtras, local.feriadosExtras);
+  } else {
+    const feriadosDesmarcados = feriadosRemotosMaisNovos ? remoto.feriadosDesmarcados : local.feriadosDesmarcados;
+    const feriadosExtras = feriadosRemotosMaisNovos ? remoto.feriadosExtras : local.feriadosExtras;
+    mesclado.feriadosDesmarcados = Array.isArray(feriadosDesmarcados) ? cloneSync(feriadosDesmarcados) : [];
+    mesclado.feriadosExtras = Array.isArray(feriadosExtras) ? cloneSync(feriadosExtras) : [];
+  }
+  mesclado.feriadosAtualizadoEm = feriadosRemotosMaisNovos ? remoto.feriadosAtualizadoEm : (local.feriadosAtualizadoEm || remoto.feriadosAtualizadoEm || "");
+  mesclado.atualizadoEm = remotoMaisNovo ? remoto.atualizadoEm : (local.atualizadoEm || remoto.atualizadoEm || "");
   aplicarExclusoesAtendimentos(mesclado);
   deduplicarAtendimentos(mesclado);
   return mesclado;
@@ -4209,9 +4409,12 @@ function mesclarListaTextoSync(remota = [], local = []) {
   });
 }
 
-function mesclarArrayPorIdSync(remoto = [], local = [], timestamp = timestampGenericoSync) {
+function mesclarArrayPorIdSync(remoto = [], local = [], timestamp = timestampGenericoSync, preferirRemotoEmEmpate = false) {
   const mapa = new Map();
-  [...(remoto || []), ...(local || [])].forEach((item) => {
+  const itens = preferirRemotoEmEmpate
+    ? [...(local || []), ...(remoto || [])]
+    : [...(remoto || []), ...(local || [])];
+  itens.forEach((item) => {
     if (!item || typeof item !== "object") return;
     const chave = item.id || item.numero || JSON.stringify(item);
     const anterior = mapa.get(chave);
@@ -4220,9 +4423,12 @@ function mesclarArrayPorIdSync(remoto = [], local = [], timestamp = timestampGen
   return Array.from(mapa.values());
 }
 
-function mesclarProcessosSync(remoto = [], local = []) {
+function mesclarProcessosSync(remoto = [], local = [], preferirRemotoEmEmpate = false) {
   const mapa = new Map();
-  [...(remoto || []), ...(local || [])].forEach((processo) => {
+  const processos = preferirRemotoEmEmpate
+    ? [...(local || []), ...(remoto || [])]
+    : [...(remoto || []), ...(local || [])];
+  processos.forEach((processo) => {
     if (!processo || typeof processo !== "object") return;
     const chave = processo.id || processo.numero || JSON.stringify(processo);
     const anterior = mapa.get(chave);
@@ -4253,6 +4459,10 @@ function timestampGenericoSync(item = {}) {
   return new Date(item.atualizadoEm || item.salvoEm || item.excluidoEm || item.adicionadoEm || item.data || item.dataInicio || item.criadoEm || 0).getTime() || 0;
 }
 
+function timestampIsoSync(valor = "") {
+  return new Date(valor || 0).getTime() || 0;
+}
+
 function timestampProcessoSync(processo = {}) {
   const datas = [
     timestampGenericoSync(processo),
@@ -4270,6 +4480,14 @@ function atualizarMetaSync(record = {}) {
   syncMeta.serverHash = record.hash || syncMeta.serverHash || "";
   syncMeta.lastServerAt = record.updatedAtServer || syncMeta.lastServerAt || "";
   syncMeta.revision = record.revision || syncMeta.revision || 0;
+  salvarSyncMeta();
+}
+
+function atualizarRelogioServidorSync(serverNow = "") {
+  const horarioServidor = new Date(serverNow || 0).getTime();
+  if (!horarioServidor) return;
+  syncMeta.serverClockOffsetMs = horarioServidor - Date.now();
+  syncMeta.lastServerNow = serverNow;
   salvarSyncMeta();
 }
 
