@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.33";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v133";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.34";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -56,6 +56,7 @@ let selecaoAtendimento = null;
 let feriadoPendenteData = "";
 let atendimentoZoom = 100;
 let imagemAtivaAtendimento = null;
+let imagemInteracaoAte = 0;
 let documentosAtendimento = [];
 let syncMeta = carregarSyncMeta();
 let syncPronto = false;
@@ -225,7 +226,12 @@ function configurarEventos() {
     if (!event.target.closest(".toolbar-export-wrap")) fecharMenuExportarAtendimento();
     if (!event.target.closest(".version-popover-wrap")) fecharVersoesAtendimento();
     if (!event.target.closest(".holiday-popover") && !event.target.closest("[data-toggle-holiday]")) fecharPopoverFeriado();
-    if (!event.target.closest(".image-layout-popover") && !event.target.closest(".image-resize-overlay") && !event.target.closest(".attendance-editor img")) fecharOpcoesImagemAtendimento();
+    if (
+      Date.now() > imagemInteracaoAte
+      && !event.target.closest(".image-layout-popover")
+      && !event.target.closest(".image-resize-overlay")
+      && !event.target.closest(".attendance-editor img")
+    ) fecharOpcoesImagemAtendimento();
   });
   document.addEventListener("click", fecharDialogo);
   document.addEventListener("input", aplicarMascara);
@@ -1219,6 +1225,7 @@ function marcarAtendimentoAlterado() {
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = "Alterações em rascunho";
   agendarPaginacaoAtendimento();
+  agendarCursorVisivelAtendimento();
 }
 
 function salvarRascunhoAtendimento(forcar = false) {
@@ -1410,6 +1417,28 @@ function atualizarPaginacaoAtendimento() {
     pagina += 1;
   }
   restaurarSelecaoDepoisPaginacao(marcadorSelecao);
+  agendarCursorVisivelAtendimento();
+}
+
+function agendarCursorVisivelAtendimento() {
+  if (document.activeElement !== els.atendimentoEditor) return;
+  requestAnimationFrame(() => requestAnimationFrame(garantirCursorVisivelAtendimento));
+}
+
+function garantirCursorVisivelAtendimento() {
+  const editor = els.atendimentoEditor;
+  const selection = window.getSelection?.();
+  if (!editor || document.activeElement !== editor || !selection?.rangeCount) return;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.startContainer)) return;
+  const rect = range.getClientRects?.()[0] || range.getBoundingClientRect?.();
+  if (!rect) return;
+  const lineHeight = Number.parseFloat(getComputedStyle(editor).lineHeight) || 24;
+  const folga = Math.max(lineHeight * 2, 42);
+  const limiteInferior = window.innerHeight - folga;
+  if (rect.bottom > limiteInferior) {
+    window.scrollBy({ top: rect.bottom - limiteInferior + lineHeight, left: 0, behavior: "auto" });
+  }
 }
 
 function primeiroTransbordamentoDaPagina(editor, limite) {
@@ -2224,6 +2253,7 @@ function selecionarImagemAtendimento(event) {
 }
 
 function abrirOpcoesImagemAtendimento(img) {
+  imagemInteracaoAte = Date.now() + 350;
   imagemAtivaAtendimento = img;
   els.atendimentoEditor.querySelectorAll("img.is-selected").forEach((item) => item.classList.remove("is-selected"));
   img.classList.add("is-selected");
@@ -2397,8 +2427,24 @@ function iniciarArrasteImagemDireto(event) {
   const img = event.target.closest("img.editor-image");
   if (!img || !els.atendimentoEditor.contains(img)) return;
   if (event.button !== 0) return;
-  if (!img.classList.contains("is-selected")) abrirOpcoesImagemAtendimento(img);
-  iniciarInteracaoImagemAtendimento(event, img, { moverImagem: true });
+  abrirOpcoesImagemAtendimento(img);
+  const inicioX = event.clientX;
+  const inicioY = event.clientY;
+  let iniciouArraste = false;
+
+  const observarMovimento = (moveEvent) => {
+    if (iniciouArraste || Math.hypot(moveEvent.clientX - inicioX, moveEvent.clientY - inicioY) < 6) return;
+    iniciouArraste = true;
+    document.removeEventListener("pointermove", observarMovimento);
+    document.removeEventListener("pointerup", encerrarClique);
+    iniciarInteracaoImagemAtendimento(moveEvent, img, { moverImagem: true });
+  };
+  const encerrarClique = () => {
+    document.removeEventListener("pointermove", observarMovimento);
+    document.removeEventListener("pointerup", encerrarClique);
+  };
+  document.addEventListener("pointermove", observarMovimento);
+  document.addEventListener("pointerup", encerrarClique);
 }
 
 function iniciarInteracaoImagemAtendimento(event, img, acao) {
@@ -4035,13 +4081,28 @@ function aplicarConfigSyncLocal(estado) {
   } catch {
     configLocal = {};
   }
+  const configLegada = localizarConfigSyncLegada();
   estado.avancadas = {
     ...(estado.avancadas || {}),
-    googleScriptUrl: estado.avancadas?.googleScriptUrl || configLocal.googleScriptUrl || "",
-    syncToken: estado.avancadas?.syncToken || configLocal.syncToken || ""
+    googleScriptUrl: estado.avancadas?.googleScriptUrl || configLocal.googleScriptUrl || configLegada.googleScriptUrl || "",
+    syncToken: estado.avancadas?.syncToken || configLocal.syncToken || configLegada.syncToken || ""
   };
   salvarConfigSyncLocal(estado.avancadas);
   return estado;
+}
+
+function localizarConfigSyncLegada() {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try {
+      const avancadas = JSON.parse(localStorage.getItem(key) || "{}")?.avancadas || {};
+      const googleScriptUrl = String(avancadas.googleScriptUrl || "").trim();
+      const syncToken = String(avancadas.syncToken || "").trim();
+      if (googleScriptUrl || syncToken) return { googleScriptUrl, syncToken };
+    } catch {
+      // Ignora versões antigas inválidas e continua procurando.
+    }
+  }
+  return {};
 }
 
 function salvarConfigSyncLocal(avancadas = {}) {
@@ -4449,7 +4510,8 @@ function atualizarStatusSync(texto = "") {
   const ultimoContato = syncMeta.lastContactAt || syncMeta.lastServerNow || "";
   const contato = ultimoContato ? `Último contato: ${dataHoraCurta(ultimoContato)}` : "Ainda sem contato confirmado";
   const alteracao = syncMeta.lastServerAt ? ` Dados atualizados: ${dataHoraCurta(syncMeta.lastServerAt)}.` : "";
-  els.syncDetails.textContent = `${contato}.${alteracao}`;
+  const protocolo = syncMeta.protocol >= 2 ? " Conexão direta v2." : " Servidor em modo de compatibilidade.";
+  els.syncDetails.textContent = `${contato}.${alteracao}${protocolo}`;
 }
 
 async function sincronizarComServidor({ manual = false, forcePush = false, forcePull = false } = {}) {
@@ -4472,7 +4534,7 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
       return;
     }
     const resposta = await chamarAppsScriptSync(forcePull ? "forcePull" : "pull", {});
-    atualizarRelogioServidorSync(resposta.serverNow);
+    atualizarRelogioServidorSync(resposta.serverNow, resposta.syncProtocol);
     if (!resposta.ok) throw new Error(resposta.error || "Falha ao consultar servidor.");
     const record = resposta.record || {};
     if (forcePull) {
@@ -4522,7 +4584,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     data: estadoParaSync()
   };
   const resposta = await chamarAppsScriptSync("push", payload);
-  atualizarRelogioServidorSync(resposta.serverNow);
+  atualizarRelogioServidorSync(resposta.serverNow, resposta.syncProtocol);
   if (!resposta.ok) throw new Error(resposta.error || "Falha ao enviar dados.");
   if (resposta.status === "conflict" || resposta.conflict) {
     if (tentativa < 2 && resposta.record?.data) {
@@ -4724,12 +4786,13 @@ function atualizarMetaSync(record = {}) {
   salvarSyncMeta();
 }
 
-function atualizarRelogioServidorSync(serverNow = "") {
+function atualizarRelogioServidorSync(serverNow = "", protocol = 0) {
   const horarioServidor = new Date(serverNow || 0).getTime();
   if (!horarioServidor) return;
   syncMeta.serverClockOffsetMs = horarioServidor - Date.now();
   syncMeta.lastServerNow = serverNow;
   syncMeta.lastContactAt = serverNow;
+  if (Number(protocol) > 0) syncMeta.protocol = Number(protocol);
   salvarSyncMeta();
 }
 
@@ -4743,7 +4806,41 @@ function guardarConflitoSync(record, localData) {
   localStorage.setItem(SYNC_CONFLICT_KEY, JSON.stringify({ salvoEmLocal: new Date().toISOString(), server: record || null, localData }));
 }
 
-function chamarAppsScriptSync(action, payload = {}) {
+async function chamarAppsScriptSync(action, payload = {}) {
+  const url = urlSyncAppsScript();
+  if (!url) throw new Error("URL do Apps Script não configurada.");
+  const token = tokenSyncAppsScript();
+  if (!token) throw new Error("Token de sincronização não configurado.");
+  const requestId = `sync-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
+  try {
+    const resposta = await fetch(url, {
+      method: "POST",
+      redirect: "follow",
+      cache: "no-store",
+      signal: controller.signal,
+      body: JSON.stringify({
+        action,
+        requestId,
+        token,
+        payload
+      })
+    });
+    if (!resposta.ok) throw new Error(`Servidor respondeu HTTP ${resposta.status}.`);
+    const texto = await resposta.text();
+    const dados = JSON.parse(texto);
+    if (!dados || dados.requestId !== requestId) throw new Error("Resposta inválida do servidor.");
+    return dados;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("Tempo de resposta do servidor esgotado.");
+    return chamarAppsScriptSyncLegado(action, payload);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function chamarAppsScriptSyncLegado(action, payload = {}) {
   const url = urlSyncAppsScript();
   if (!url) return Promise.reject(new Error("URL do Apps Script não configurada."));
   const token = tokenSyncAppsScript();
