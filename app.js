@@ -1,6 +1,6 @@
-const APP_VERSION = "1.0.32";
-const STORAGE_KEY = "sr-advocacia-gestao-juridica-v132";
-const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
+const APP_VERSION = "1.0.33";
+const STORAGE_KEY = "sr-advocacia-gestao-juridica-v133";
+const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
 const DEFAULT_HIGHLIGHT_COLOR = "#fff0b8";
 const ATTENDANCE_PAGE_SIZE = Object.freeze({ width: "794px", height: "1123px", mobileHeight: "720px" });
@@ -11,9 +11,10 @@ const MAX_DOCUMENT_TOTAL_BYTES = 3 * 1024 * 1024;
 const SYNC_META_KEY = "sr-advocacia-sync-meta-v1";
 const SYNC_DEVICE_KEY = "sr-advocacia-sync-device-v1";
 const SYNC_CONFLICT_KEY = "sr-advocacia-sync-conflict-v1";
+const SYNC_CONFIG_KEY = "sr-advocacia-sync-config-v1";
 const DEMO_CLEANUP_SYNC_KEY = "sr-advocacia-demo-cleanup-v128";
-const SYNC_DEBOUNCE_MS = 700;
-const SYNC_INTERVAL_MS = 5000;
+const SYNC_DEBOUNCE_MS = 350;
+const SYNC_INTERVAL_MS = 3000;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
   { mes: 4, dia: 21, nome: "Tiradentes" },
@@ -43,7 +44,7 @@ const CONFIG_META = {
   movimentacoes: { titulo: "Movimentações", descricao: "Motivos rápidos para andamentos e providências" }
 };
 
-const state = normalizarEstado(carregarEstado());
+const state = aplicarConfigSyncLocal(normalizarEstado(carregarEstado()));
 let viewAtual = "dashboard";
 let mesAgenda = new Date();
 let processoAbertoId = null;
@@ -1349,7 +1350,7 @@ function dadosAtendimentoDoFormulario() {
 function htmlPersistenteAtendimento() {
   if (!els.atendimentoEditor) return "";
   const clone = els.atendimentoEditor.cloneNode(true);
-  clone.querySelectorAll(".editor-page-break").forEach((item) => item.remove());
+  clone.querySelectorAll(".editor-page-break, .editor-page-caret").forEach((item) => item.remove());
   clone.querySelectorAll("img").forEach((img) => {
     img.classList.remove("is-selected", "is-cropping");
     img.removeAttribute("contenteditable");
@@ -1365,32 +1366,186 @@ function agendarPaginacaoAtendimento() {
 function atualizarPaginacaoAtendimento() {
   const editor = els.atendimentoEditor;
   if (!editor?.isConnected || !editor.offsetWidth) return;
-  editor.querySelectorAll(":scope > .editor-page-break").forEach((item) => item.remove());
+  const marcadorSelecao = marcarSelecaoDurantePaginacao(editor);
+  editor.querySelectorAll(".editor-page-break").forEach((item) => item.remove());
+  editor.normalize();
 
   const estilo = getComputedStyle(editor);
   const alturaPagina = Number.parseFloat(estilo.getPropertyValue("--attendance-page-height")) || 1123;
   const espacoPagina = Number.parseFloat(estilo.getPropertyValue("--attendance-page-gap")) || 22;
   const margemVertical = Number.parseFloat(estilo.getPropertyValue("--editor-pad-y")) || 74;
-  const blocos = [...editor.children].filter((item) => !item.classList.contains("editor-page-break"));
-  let inicioPagina = 0;
+  let pagina = 0;
+  let tentativas = 0;
 
-  blocos.forEach((bloco) => {
-    const topo = bloco.offsetTop;
-    const base = topo + bloco.offsetHeight;
-    const inicioConteudo = inicioPagina + margemVertical;
-    const fimConteudo = inicioPagina + alturaPagina - margemVertical;
-    if (base <= fimConteudo || topo <= inicioConteudo + 10) return;
+  while (tentativas < 80) {
+    tentativas += 1;
+    const fimConteudo = pagina * (alturaPagina + espacoPagina) + alturaPagina - margemVertical;
+    const transbordamento = primeiroTransbordamentoDaPagina(editor, fimConteudo);
+    if (!transbordamento) break;
 
-    const separador = document.createElement("div");
-    const ateBordaPagina = Math.max(0, inicioPagina + alturaPagina - topo);
-    separador.className = "editor-page-break";
-    separador.contentEditable = "false";
-    separador.setAttribute("aria-hidden", "true");
-    separador.style.setProperty("--page-break-before", `${ateBordaPagina}px`);
-    separador.style.height = `${ateBordaPagina + espacoPagina + margemVertical}px`;
-    bloco.before(separador);
-    inicioPagina += alturaPagina + espacoPagina;
+    const { bloco, limites } = transbordamento;
+    const ponto = limites.top < fimConteudo
+      ? encontrarInicioLinhaExcedente(bloco, fimConteudo, editor)
+      : null;
+    const separador = criarSeparadorPagina();
+    if (ponto) {
+      const range = document.createRange();
+      range.setStart(ponto.node, ponto.offset);
+      range.collapse(true);
+      range.insertNode(separador);
+    } else {
+      bloco.before(separador);
+    }
+
+    const topoSeparador = ponto?.top ?? limites.top;
+    configurarSeparadorPagina(
+      separador,
+      pagina * (alturaPagina + espacoPagina),
+      topoSeparador,
+      alturaPagina,
+      espacoPagina,
+      margemVertical,
+      editor
+    );
+    pagina += 1;
+  }
+  restaurarSelecaoDepoisPaginacao(marcadorSelecao);
+}
+
+function primeiroTransbordamentoDaPagina(editor, limite) {
+  const blocos = [...editor.childNodes].filter((item) => {
+    if (item.nodeType === Node.TEXT_NODE) return item.textContent?.trim();
+    return item.nodeType === Node.ELEMENT_NODE
+      && !item.classList.contains("editor-page-break")
+      && !item.classList.contains("editor-page-caret");
   });
+  for (const bloco of blocos) {
+    const limites = limitesNoEditor(bloco, editor);
+    if (limites?.bottom > limite + 0.5) return { bloco, limites };
+  }
+  return null;
+}
+
+function criarSeparadorPagina() {
+  const separador = document.createElement("span");
+  separador.className = "editor-page-break";
+  separador.contentEditable = "false";
+  separador.setAttribute("aria-hidden", "true");
+  return separador;
+}
+
+function configurarSeparadorPagina(separador, inicioPagina, topoSeparador, alturaPagina, espacoPagina, margemVertical, editor) {
+  const ateBordaPagina = Math.max(0, inicioPagina + alturaPagina - topoSeparador);
+  separador.style.setProperty("--page-break-before", `${ateBordaPagina}px`);
+  separador.style.height = `${ateBordaPagina + espacoPagina + margemVertical}px`;
+  const zoom = zoomAtualEditor();
+  const editorRect = editor.getBoundingClientRect();
+  const separadorRect = separador.getBoundingClientRect();
+  const deslocamentoEsquerda = (separadorRect.left - editorRect.left) / zoom;
+  separador.style.marginLeft = `${-deslocamentoEsquerda}px`;
+  separador.style.width = `${editor.clientWidth}px`;
+}
+
+function limitesNoEditor(node, editor) {
+  let rect;
+  if (node.nodeType === Node.TEXT_NODE) {
+    if (!node.textContent) return null;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    rect = range.getBoundingClientRect();
+  } else {
+    rect = node.getBoundingClientRect?.();
+  }
+  if (!rect) return null;
+  const editorRect = editor.getBoundingClientRect();
+  const zoom = zoomAtualEditor();
+  return {
+    top: (rect.top - editorRect.top) / zoom,
+    bottom: (rect.bottom - editorRect.top) / zoom
+  };
+}
+
+function encontrarInicioLinhaExcedente(bloco, limite, editor) {
+  const nosTexto = [];
+  if (bloco.nodeType === Node.TEXT_NODE) {
+    nosTexto.push(bloco);
+  } else {
+    const walker = document.createTreeWalker(bloco, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (node.textContent && !node.parentElement?.closest(".editor-page-break, .editor-page-caret")) nosTexto.push(node);
+    }
+  }
+
+  for (const node of nosTexto) {
+    const tamanho = node.textContent?.length || 0;
+    if (!tamanho) continue;
+    const ultimoRect = rectCaractereNoEditor(node, tamanho - 1, editor);
+    if (!ultimoRect || ultimoRect.bottom <= limite + 0.5) continue;
+
+    let inicio = 0;
+    let fim = tamanho - 1;
+    while (inicio < fim) {
+      const meio = Math.floor((inicio + fim) / 2);
+      const rect = rectCaractereNoEditor(node, meio, editor);
+      if (!rect || rect.bottom > limite + 0.5) fim = meio;
+      else inicio = meio + 1;
+    }
+
+    const rectLinha = rectCaractereNoEditor(node, inicio, editor);
+    if (!rectLinha) continue;
+    let inicioLinha = inicio;
+    while (inicioLinha > 0) {
+      const anterior = rectCaractereNoEditor(node, inicioLinha - 1, editor);
+      if (!anterior || Math.abs(anterior.top - rectLinha.top) > 1.5) break;
+      inicioLinha -= 1;
+    }
+    return { node, offset: inicioLinha, top: rectLinha.top };
+  }
+  return null;
+}
+
+function rectCaractereNoEditor(node, indice, editor) {
+  if (!node?.textContent || indice < 0 || indice >= node.textContent.length) return null;
+  const range = document.createRange();
+  range.setStart(node, indice);
+  range.setEnd(node, indice + 1);
+  const rect = range.getBoundingClientRect();
+  const editorRect = editor.getBoundingClientRect();
+  const zoom = zoomAtualEditor();
+  return {
+    top: (rect.top - editorRect.top) / zoom,
+    bottom: (rect.bottom - editorRect.top) / zoom
+  };
+}
+
+function zoomAtualEditor() {
+  return Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--attendance-editor-zoom")) || 1;
+}
+
+function marcarSelecaoDurantePaginacao(editor) {
+  const selection = window.getSelection?.();
+  if (!selection?.rangeCount || !selection.isCollapsed) return null;
+  const range = selection.getRangeAt(0);
+  if (!editor.contains(range.startContainer)) return null;
+  const marcador = document.createElement("span");
+  marcador.className = "editor-page-caret";
+  marcador.contentEditable = "false";
+  marcador.setAttribute("aria-hidden", "true");
+  marcador.textContent = "\u200b";
+  range.insertNode(marcador);
+  return marcador;
+}
+
+function restaurarSelecaoDepoisPaginacao(marcador) {
+  if (!marcador?.isConnected) return;
+  const selection = window.getSelection?.();
+  const range = document.createRange();
+  range.setStartBefore(marcador);
+  range.collapse(true);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  marcador.remove();
 }
 
 function assinaturaAtendimento(atendimento = {}) {
@@ -2242,7 +2397,7 @@ function iniciarArrasteImagemDireto(event) {
   const img = event.target.closest("img.editor-image");
   if (!img || !els.atendimentoEditor.contains(img)) return;
   if (event.button !== 0) return;
-  if (!img.classList.contains("is-selected")) return;
+  if (!img.classList.contains("is-selected")) abrirOpcoesImagemAtendimento(img);
   iniciarInteracaoImagemAtendimento(event, img, { moverImagem: true });
 }
 
@@ -2347,8 +2502,17 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   img.dataset.wrapSide = clientX >= editorRect.left + editorRect.width / 2 ? "right" : "left";
   aplicarTransformImagemAtendimento(img);
   const range = rangeEditorNoPonto(clientX, clientY);
-  if (!range || !els.atendimentoEditor.contains(range.startContainer)) return;
-  const bloco = blocoSuperiorDoEditor(range.startContainer);
+  if (range && pontoValidoParaImagem(range, img)) {
+    range.collapse(true);
+    range.insertNode(img);
+    img.parentElement?.normalize();
+    agendarPaginacaoAtendimento();
+    return;
+  }
+  const blocoRange = range && els.atendimentoEditor.contains(range.startContainer)
+    ? blocoSuperiorDoEditor(range.startContainer)
+    : null;
+  const bloco = blocoRange || blocoMaisProximoDoPonto(clientY, img);
   if (!bloco || bloco === img) {
     els.atendimentoEditor.appendChild(img);
     return;
@@ -2357,6 +2521,41 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   if (rect && clientY > rect.top + rect.height / 2) bloco.after(img);
   else bloco.before(img);
   agendarPaginacaoAtendimento();
+}
+
+function pontoValidoParaImagem(range, img) {
+  const container = range?.startContainer;
+  if (!container || !els.atendimentoEditor.contains(container)) return false;
+  const elemento = container.nodeType === Node.TEXT_NODE ? container.parentElement : container;
+  if (!elemento || elemento === img || elemento.closest("img, .editor-page-break, .editor-page-caret")) return false;
+  return true;
+}
+
+function blocoMaisProximoDoPonto(clientY, imagemIgnorada) {
+  const candidatos = [...els.atendimentoEditor.childNodes].filter((node) => {
+    if (node === imagemIgnorada) return false;
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim();
+    return node.nodeType === Node.ELEMENT_NODE && !node.classList.contains("editor-page-break");
+  });
+  let melhor = null;
+  let distancia = Infinity;
+  candidatos.forEach((node) => {
+    let rect;
+    if (node.nodeType === Node.TEXT_NODE) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      rect = range.getBoundingClientRect();
+    } else {
+      rect = node.getBoundingClientRect?.();
+    }
+    if (!rect) return;
+    const atual = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+    if (atual < distancia) {
+      melhor = node;
+      distancia = atual;
+    }
+  });
+  return melhor;
 }
 
 function blocoSuperiorDoEditor(node) {
@@ -2368,7 +2567,10 @@ function blocoSuperiorDoEditor(node) {
 function rangeEditorNoPonto(clientX, clientY) {
   const overlay = els.imageResizeOverlay;
   const pointerEventsAnterior = overlay?.style.pointerEvents || "";
+  const imagem = imagemAtivaAtendimento;
+  const pointerImagemAnterior = imagem?.style.pointerEvents || "";
   if (overlay) overlay.style.pointerEvents = "none";
+  if (imagem) imagem.style.pointerEvents = "none";
   let range = document.caretRangeFromPoint?.(clientX, clientY) || null;
   if (!range && document.caretPositionFromPoint) {
     const pos = document.caretPositionFromPoint(clientX, clientY);
@@ -2379,6 +2581,7 @@ function rangeEditorNoPonto(clientX, clientY) {
     }
   }
   if (overlay) overlay.style.pointerEvents = pointerEventsAnterior;
+  if (imagem) imagem.style.pointerEvents = pointerImagemAnterior;
   return range;
 }
 
@@ -3298,6 +3501,7 @@ function salvarAvancadas(event) {
     syncToken: String(dados.syncToken || "").trim(),
     observacoesTecnicas: String(dados.observacoesTecnicas || "").trim()
   };
+  salvarConfigSyncLocal(state.avancadas);
   salvarEstado();
   els.modalAvancadas.close();
   renderConfiguracoes();
@@ -3824,6 +4028,31 @@ function aplicarExclusoesAtendimentos(estado) {
   }
 }
 
+function aplicarConfigSyncLocal(estado) {
+  let configLocal = {};
+  try {
+    configLocal = JSON.parse(localStorage.getItem(SYNC_CONFIG_KEY) || "{}") || {};
+  } catch {
+    configLocal = {};
+  }
+  estado.avancadas = {
+    ...(estado.avancadas || {}),
+    googleScriptUrl: estado.avancadas?.googleScriptUrl || configLocal.googleScriptUrl || "",
+    syncToken: estado.avancadas?.syncToken || configLocal.syncToken || ""
+  };
+  salvarConfigSyncLocal(estado.avancadas);
+  return estado;
+}
+
+function salvarConfigSyncLocal(avancadas = {}) {
+  const config = {
+    googleScriptUrl: String(avancadas.googleScriptUrl || "").trim(),
+    syncToken: String(avancadas.syncToken || "").trim()
+  };
+  if (config.googleScriptUrl || config.syncToken) localStorage.setItem(SYNC_CONFIG_KEY, JSON.stringify(config));
+  else localStorage.removeItem(SYNC_CONFIG_KEY);
+}
+
 function deduplicarAtendimentos(estado) {
   const escolhidos = new Map();
   (estado.atendimentos || []).forEach((atendimento) => {
@@ -4118,10 +4347,10 @@ function iniciarSincronizacao() {
     salvarSyncMeta();
   }
   atualizarStatusSync();
-  window.addEventListener("online", () => agendarSincronizacao("online"));
-  window.addEventListener("focus", () => agendarSincronizacao("foco"));
+  window.addEventListener("online", () => sincronizarComServidor({ motivo: "online" }));
+  window.addEventListener("focus", () => sincronizarComServidor({ motivo: "foco" }));
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) agendarSincronizacao("aba-visivel");
+    if (!document.hidden || syncMeta.dirty) sincronizarComServidor({ motivo: document.hidden ? "aba-oculta" : "aba-visivel" });
   });
   window.addEventListener("storage", (event) => {
     if (event.key === STORAGE_KEY && event.newValue !== event.oldValue) {
@@ -4142,8 +4371,8 @@ function iniciarSincronizacao() {
     }
   });
   clearInterval(syncInterval);
-  syncInterval = setInterval(() => agendarSincronizacao("periodico"), SYNC_INTERVAL_MS);
-  if (urlSyncAppsScript() && tokenSyncAppsScript()) setTimeout(() => sincronizarComServidor({ motivo: "inicial" }), 700);
+  syncInterval = setInterval(() => sincronizarComServidor({ motivo: "periodico" }), SYNC_INTERVAL_MS);
+  if (urlSyncAppsScript() && tokenSyncAppsScript()) setTimeout(() => sincronizarComServidor({ motivo: "inicial" }), 250);
 }
 
 function carregarSyncMeta() {
@@ -4217,8 +4446,10 @@ function atualizarStatusSync(texto = "") {
   else if (syncEmAndamento) els.syncStatus.textContent = "Sincronizando...";
   else if (syncMeta.dirty) els.syncStatus.textContent = "Pendente";
   else els.syncStatus.textContent = "Sincronizada";
-  const quando = syncMeta.lastServerAt ? `Última hora do servidor: ${dataHoraCurta(syncMeta.lastServerAt)}` : "Ainda sem confirmação do servidor.";
-  els.syncDetails.textContent = quando;
+  const ultimoContato = syncMeta.lastContactAt || syncMeta.lastServerNow || "";
+  const contato = ultimoContato ? `Último contato: ${dataHoraCurta(ultimoContato)}` : "Ainda sem contato confirmado";
+  const alteracao = syncMeta.lastServerAt ? ` Dados atualizados: ${dataHoraCurta(syncMeta.lastServerAt)}.` : "";
+  els.syncDetails.textContent = `${contato}.${alteracao}`;
 }
 
 async function sincronizarComServidor({ manual = false, forcePush = false, forcePull = false } = {}) {
@@ -4279,7 +4510,7 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
   }
 }
 
-async function enviarEstadoServidor(force = false, manual = false, recordAtual = null) {
+async function enviarEstadoServidor(force = false, manual = false, recordAtual = null, tentativa = 0) {
   const payload = {
     appId: "sr-advocacia",
     appVersion: APP_VERSION,
@@ -4294,6 +4525,15 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
   atualizarRelogioServidorSync(resposta.serverNow);
   if (!resposta.ok) throw new Error(resposta.error || "Falha ao enviar dados.");
   if (resposta.status === "conflict" || resposta.conflict) {
+    if (tentativa < 2 && resposta.record?.data) {
+      const mesclado = mesclarEstadosSync(resposta.record.data, payload.data);
+      aplicarDadosSync(mesclado);
+      atualizarMetaSync(resposta.record);
+      syncMeta.dirty = true;
+      syncMeta.conflict = false;
+      salvarSyncMeta();
+      return enviarEstadoServidor(false, manual, resposta.record, tentativa + 1);
+    }
     guardarConflitoSync(recordAtual || resposta.record, payload.data);
     syncMeta.conflict = true;
     syncMeta.dirty = true;
@@ -4345,6 +4585,7 @@ function aplicarDadosSync(dados) {
     syncToken: avancadasLocais.syncToken || "",
     observacoesTecnicas: state.avancadas?.observacoesTecnicas || avancadasLocais.observacoesTecnicas || ""
   };
+  salvarConfigSyncLocal(state.avancadas);
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
   syncAplicandoRemoto = false;
 }
@@ -4488,6 +4729,7 @@ function atualizarRelogioServidorSync(serverNow = "") {
   if (!horarioServidor) return;
   syncMeta.serverClockOffsetMs = horarioServidor - Date.now();
   syncMeta.lastServerNow = serverNow;
+  syncMeta.lastContactAt = serverNow;
   salvarSyncMeta();
 }
 

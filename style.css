@@ -674,9 +674,15 @@ body.sidebar-collapsed .nav-item {
 }
 
 .modal-header .icon-button {
-  width: 38px;
-  min-height: 38px;
+  -webkit-appearance: none;
+  appearance: none;
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 2px;
   border: 0;
+  border-radius: 0;
+  outline: 0;
   color: var(--gold);
   background: transparent;
   box-shadow: none;
@@ -688,6 +694,14 @@ body.sidebar-collapsed .nav-item {
 .modal-header .icon-button:hover {
   color: var(--wine);
   background: transparent;
+}
+
+.modal-header .icon-button:focus,
+.modal-header .icon-button:focus-visible {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .full {
@@ -1940,25 +1954,38 @@ tr:last-child td {
 
 .attendance-editor .editor-page-break {
   --page-break-before: 0px;
+  display: block;
   position: relative;
   z-index: 3;
-  width: calc(100% + (var(--editor-pad-x) * 2));
+  width: 100%;
   max-width: none;
-  margin-right: calc(0px - var(--editor-pad-x));
-  margin-left: calc(0px - var(--editor-pad-x));
+  margin: 0;
   padding: 0;
   border: 0;
+  clear: both;
+  font-size: 0;
+  line-height: 0;
   background:
     linear-gradient(
       to bottom,
       #fff 0 max(0px, calc(var(--page-break-before) - 1px)),
       var(--line) max(0px, calc(var(--page-break-before) - 1px)) var(--page-break-before),
-      #545454 var(--page-break-before) calc(var(--page-break-before) + var(--attendance-page-gap)),
+      #f1efeb var(--page-break-before) calc(var(--page-break-before) + var(--attendance-page-gap)),
       var(--line) calc(var(--page-break-before) + var(--attendance-page-gap)) calc(var(--page-break-before) + var(--attendance-page-gap) + 1px),
       #fff calc(var(--page-break-before) + var(--attendance-page-gap) + 1px) 100%
     );
   pointer-events: none;
   user-select: none;
+}
+
+.attendance-editor .editor-page-caret {
+  display: inline;
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  font-size: 0;
+  line-height: 0;
 }
 
 .attendance-editor img {
@@ -1986,10 +2013,11 @@ tr:last-child td {
 .attendance-editor img.image-layout-wrap {
   display: block;
   float: left;
-  max-width: 52%;
+  max-width: 48%;
   margin: 6px 14px 8px 0;
   clear: none;
   shape-outside: margin-box;
+  shape-margin: 4px;
   z-index: 2;
 }
 
@@ -4020,7 +4048,7 @@ dd {
   background: transparent;
 }
 
-/* Ajustes v1.0.32 */
+/* Ajustes v1.0.33 */
 .attendance-meta-grid {
   grid-template-columns: repeat(6, minmax(120px, 1fr));
 }
