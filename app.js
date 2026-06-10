@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.34";
+const APP_VERSION = "1.0.35";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -200,6 +200,7 @@ function iniciar() {
   aplicarSidebar();
   popularLogin();
   configurarEventos();
+  iniciarSincronizacao();
   atualizarPerfil();
   atualizarAcoesTopo();
   renderizarTudo();
@@ -3542,6 +3543,8 @@ function abrirModalAvancadas() {
 function salvarAvancadas(event) {
   event.preventDefault();
   const dados = Object.fromEntries(new FormData(els.formAvancadas));
+  const urlAnterior = urlSyncAppsScript();
+  const tokenAnterior = tokenSyncAppsScript();
   state.avancadas = {
     googleScriptUrl: String(dados.googleScriptUrl || "").trim(),
     syncToken: String(dados.syncToken || "").trim(),
@@ -3549,8 +3552,22 @@ function salvarAvancadas(event) {
   };
   salvarConfigSyncLocal(state.avancadas);
   salvarEstado();
+  if (urlAnterior !== urlSyncAppsScript() || tokenAnterior !== tokenSyncAppsScript()) {
+    syncMeta.serverVersion = "";
+    syncMeta.serverHash = "";
+    syncMeta.lastServerAt = "";
+    syncMeta.lastContactAt = "";
+    syncMeta.lastError = "";
+    syncMeta.lastErrorAt = "";
+    syncMeta.conflict = false;
+    syncMeta.dirty = estadoTemConteudoSync();
+    salvarSyncMeta();
+  }
   els.modalAvancadas.close();
   renderConfiguracoes();
+  if (urlSyncAppsScript() && tokenSyncAppsScript()) {
+    setTimeout(() => sincronizarComServidor({ manual: true }), 0);
+  }
 }
 
 function vincularAberturaCliente() {
@@ -4401,6 +4418,7 @@ function salvarEstadoNormalizado(estado) {
 }
 
 function iniciarSincronizacao() {
+  if (syncPronto) return;
   syncPronto = true;
   if (localStorage.getItem(DEMO_CLEANUP_SYNC_KEY) === "1") {
     syncMeta.dirty = true;
@@ -4434,6 +4452,15 @@ function iniciarSincronizacao() {
   clearInterval(syncInterval);
   syncInterval = setInterval(() => sincronizarComServidor({ motivo: "periodico" }), SYNC_INTERVAL_MS);
   if (urlSyncAppsScript() && tokenSyncAppsScript()) setTimeout(() => sincronizarComServidor({ motivo: "inicial" }), 250);
+}
+
+function estadoTemConteudoSync() {
+  return !!(
+    state.clientes?.length
+    || state.atendimentos?.length
+    || state.processos?.length
+    || state.rascunhoAtendimento
+  );
 }
 
 function carregarSyncMeta() {
@@ -4503,6 +4530,12 @@ function atualizarStatusSync(texto = "") {
     els.syncDetails.textContent = "Há uma cópia local guardada. Use Baixar servidor ou Enviar este dispositivo.";
     return;
   }
+  if (syncMeta.lastError && !syncEmAndamento) {
+    els.syncStatus.textContent = "Falha na sincronização";
+    const quando = syncMeta.lastErrorAt ? ` em ${dataHoraCurta(syncMeta.lastErrorAt)}` : "";
+    els.syncDetails.textContent = `${syncMeta.lastError}${quando}.`;
+    return;
+  }
   if (texto) els.syncStatus.textContent = texto;
   else if (syncEmAndamento) els.syncStatus.textContent = "Sincronizando...";
   else if (syncMeta.dirty) els.syncStatus.textContent = "Pendente";
@@ -4510,7 +4543,7 @@ function atualizarStatusSync(texto = "") {
   const ultimoContato = syncMeta.lastContactAt || syncMeta.lastServerNow || "";
   const contato = ultimoContato ? `Último contato: ${dataHoraCurta(ultimoContato)}` : "Ainda sem contato confirmado";
   const alteracao = syncMeta.lastServerAt ? ` Dados atualizados: ${dataHoraCurta(syncMeta.lastServerAt)}.` : "";
-  const protocolo = syncMeta.protocol >= 2 ? " Conexão direta v2." : " Servidor em modo de compatibilidade.";
+  const protocolo = syncMeta.protocol >= 3 ? " Conexão direta v3." : " Conexão compatível; atualize o Apps Script para ativar o protocolo v3.";
   els.syncDetails.textContent = `${contato}.${alteracao}${protocolo}`;
 }
 
@@ -4536,6 +4569,7 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
     const resposta = await chamarAppsScriptSync(forcePull ? "forcePull" : "pull", {});
     atualizarRelogioServidorSync(resposta.serverNow, resposta.syncProtocol);
     if (!resposta.ok) throw new Error(resposta.error || "Falha ao consultar servidor.");
+    limparErroSync();
     const record = resposta.record || {};
     if (forcePull) {
       if (record.hasData) aplicarEstadoServidor(record);
@@ -4563,8 +4597,8 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
       atualizarStatusSync("Sincronizada");
     }
   } catch (error) {
-    atualizarStatusSync("Falha na sincronização");
-    els.syncDetails && (els.syncDetails.textContent = error.message || String(error));
+    registrarErroSync(error);
+    atualizarStatusSync();
     if (manual) alert(`Não foi possível sincronizar: ${error.message || error}`);
   } finally {
     syncEmAndamento = false;
@@ -4586,6 +4620,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
   const resposta = await chamarAppsScriptSync("push", payload);
   atualizarRelogioServidorSync(resposta.serverNow, resposta.syncProtocol);
   if (!resposta.ok) throw new Error(resposta.error || "Falha ao enviar dados.");
+  limparErroSync();
   if (resposta.status === "conflict" || resposta.conflict) {
     if (tentativa < 2 && resposta.record?.data) {
       const mesclado = mesclarEstadosSync(resposta.record.data, payload.data);
@@ -4796,6 +4831,18 @@ function atualizarRelogioServidorSync(serverNow = "", protocol = 0) {
   salvarSyncMeta();
 }
 
+function limparErroSync() {
+  syncMeta.lastError = "";
+  syncMeta.lastErrorAt = "";
+  salvarSyncMeta();
+}
+
+function registrarErroSync(error) {
+  syncMeta.lastError = String(error?.message || error || "Erro desconhecido.");
+  syncMeta.lastErrorAt = new Date().toISOString();
+  salvarSyncMeta();
+}
+
 function estadoParaSync() {
   const clone = JSON.parse(JSON.stringify({ ...state, usuarioAtivoId: null }));
   if (clone.avancadas) clone.avancadas.syncToken = "";
@@ -4813,84 +4860,54 @@ async function chamarAppsScriptSync(action, payload = {}) {
   if (!token) throw new Error("Token de sincronização não configurado.");
   const requestId = `sync-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30000);
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    const resposta = await fetch(url, {
-      method: "POST",
+    const leitura = action === "pull" || action === "forcePull" || action === "ping";
+    const opcoesBase = {
       redirect: "follow",
       cache: "no-store",
-      signal: controller.signal,
-      body: JSON.stringify({
-        action,
-        requestId,
-        token,
-        payload
-      })
-    });
-    if (!resposta.ok) throw new Error(`Servidor respondeu HTTP ${resposta.status}.`);
-    const texto = await resposta.text();
-    const dados = JSON.parse(texto);
+      signal: controller.signal
+    };
+    const interpretar = async (resposta) => {
+      if (!resposta.ok) throw new Error(`Servidor respondeu HTTP ${resposta.status}.`);
+      const texto = await resposta.text();
+      try {
+        return JSON.parse(texto);
+      } catch {
+        throw new Error("O Apps Script não devolveu JSON. Confira a implantação e o acesso do App da Web.");
+      }
+    };
+    let dados;
+    if (leitura) {
+      try {
+        const separador = url.includes("?") ? "&" : "?";
+        const endpoint = `${url}${separador}action=${encodeURIComponent(action)}&requestId=${encodeURIComponent(requestId)}&token=${encodeURIComponent(token)}&t=${Date.now()}`;
+        dados = await interpretar(await fetch(endpoint, { ...opcoesBase, method: "GET" }));
+      } catch (erroGet) {
+        if (erroGet?.name === "AbortError") throw erroGet;
+        dados = await interpretar(await fetch(url, {
+          ...opcoesBase,
+          method: "POST",
+          body: JSON.stringify({ action, requestId, token, payload })
+        }));
+      }
+    } else {
+      dados = await interpretar(await fetch(url, {
+        ...opcoesBase,
+        method: "POST",
+        body: JSON.stringify({ action, requestId, token, payload })
+      }));
+    }
     if (!dados || dados.requestId !== requestId) throw new Error("Resposta inválida do servidor.");
     return dados;
   } catch (error) {
     if (error?.name === "AbortError") throw new Error("Tempo de resposta do servidor esgotado.");
-    return chamarAppsScriptSyncLegado(action, payload);
+    throw error;
   } finally {
     clearTimeout(timeout);
   }
 }
 
-function chamarAppsScriptSyncLegado(action, payload = {}) {
-  const url = urlSyncAppsScript();
-  if (!url) return Promise.reject(new Error("URL do Apps Script não configurada."));
-  const token = tokenSyncAppsScript();
-  if (!token) return Promise.reject(new Error("Token de sincronização não configurado."));
-  const requestId = `sync-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  return new Promise((resolve, reject) => {
-    const frameName = `srSyncFrame_${requestId}`;
-    const iframe = document.createElement("iframe");
-    const form = document.createElement("form");
-    const timeout = setTimeout(() => finalizar(null, new Error("Tempo de resposta do servidor esgotado.")), 45000);
-
-    function campo(nome, valor, multiline = false) {
-      const input = document.createElement(multiline ? "textarea" : "input");
-      input.name = nome;
-      input.value = valor;
-      form.appendChild(input);
-    }
-
-    function finalizar(data, error) {
-      clearTimeout(timeout);
-      window.removeEventListener("message", receberMensagem);
-      setTimeout(() => {
-        iframe.remove();
-        form.remove();
-      }, 0);
-      if (error) reject(error);
-      else resolve(data);
-    }
-
-    function receberMensagem(event) {
-      const data = event.data || {};
-      if (!data.srAdvocaciaSync || data.requestId !== requestId) return;
-      finalizar(data, null);
-    }
-
-    iframe.name = frameName;
-    iframe.style.display = "none";
-    form.method = "POST";
-    form.action = url;
-    form.target = frameName;
-    form.style.display = "none";
-    campo("action", action);
-    campo("requestId", requestId);
-    campo("token", token);
-    campo("payload", JSON.stringify(payload), true);
-    window.addEventListener("message", receberMensagem);
-    document.body.append(iframe, form);
-    form.submit();
-  });
-}
 function obterCliente(id) {
   return state.clientes.find((cliente) => cliente.id === id);
 }
