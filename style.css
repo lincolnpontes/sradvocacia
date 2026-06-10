@@ -589,8 +589,18 @@ body.sidebar-collapsed .nav-item {
   min-width: 180px;
 }
 
-.top-schedule-button {
+.ghost-button.top-schedule-button {
   white-space: nowrap;
+  border-color: #9f7a45;
+  color: #342817;
+  background: #c9ad82;
+  box-shadow: 0 6px 16px rgba(92, 67, 20, 0.12);
+}
+
+.ghost-button.top-schedule-button:hover {
+  border-color: #856235;
+  color: #21180d;
+  background: #b99a6d;
 }
 
 .strip-actions {
@@ -2002,12 +2012,14 @@ tr:last-child td {
   cursor: pointer;
   transform-origin: center center;
   touch-action: none;
-  z-index: 2;
+  z-index: 8;
+  pointer-events: auto;
 }
 
 .attendance-editor img.editor-image.is-selected {
   outline: 0;
   cursor: move;
+  z-index: 12;
 }
 
 .attendance-editor img.image-layout-wrap {
@@ -2033,6 +2045,34 @@ tr:last-child td {
   max-width: 100%;
   margin: 10px auto;
   clear: both;
+}
+
+.image-wrap-center-frame {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--wrap-image-width, 240px) minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+  width: 100%;
+  min-height: var(--wrap-image-height, 120px);
+  margin: 8px 0;
+  clear: both;
+}
+
+.image-wrap-center-frame .image-wrap-side-text {
+  min-width: 0;
+  min-height: var(--wrap-image-height, 120px);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.image-wrap-center-frame img.image-layout-wrap {
+  grid-column: 2;
+  align-self: start;
+  float: none;
+  display: block;
+  max-width: 100%;
+  margin: 0;
+  clear: none;
 }
 
 .image-layout-popover {
@@ -3402,6 +3442,10 @@ dialog::backdrop {
   background: #fff;
 }
 
+.oab-split-input {
+  grid-template-columns: 86px minmax(0, 1fr);
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(92, 71, 34, 0.72) rgba(229, 215, 191, 0.45);
@@ -4205,6 +4249,144 @@ dd {
 
 .sync-panel small {
   color: var(--muted);
+}
+
+.advanced-danger-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid rgba(180, 35, 24, 0.28);
+  border-radius: 8px;
+  background: #fff7f5;
+}
+
+.advanced-danger-zone > div {
+  display: grid;
+  gap: 4px;
+}
+
+.advanced-danger-zone strong {
+  color: #7a1d16;
+}
+
+.advanced-danger-zone small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+#modalConfigInicialSync[open],
+#modalSenhaAvancadas[open],
+#modalLimpezaGeral[open] {
+  display: grid;
+  place-items: center;
+}
+
+.connection-setup-modal {
+  display: grid;
+  gap: 14px;
+  width: min(480px, calc(100vw - 28px));
+  margin: auto;
+  padding: 26px;
+  border-top: 4px solid var(--gold);
+}
+
+.connection-setup-modal > img {
+  width: 82px;
+  height: 82px;
+  margin: 0 auto 2px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.connection-setup-modal h2,
+.connection-setup-modal p {
+  margin: 0;
+  text-align: center;
+}
+
+.connection-setup-modal label,
+.secure-access-modal label,
+.cleanup-modal label {
+  display: grid;
+  gap: 7px;
+}
+
+.connection-setup-modal label span,
+.secure-access-modal label span,
+.cleanup-modal label span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.secure-access-modal,
+.cleanup-modal {
+  width: min(560px, calc(100vw - 28px));
+  margin: auto;
+}
+
+.form-feedback {
+  display: block;
+  padding: 9px 11px;
+  border: 1px solid rgba(180, 35, 24, 0.25);
+  border-radius: 6px;
+  color: #8f1d14;
+  background: #fff3f1;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cleanup-preserved {
+  display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border-left: 3px solid var(--gold);
+  background: #fff8e9;
+}
+
+.cleanup-preserved span {
+  color: var(--muted);
+}
+
+.cleanup-phrase {
+  display: block;
+  padding: 10px;
+  border-radius: 6px;
+  color: #4d3a1d;
+  background: #f4ead8;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.cleanup-modal textarea {
+  resize: vertical;
+}
+
+.danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 720px) {
+  .advanced-danger-zone {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .advanced-danger-zone .danger-button {
+    width: 100%;
+  }
+
+  .image-wrap-center-frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .image-wrap-center-frame img.image-layout-wrap {
+    grid-column: 1;
+    margin: 0 auto;
+  }
 }
 
 .sync-actions {

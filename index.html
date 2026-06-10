@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.35">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.35">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.35">
-  <link rel="stylesheet" href="style.css?v=1.0.35">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.36">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.36">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.36">
+  <link rel="stylesheet" href="style.css?v=1.0.36">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.35</small>
+        <small>Versão 1.0.36</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -796,7 +796,39 @@
         </label>
         <label>
           <span>OAB</span>
-          <input name="oab" placeholder="OAB/PB 00000">
+          <div class="split-input oab-split-input">
+            <select name="oabUf" aria-label="UF da OAB">
+              <option value="">UF</option>
+              <option>AC</option>
+              <option>AL</option>
+              <option>AP</option>
+              <option>AM</option>
+              <option>BA</option>
+              <option>CE</option>
+              <option>DF</option>
+              <option>ES</option>
+              <option>GO</option>
+              <option>MA</option>
+              <option>MT</option>
+              <option>MS</option>
+              <option>MG</option>
+              <option>PA</option>
+              <option>PB</option>
+              <option>PR</option>
+              <option>PE</option>
+              <option>PI</option>
+              <option>RJ</option>
+              <option>RN</option>
+              <option>RS</option>
+              <option>RO</option>
+              <option>RR</option>
+              <option>SC</option>
+              <option>SP</option>
+              <option>SE</option>
+              <option>TO</option>
+            </select>
+            <input name="oabNumero" inputmode="numeric" placeholder="Número">
+          </div>
         </label>
         <fieldset class="span-2 permission-box">
           <legend>Abas liberadas</legend>
@@ -864,6 +896,13 @@
             <button class="ghost-button" type="button" id="btnSyncPush">Enviar este dispositivo</button>
           </div>
         </div>
+        <section class="advanced-danger-zone span-2">
+          <div>
+            <strong>Limpar dados operacionais</strong>
+            <small>Exclui clientes, processos, atendimentos, agenda e honorários. Status, áreas, varas/fóruns, movimentações e usuários serão mantidos.</small>
+          </div>
+          <button class="danger-button" type="button" id="btnAbrirLimpezaGeral">Apagar todo o histórico</button>
+        </section>
       </div>
       <div class="modal-actions">
         <button class="ghost-button" id="btnForceUpdateConfig" type="button">Forçar atualização</button>
@@ -871,6 +910,74 @@
           <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
           <button class="primary-button" type="submit">Salvar avançadas</button>
         </div>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalConfigInicialSync">
+    <form method="dialog" class="modal-card connection-setup-modal" id="formConfigInicialSync">
+      <img src="logo.jpg" alt="SR Advocacia">
+      <p class="eyebrow">Primeiro acesso</p>
+      <h2>Conectar seus dispositivos</h2>
+      <p>Informe a mesma URL e o mesmo token usados no PC, celular e tablet.</p>
+      <label>
+        <span>URL do Google Apps Script</span>
+        <input name="googleScriptUrl" type="url" required placeholder="https://script.google.com/macros/s/.../exec">
+      </label>
+      <label>
+        <span>Token de sincronização</span>
+        <input name="syncToken" type="password" required autocomplete="off" spellcheck="false" placeholder="Cole o token secreto">
+      </label>
+      <small class="form-feedback is-hidden" id="configInicialSyncErro"></small>
+      <button class="primary-button full" type="submit">Conectar e continuar</button>
+    </form>
+  </dialog>
+
+  <dialog id="modalSenhaAvancadas">
+    <form method="dialog" class="modal-card prompt-modal secure-access-modal" id="formSenhaAvancadas">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Área protegida</p>
+          <h2>Acessar configurações avançadas</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <p>Digite a senha administrativa para continuar.</p>
+      <label>
+        <span>Senha</span>
+        <input name="senhaAvancada" type="password" required autocomplete="off" inputmode="numeric">
+      </label>
+      <small class="form-feedback is-hidden" id="senhaAvancadasErro"></small>
+      <div class="modal-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="primary-button" type="submit">Desbloquear</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="modalLimpezaGeral">
+    <form method="dialog" class="modal-card prompt-modal danger-modal cleanup-modal" id="formLimpezaGeral">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Exclusão definitiva</p>
+          <h2>Apagar todo o histórico?</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <p>Esta ação excluirá clientes, processos, atendimentos, agenda e honorários em todos os dispositivos sincronizados.</p>
+      <div class="cleanup-preserved">
+        <strong>Serão preservados</strong>
+        <span>Status, áreas, varas/fóruns, movimentações e usuários.</span>
+      </div>
+      <label>
+        <span>Para confirmar, escreva exatamente:</span>
+        <strong class="cleanup-phrase">quero excluir tudo e entendo as implicações referentes a esse pedido</strong>
+        <textarea name="confirmacaoLimpeza" rows="3" required autocomplete="off" spellcheck="false"></textarea>
+      </label>
+      <small class="form-feedback is-hidden" id="limpezaGeralErro"></small>
+      <div class="modal-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="danger-button" id="btnConfirmarLimpezaGeral" type="submit" disabled>Excluir definitivamente</button>
       </div>
     </form>
   </dialog>
@@ -1090,6 +1197,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.35"></script>
+  <script src="app.js?v=1.0.36"></script>
 </body>
 </html>

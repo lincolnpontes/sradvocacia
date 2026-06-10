@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.35";
+const APP_VERSION = "1.0.36";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -15,6 +15,8 @@ const SYNC_CONFIG_KEY = "sr-advocacia-sync-config-v1";
 const DEMO_CLEANUP_SYNC_KEY = "sr-advocacia-demo-cleanup-v128";
 const SYNC_DEBOUNCE_MS = 350;
 const SYNC_INTERVAL_MS = 3000;
+const CLEANUP_CONFIRMATION_PHRASE = "quero excluir tudo e entendo as implicações referentes a esse pedido";
+const ADVANCED_ACCESS_DURATION_MS = 10 * 60 * 1000;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
   { mes: 4, dia: 21, nome: "Tiradentes" },
@@ -65,6 +67,7 @@ let syncAplicandoRemoto = false;
 let syncTimer = null;
 let syncInterval = null;
 let paginacaoTimer = null;
+let acessoAvancadoAte = 0;
 
 const els = {
   app: document.querySelector("#appShell"),
@@ -99,6 +102,17 @@ const els = {
   modalUsuario: document.querySelector("#modalUsuario"),
   modalConfig: document.querySelector("#modalConfig"),
   modalAvancadas: document.querySelector("#modalAvancadas"),
+  modalConfigInicialSync: document.querySelector("#modalConfigInicialSync"),
+  formConfigInicialSync: document.querySelector("#formConfigInicialSync"),
+  configInicialSyncErro: document.querySelector("#configInicialSyncErro"),
+  modalSenhaAvancadas: document.querySelector("#modalSenhaAvancadas"),
+  formSenhaAvancadas: document.querySelector("#formSenhaAvancadas"),
+  senhaAvancadasErro: document.querySelector("#senhaAvancadasErro"),
+  modalLimpezaGeral: document.querySelector("#modalLimpezaGeral"),
+  formLimpezaGeral: document.querySelector("#formLimpezaGeral"),
+  limpezaGeralErro: document.querySelector("#limpezaGeralErro"),
+  btnConfirmarLimpezaGeral: document.querySelector("#btnConfirmarLimpezaGeral"),
+  btnAbrirLimpezaGeral: document.querySelector("#btnAbrirLimpezaGeral"),
   modalRecebimento: document.querySelector("#modalRecebimento"),
   modalContrato: document.querySelector("#modalContrato"),
   modalTema: document.querySelector("#modalTema"),
@@ -204,6 +218,7 @@ function iniciar() {
   atualizarPerfil();
   atualizarAcoesTopo();
   renderizarTudo();
+  setTimeout(garantirConfiguracaoInicialSync, 0);
 
   if (state.usuarioAtivoId) mostrarApp();
   else mostrarLogin();
@@ -283,6 +298,12 @@ function configurarEventos() {
   els.formUsuario.addEventListener("submit", salvarUsuario);
   els.formConfigItem.addEventListener("submit", adicionarItemConfig);
   els.formAvancadas.addEventListener("submit", salvarAvancadas);
+  els.formConfigInicialSync.addEventListener("submit", salvarConfiguracaoInicialSync);
+  els.modalConfigInicialSync.addEventListener("cancel", bloquearFechamentoConfiguracaoInicial);
+  els.formSenhaAvancadas.addEventListener("submit", validarSenhaAvancadas);
+  els.formLimpezaGeral.addEventListener("input", validarFraseLimpezaGeral);
+  els.formLimpezaGeral.addEventListener("submit", confirmarLimpezaGeral);
+  els.btnAbrirLimpezaGeral.addEventListener("click", abrirConfirmacaoLimpezaGeral);
   els.btnSyncNow?.addEventListener("click", () => sincronizarComServidor({ manual: true }));
   els.btnSyncPull?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePull: true }));
   els.btnSyncPush?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePush: true }));
@@ -339,7 +360,7 @@ function configurarEventos() {
   document.querySelector("#btnNovoUsuario").addEventListener("click", () => abrirModalUsuario());
   document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
   document.querySelector("#btnForceUpdateConfig").addEventListener("click", forcarAtualizacao);
-  document.querySelector("#btnAbrirAvancadas").addEventListener("click", abrirModalAvancadas);
+  document.querySelector("#btnAbrirAvancadas").addEventListener("click", solicitarAcessoAvancado);
   els.btnExpandirAtendimento.addEventListener("click", alternarFocoAtendimento);
   document.querySelector("#btnToggleArquivados").addEventListener("click", alternarArquivadosAtendimento);
   document.querySelector("#btnAtendimentoProcesso").addEventListener("click", transformarAtendimentoEmProcesso);
@@ -458,6 +479,7 @@ function abrirModalProcesso() {
 function abrirModalUsuario(id = "") {
   els.formUsuario.reset();
   const usuario = id ? obterUsuario(id) : null;
+  const oab = separarOabUsuario(usuario);
   document.querySelector("#tituloModalUsuario").textContent = usuario ? "Editar usuário" : "Novo usuário";
   document.querySelector("#btnExcluirUsuario").classList.toggle("is-hidden", !usuario || state.usuarios.length <= 1);
   els.formUsuario.elements.id.value = usuario?.id || "";
@@ -466,9 +488,26 @@ function abrirModalUsuario(id = "") {
   els.formUsuario.senha.value = usuario?.senha || "";
   els.formUsuario.cargo.value = usuario?.cargo || "";
   els.formUsuario.telefone.value = formatarTelefone(usuario?.telefone || "");
-  els.formUsuario.oab.value = usuario?.oab || "";
+  els.formUsuario.oabUf.value = oab.uf;
+  els.formUsuario.oabNumero.value = oab.numero;
   renderPermissoesUsuario(usuario?.permissoes || permissoesPadrao());
   els.modalUsuario.showModal();
+}
+
+function separarOabUsuario(usuario = {}) {
+  const ufSalva = String(usuario?.oabUf || "").trim().toUpperCase();
+  const numeroSalvo = String(usuario?.oabNumero || "").replace(/\D/g, "");
+  if (ufSalva || numeroSalvo) return { uf: ufSalva, numero: numeroSalvo };
+  const legado = String(usuario?.oab || "").trim().toUpperCase();
+  const uf = legado.match(/\b(AC|AL|AP|AM|BA|CE|DF|ES|GO|MA|MT|MS|MG|PA|PB|PR|PE|PI|RJ|RN|RS|RO|RR|SC|SP|SE|TO)\b/)?.[1] || "";
+  return { uf, numero: legado.replace(/\D/g, "") };
+}
+
+function formatarOabUsuario(uf = "", numero = "") {
+  const ufNormalizada = String(uf || "").trim().toUpperCase();
+  const numeroNormalizado = String(numero || "").replace(/\D/g, "");
+  if (!ufNormalizada && !numeroNormalizado) return "";
+  return `OAB/${ufNormalizada || "--"} ${numeroNormalizado}`.trim();
 }
 
 function agoraSyncIso() {
@@ -583,13 +622,17 @@ function salvarUsuario(event) {
 
   const atual = dados.id ? obterUsuario(dados.id) : null;
   const usuario = atual || { id: uid(), criadoEm: agoraSyncIso() };
+  const oabUf = String(dados.oabUf || "").trim().toUpperCase();
+  const oabNumero = String(dados.oabNumero || "").replace(/\D/g, "");
   Object.assign(usuario, {
     nome: dados.nome.trim(),
     email: dados.email.trim(),
     senha: dados.senha,
     cargo: dados.cargo.trim(),
     telefone: formatarTelefone(dados.telefone),
-    oab: dados.oab.trim(),
+    oabUf,
+    oabNumero,
+    oab: formatarOabUsuario(oabUf, oabNumero),
     permissoes,
     atualizadoEm: agoraSyncIso()
   });
@@ -2241,7 +2284,7 @@ function inserirImagemAtendimento(src) {
 }
 
 function selecionarImagemAtendimento(event) {
-  const img = event.target.closest("img");
+  const img = imagemNoPontoAtendimento(event);
   if (!img || !els.atendimentoEditor.contains(img)) return;
   img.classList.add("editor-image");
   img.draggable = false;
@@ -2251,6 +2294,19 @@ function selecionarImagemAtendimento(event) {
   if (!img.dataset.offsetY) img.dataset.offsetY = "0";
   aplicarTransformImagemAtendimento(img);
   abrirOpcoesImagemAtendimento(img);
+}
+
+function imagemNoPontoAtendimento(event) {
+  const alvoDireto = event.target?.closest?.("img.editor-image");
+  if (alvoDireto && els.atendimentoEditor.contains(alvoDireto)) return alvoDireto;
+  const x = Number(event.clientX);
+  const y = Number(event.clientY);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const imagens = [...els.atendimentoEditor.querySelectorAll("img.editor-image")].reverse();
+  return imagens.find((img) => {
+    const rect = img.getBoundingClientRect();
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+  }) || null;
 }
 
 function abrirOpcoesImagemAtendimento(img) {
@@ -2288,16 +2344,22 @@ function aplicarLayoutImagemAtendimento(event) {
   const botao = event.target.closest("[data-image-layout]");
   if (!botao || !imagemAtivaAtendimento) return;
   const layout = botao.dataset.imageLayout;
+  const rectAnterior = imagemAtivaAtendimento.getBoundingClientRect();
+  if (layout !== "wrap") desmontarWrapCentral(imagemAtivaAtendimento);
   imagemAtivaAtendimento.classList.remove("image-layout-inline", "image-layout-left", "image-layout-tight-left", "image-layout-right", "image-layout-bottom-left", "image-layout-center", "image-layout-full", "image-layout-wrap", "image-layout-block");
   imagemAtivaAtendimento.classList.add(`image-layout-${layout}`);
   imagemAtivaAtendimento.dataset.imageLayout = layout;
   if (layout === "wrap") {
-    ancorarImagemNoFluxo(imagemAtivaAtendimento);
     imagemAtivaAtendimento.dataset.offsetX = "0";
     imagemAtivaAtendimento.dataset.offsetY = "0";
-    imagemAtivaAtendimento.dataset.wrapSide ||= "left";
+    moverImagemComTextoAoRedor(
+      imagemAtivaAtendimento,
+      rectAnterior.left + rectAnterior.width / 2,
+      rectAnterior.top + rectAnterior.height / 2
+    );
   } else {
     delete imagemAtivaAtendimento.dataset.wrapSide;
+    ancorarImagemNoFluxo(imagemAtivaAtendimento);
   }
   aplicarTransformImagemAtendimento(imagemAtivaAtendimento);
   atualizarOpcoesLayoutImagem(layout);
@@ -2425,9 +2487,10 @@ function iniciarAjusteImagemAtendimento(event) {
 }
 
 function iniciarArrasteImagemDireto(event) {
-  const img = event.target.closest("img.editor-image");
+  const img = imagemNoPontoAtendimento(event);
   if (!img || !els.atendimentoEditor.contains(img)) return;
   if (event.button !== 0) return;
+  event.preventDefault();
   abrirOpcoesImagemAtendimento(img);
   const inicioX = event.clientX;
   const inicioY = event.clientY;
@@ -2546,7 +2609,26 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   img.dataset.offsetX = "0";
   img.dataset.offsetY = "0";
   const editorRect = els.atendimentoEditor.getBoundingClientRect();
-  img.dataset.wrapSide = clientX >= editorRect.left + editorRect.width / 2 ? "right" : "left";
+  const estiloEditor = getComputedStyle(els.atendimentoEditor);
+  const zoom = atendimentoZoom / 100;
+  const limiteEsquerdo = editorRect.left + (Number.parseFloat(estiloEditor.paddingLeft) || 0) * zoom;
+  const limiteDireito = editorRect.right - (Number.parseFloat(estiloEditor.paddingRight) || 0) * zoom;
+  const larguraUtil = Math.max(1, limiteDireito - limiteEsquerdo);
+  const posicaoRelativa = (clientX - limiteEsquerdo) / larguraUtil;
+  const central = posicaoRelativa > 0.3 && posicaoRelativa < 0.7;
+  if (central) {
+    if (img.dataset.wrapSide === "center" && img.closest(".image-wrap-center-frame")) {
+      moverFrameWrapCentral(img, clientY);
+    } else if (!montarWrapCentral(img, clientY)) {
+      img.dataset.wrapSide = posicaoRelativa >= 0.5 ? "right" : "left";
+      ancorarImagemNoFluxo(img);
+    }
+    aplicarTransformImagemAtendimento(img);
+    agendarPaginacaoAtendimento();
+    return;
+  }
+  if (img.dataset.wrapSide === "center") desmontarWrapCentral(img);
+  img.dataset.wrapSide = posicaoRelativa >= 0.5 ? "right" : "left";
   aplicarTransformImagemAtendimento(img);
   const range = rangeEditorNoPonto(clientX, clientY);
   if (range && pontoValidoParaImagem(range, img)) {
@@ -2570,6 +2652,133 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   agendarPaginacaoAtendimento();
 }
 
+function montarWrapCentral(img, clientY) {
+  if (!img || !els.atendimentoEditor.contains(img)) return false;
+  const editorRect = els.atendimentoEditor.getBoundingClientRect();
+  const estiloEditor = getComputedStyle(els.atendimentoEditor);
+  const zoom = atendimentoZoom / 100;
+  const larguraUtil = editorRect.width
+    - ((Number.parseFloat(estiloEditor.paddingLeft) || 0) + (Number.parseFloat(estiloEditor.paddingRight) || 0)) * zoom;
+  const rectImagem = img.getBoundingClientRect();
+  const larguraImagem = Math.min(rectImagem.width, larguraUtil * 0.62);
+  const larguraLateral = (larguraUtil - larguraImagem - 28) / 2;
+  if (larguraLateral < 72) return false;
+
+  const alvoOriginal = blocoMaisProximoDoPonto(clientY, img);
+  const alvo = garantirBlocoElementoWrap(alvoOriginal);
+  const frame = document.createElement("div");
+  frame.className = "image-wrap-center-frame";
+  frame.dataset.imageWrapFrame = "center";
+  frame.style.setProperty("--wrap-image-width", `${larguraImagem}px`);
+  frame.style.setProperty("--wrap-image-height", `${rectImagem.height}px`);
+
+  const esquerda = document.createElement("div");
+  esquerda.className = "image-wrap-side-text image-wrap-side-left";
+  const direita = document.createElement("div");
+  direita.className = "image-wrap-side-text image-wrap-side-right";
+
+  if (alvo) {
+    const fonte = Number.parseFloat(getComputedStyle(alvo).fontSize) || 16;
+    const alturaLinha = Number.parseFloat(getComputedStyle(alvo).lineHeight) || fonte * 1.5;
+    const linhas = Math.max(2, Math.floor(rectImagem.height / alturaLinha));
+    const caracteresLinha = Math.max(8, Math.floor(larguraLateral / (fonte * 0.52)));
+    const limiteAoRedor = Math.max(24, linhas * caracteresLinha * 2);
+    const fragmentoAoRedor = extrairInicioBlocoWrap(alvo, limiteAoRedor);
+    const recipiente = document.createElement("div");
+    recipiente.append(fragmentoAoRedor);
+    const total = recipiente.textContent?.length || 0;
+    esquerda.append(extrairInicioBlocoWrap(recipiente, Math.ceil(total / 2)));
+    while (recipiente.firstChild) direita.append(recipiente.firstChild);
+  }
+
+  img.dataset.wrapSide = "center";
+  img.dataset.offsetX = "0";
+  img.dataset.offsetY = "0";
+  img.style.width = `${larguraImagem}px`;
+  img.style.float = "none";
+  img.style.margin = "0";
+  frame.append(esquerda, img, direita);
+
+  if (alvo) {
+    alvo.before(frame);
+    if (!alvo.textContent?.trim() && !alvo.querySelector("img,table")) alvo.remove();
+  } else {
+    els.atendimentoEditor.appendChild(frame);
+  }
+  return true;
+}
+
+function garantirBlocoElementoWrap(node) {
+  if (!node || node === imagemAtivaAtendimento) return null;
+  if (node.nodeType === Node.TEXT_NODE) {
+    const bloco = document.createElement("div");
+    node.before(bloco);
+    bloco.append(node);
+    return bloco;
+  }
+  if (node.nodeType !== Node.ELEMENT_NODE || node.classList.contains("image-wrap-center-frame")) return null;
+  return node;
+}
+
+function extrairInicioBlocoWrap(bloco, limite) {
+  const fragmentoVazio = document.createDocumentFragment();
+  if (!bloco || limite <= 0) return fragmentoVazio;
+  const textos = [];
+  const walker = document.createTreeWalker(bloco, NodeFilter.SHOW_TEXT);
+  let atual;
+  while ((atual = walker.nextNode())) textos.push(atual);
+  if (!textos.length) {
+    while (bloco.firstChild) fragmentoVazio.append(bloco.firstChild);
+    return fragmentoVazio;
+  }
+  let restante = limite;
+  let finalNode = textos[textos.length - 1];
+  let finalOffset = finalNode.textContent?.length || 0;
+  for (const texto of textos) {
+    const tamanho = texto.textContent?.length || 0;
+    if (restante <= tamanho) {
+      finalNode = texto;
+      finalOffset = Math.max(0, restante);
+      break;
+    }
+    restante -= tamanho;
+  }
+  const range = document.createRange();
+  range.setStart(bloco, 0);
+  range.setEnd(finalNode, finalOffset);
+  return range.extractContents();
+}
+
+function desmontarWrapCentral(img) {
+  const frame = img?.closest?.(".image-wrap-center-frame");
+  if (!frame) return;
+  const bloco = document.createElement("div");
+  frame.querySelectorAll(".image-wrap-side-text").forEach((lado) => {
+    while (lado.firstChild) bloco.append(lado.firstChild);
+  });
+  frame.replaceWith(img, bloco);
+  img.style.float = "";
+  img.style.margin = "";
+  if (!bloco.textContent?.trim() && !bloco.querySelector("img,table")) bloco.remove();
+}
+
+function moverFrameWrapCentral(img, clientY) {
+  const frame = img.closest(".image-wrap-center-frame");
+  if (!frame) return;
+  const alvo = blocoMaisProximoDoPonto(clientY, img);
+  if (!alvo || alvo === frame || frame.contains(alvo)) return;
+  const rect = alvo.nodeType === Node.TEXT_NODE
+    ? (() => {
+        const range = document.createRange();
+        range.selectNodeContents(alvo);
+        return range.getBoundingClientRect();
+      })()
+    : alvo.getBoundingClientRect?.();
+  if (!rect) return;
+  if (clientY > rect.top + rect.height / 2) alvo.after(frame);
+  else alvo.before(frame);
+}
+
 function pontoValidoParaImagem(range, img) {
   const container = range?.startContainer;
   if (!container || !els.atendimentoEditor.contains(container)) return false;
@@ -2582,7 +2791,9 @@ function blocoMaisProximoDoPonto(clientY, imagemIgnorada) {
   const candidatos = [...els.atendimentoEditor.childNodes].filter((node) => {
     if (node === imagemIgnorada) return false;
     if (node.nodeType === Node.TEXT_NODE) return node.textContent?.trim();
-    return node.nodeType === Node.ELEMENT_NODE && !node.classList.contains("editor-page-break");
+    return node.nodeType === Node.ELEMENT_NODE
+      && !node.classList.contains("editor-page-break")
+      && !node.classList.contains("image-wrap-center-frame");
   });
   let melhor = null;
   let distancia = Infinity;
@@ -3533,7 +3744,81 @@ function desfazerUltimoRecebimento() {
   if (processoAbertoId === processo.id) abrirDetalheProcesso(processo.id);
 }
 
+function garantirConfiguracaoInicialSync() {
+  if (urlSyncAppsScript() && tokenSyncAppsScript()) return;
+  els.formConfigInicialSync.reset();
+  ocultarFeedback(els.configInicialSyncErro);
+  if (!els.modalConfigInicialSync.open) els.modalConfigInicialSync.showModal();
+}
+
+function bloquearFechamentoConfiguracaoInicial(event) {
+  if (urlSyncAppsScript() && tokenSyncAppsScript()) return;
+  event.preventDefault();
+}
+
+async function salvarConfiguracaoInicialSync(event) {
+  event.preventDefault();
+  const dados = Object.fromEntries(new FormData(els.formConfigInicialSync));
+  const url = String(dados.googleScriptUrl || "").trim();
+  const token = String(dados.syncToken || "").trim();
+  if (!url || !token) return;
+  ocultarFeedback(els.configInicialSyncErro);
+  aplicarConfiguracaoSync(url, token, state.avancadas?.observacoesTecnicas || "");
+  els.modalConfigInicialSync.close();
+  await sincronizarComServidor({ manual: true });
+  if (syncMeta.lastError) {
+    mostrarFeedback(els.configInicialSyncErro, syncMeta.lastError);
+    if (!els.modalConfigInicialSync.open) els.modalConfigInicialSync.showModal();
+  }
+}
+
+function solicitarAcessoAvancado() {
+  if (!urlSyncAppsScript() || !tokenSyncAppsScript()) {
+    garantirConfiguracaoInicialSync();
+    return;
+  }
+  if (Date.now() < acessoAvancadoAte) {
+    abrirModalAvancadas();
+    return;
+  }
+  els.formSenhaAvancadas.reset();
+  ocultarFeedback(els.senhaAvancadasErro);
+  els.modalSenhaAvancadas.showModal();
+  setTimeout(() => els.formSenhaAvancadas.senhaAvancada.focus(), 0);
+}
+
+async function validarSenhaAvancadas(event) {
+  event.preventDefault();
+  const senha = String(new FormData(els.formSenhaAvancadas).get("senhaAvancada") || "");
+  const botao = els.formSenhaAvancadas.querySelector("[type='submit']");
+  botao.disabled = true;
+  ocultarFeedback(els.senhaAvancadasErro);
+  try {
+    const resposta = await chamarAppsScriptSync("verifyAdvancedPassword", {
+      password: senha,
+      deviceId: idDispositivoSync()
+    });
+    if (!resposta.ok) throw new Error(resposta.error || "Não foi possível validar a senha.");
+    if (!resposta.authorized) {
+      mostrarFeedback(els.senhaAvancadasErro, resposta.blocked ? "Muitas tentativas. Aguarde cinco minutos." : "Senha incorreta.");
+      els.formSenhaAvancadas.senhaAvancada.select();
+      return;
+    }
+    acessoAvancadoAte = Date.now() + ADVANCED_ACCESS_DURATION_MS;
+    els.modalSenhaAvancadas.close();
+    abrirModalAvancadas();
+  } catch (error) {
+    mostrarFeedback(els.senhaAvancadasErro, `${error.message || error} Atualize a implantação do Apps Script para a versão atual.`);
+  } finally {
+    botao.disabled = false;
+  }
+}
+
 function abrirModalAvancadas() {
+  if (Date.now() >= acessoAvancadoAte) {
+    solicitarAcessoAvancado();
+    return;
+  }
   els.formAvancadas.googleScriptUrl.value = state.avancadas?.googleScriptUrl || "";
   els.formAvancadas.syncToken.value = state.avancadas?.syncToken || "";
   els.formAvancadas.observacoesTecnicas.value = state.avancadas?.observacoesTecnicas || "";
@@ -3545,13 +3830,11 @@ function salvarAvancadas(event) {
   const dados = Object.fromEntries(new FormData(els.formAvancadas));
   const urlAnterior = urlSyncAppsScript();
   const tokenAnterior = tokenSyncAppsScript();
-  state.avancadas = {
-    googleScriptUrl: String(dados.googleScriptUrl || "").trim(),
-    syncToken: String(dados.syncToken || "").trim(),
-    observacoesTecnicas: String(dados.observacoesTecnicas || "").trim()
-  };
-  salvarConfigSyncLocal(state.avancadas);
-  salvarEstado();
+  aplicarConfiguracaoSync(
+    String(dados.googleScriptUrl || "").trim(),
+    String(dados.syncToken || "").trim(),
+    String(dados.observacoesTecnicas || "").trim()
+  );
   if (urlAnterior !== urlSyncAppsScript() || tokenAnterior !== tokenSyncAppsScript()) {
     syncMeta.serverVersion = "";
     syncMeta.serverHash = "";
@@ -3568,6 +3851,69 @@ function salvarAvancadas(event) {
   if (urlSyncAppsScript() && tokenSyncAppsScript()) {
     setTimeout(() => sincronizarComServidor({ manual: true }), 0);
   }
+}
+
+function aplicarConfiguracaoSync(googleScriptUrl, syncToken, observacoesTecnicas = "") {
+  state.avancadas = {
+    googleScriptUrl: String(googleScriptUrl || "").trim(),
+    syncToken: String(syncToken || "").trim(),
+    observacoesTecnicas: String(observacoesTecnicas || "").trim()
+  };
+  salvarConfigSyncLocal(state.avancadas);
+  salvarEstado();
+}
+
+function abrirConfirmacaoLimpezaGeral() {
+  els.formLimpezaGeral.reset();
+  els.btnConfirmarLimpezaGeral.disabled = true;
+  ocultarFeedback(els.limpezaGeralErro);
+  els.modalLimpezaGeral.showModal();
+}
+
+function validarFraseLimpezaGeral() {
+  const valor = String(els.formLimpezaGeral.confirmacaoLimpeza.value || "").trim();
+  els.btnConfirmarLimpezaGeral.disabled = valor !== CLEANUP_CONFIRMATION_PHRASE;
+  ocultarFeedback(els.limpezaGeralErro);
+}
+
+async function confirmarLimpezaGeral(event) {
+  event.preventDefault();
+  const valor = String(els.formLimpezaGeral.confirmacaoLimpeza.value || "").trim();
+  if (valor !== CLEANUP_CONFIRMATION_PHRASE) {
+    mostrarFeedback(els.limpezaGeralErro, "A frase não corresponde exatamente ao texto solicitado.");
+    return;
+  }
+  els.btnConfirmarLimpezaGeral.disabled = true;
+  const limpezaEm = agoraSyncIso();
+  state.clientes = [];
+  state.processos = [];
+  state.atendimentos = [];
+  state.rascunhoAtendimento = null;
+  state.exclusoesAtendimentos = [];
+  state.atendimentoMostrarArquivados = false;
+  state.limpezaGeralEm = limpezaEm;
+  state.atualizadoEm = limpezaEm;
+  atendimentoAbertoId = "";
+  atendimentoAlterado = false;
+  documentosAtendimento = [];
+  localStorage.removeItem(SYNC_CONFLICT_KEY);
+  salvarEstado();
+  els.modalLimpezaGeral.close();
+  els.modalAvancadas.close();
+  renderizarTudo();
+  await sincronizarComServidor({ manual: true, forcePush: true });
+}
+
+function mostrarFeedback(elemento, mensagem) {
+  if (!elemento) return;
+  elemento.textContent = mensagem;
+  elemento.classList.remove("is-hidden");
+}
+
+function ocultarFeedback(elemento) {
+  if (!elemento) return;
+  elemento.textContent = "";
+  elemento.classList.add("is-hidden");
 }
 
 function vincularAberturaCliente() {
@@ -3935,6 +4281,7 @@ function normalizarEstado(raw) {
   const padrao = criarEstadoPadrao();
   const estado = { ...padrao, ...raw };
   estado.atualizadoEm = raw.atualizadoEm || padrao.atualizadoEm;
+  estado.limpezaGeralEm = raw.limpezaGeralEm || "";
   estado.configsAtualizadoEm = raw.configsAtualizadoEm || "";
   estado.feriadosAtualizadoEm = raw.feriadosAtualizadoEm || "";
   const orgaosSalvos = raw.configs?.orgaos || [...(raw.configs?.varas || []), ...(raw.configs?.foruns || [])];
@@ -3973,18 +4320,23 @@ function normalizarEstado(raw) {
     dataFim: feriado.dataFim || feriado.dataInicio || feriado.data || hojeIso(),
     atualizadoEm: feriado.atualizadoEm || ""
   })) : [];
-  estado.usuarios = (estado.usuarios || padrao.usuarios).map((usuario, index) => ({
-    id: usuario.id || uid(),
-    criadoEm: usuario.criadoEm || "",
-    atualizadoEm: usuario.atualizadoEm || usuario.criadoEm || "",
-    nome: usuario.nome || `Usuário ${index + 1}`,
-    email: usuario.email || "",
-    senha: usuario.senha || "1234",
-    cargo: usuario.cargo || "",
-    telefone: formatarTelefone(migrarTextoParaPb(usuario.telefone || "")),
-    oab: migrarTextoParaPb(usuario.oab || ""),
-    permissoes: usuario.permissoes?.length ? usuario.permissoes : permissoesPadrao()
-  }));
+  estado.usuarios = (estado.usuarios || padrao.usuarios).map((usuario, index) => {
+    const oab = separarOabUsuario(usuario);
+    return {
+      id: usuario.id || uid(),
+      criadoEm: usuario.criadoEm || "",
+      atualizadoEm: usuario.atualizadoEm || usuario.criadoEm || "",
+      nome: usuario.nome || `Usuário ${index + 1}`,
+      email: usuario.email || "",
+      senha: usuario.senha || "1234",
+      cargo: usuario.cargo || "",
+      telefone: formatarTelefone(migrarTextoParaPb(usuario.telefone || "")),
+      oabUf: oab.uf,
+      oabNumero: oab.numero,
+      oab: formatarOabUsuario(oab.uf, oab.numero),
+      permissoes: usuario.permissoes?.length ? usuario.permissoes : permissoesPadrao()
+    };
+  });
   estado.clientes = (estado.clientes || []).map((cliente) => ({
     id: cliente.id || uid(),
     criadoEm: cliente.criadoEm || hojeIso(),
@@ -4019,6 +4371,7 @@ function normalizarEstado(raw) {
   }
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
   aplicarExclusoesAtendimentos(estado);
+  aplicarLimpezaGeralSync(estado);
   if (removerDadosDemonstrativos(estado) && typeof localStorage !== "undefined") {
     localStorage.setItem(DEMO_CLEANUP_SYNC_KEY, "1");
   }
@@ -4089,6 +4442,19 @@ function aplicarExclusoesAtendimentos(estado) {
   if (estado.rascunhoAtendimento && (ids.has(estado.rascunhoAtendimento.id) || numeros.has(estado.rascunhoAtendimento.numero))) {
     estado.rascunhoAtendimento = null;
   }
+}
+
+function aplicarLimpezaGeralSync(estado) {
+  const limite = timestampIsoSync(estado?.limpezaGeralEm || "");
+  if (!limite || !estado) return estado;
+  estado.clientes = (estado.clientes || []).filter((item) => timestampGenericoSync(item) > limite);
+  estado.atendimentos = (estado.atendimentos || []).filter((item) => timestampAtendimento(item) > limite);
+  estado.processos = (estado.processos || []).filter((item) => timestampProcessoSync(item) > limite);
+  estado.exclusoesAtendimentos = (estado.exclusoesAtendimentos || []).filter((item) => timestampGenericoSync(item) > limite);
+  if (estado.rascunhoAtendimento && timestampAtendimento(estado.rascunhoAtendimento) <= limite) {
+    estado.rascunhoAtendimento = null;
+  }
+  return estado;
 }
 
 function aplicarConfigSyncLocal(estado) {
@@ -4253,6 +4619,8 @@ function usuarioAdministradorPadrao() {
     senha: "1234",
     cargo: "Administrador",
     telefone: "",
+    oabUf: "",
+    oabNumero: "",
     oab: "",
     permissoes: permissoesPadrao()
   };
@@ -4349,6 +4717,7 @@ function criarEstadoPadrao() {
   const agora = new Date().toISOString();
   return {
     atualizadoEm: agora,
+    limpezaGeralEm: "",
     configsAtualizadoEm: agora,
     feriadosAtualizadoEm: agora,
     usuarioAtivoId: null,
@@ -4543,7 +4912,7 @@ function atualizarStatusSync(texto = "") {
   const ultimoContato = syncMeta.lastContactAt || syncMeta.lastServerNow || "";
   const contato = ultimoContato ? `Último contato: ${dataHoraCurta(ultimoContato)}` : "Ainda sem contato confirmado";
   const alteracao = syncMeta.lastServerAt ? ` Dados atualizados: ${dataHoraCurta(syncMeta.lastServerAt)}.` : "";
-  const protocolo = syncMeta.protocol >= 3 ? " Conexão direta v3." : " Conexão compatível; atualize o Apps Script para ativar o protocolo v3.";
+  const protocolo = syncMeta.protocol >= 4 ? " Conexão direta v4." : " Conexão compatível; atualize o Apps Script para ativar segurança e limpeza sincronizada.";
   els.syncDetails.textContent = `${contato}.${alteracao}${protocolo}`;
 }
 
@@ -4690,6 +5059,15 @@ function aplicarDadosSync(dados) {
 function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
   const remoto = cloneSync(remotoRaw);
   const local = cloneSync(localRaw);
+  const limpezaGeralEm = timestampIsoSync(remoto.limpezaGeralEm) >= timestampIsoSync(local.limpezaGeralEm)
+    ? (remoto.limpezaGeralEm || local.limpezaGeralEm || "")
+    : (local.limpezaGeralEm || remoto.limpezaGeralEm || "");
+  if (limpezaGeralEm) {
+    remoto.limpezaGeralEm = limpezaGeralEm;
+    local.limpezaGeralEm = limpezaGeralEm;
+    aplicarLimpezaGeralSync(remoto);
+    aplicarLimpezaGeralSync(local);
+  }
   const remotoMaisNovo = timestampGenericoSync(remoto) > timestampGenericoSync(local);
   const preferido = remotoMaisNovo ? remoto : local;
   const secundario = remotoMaisNovo ? local : remoto;
@@ -4718,8 +5096,10 @@ function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
     mesclado.feriadosExtras = Array.isArray(feriadosExtras) ? cloneSync(feriadosExtras) : [];
   }
   mesclado.feriadosAtualizadoEm = feriadosRemotosMaisNovos ? remoto.feriadosAtualizadoEm : (local.feriadosAtualizadoEm || remoto.feriadosAtualizadoEm || "");
+  mesclado.limpezaGeralEm = limpezaGeralEm;
   mesclado.atualizadoEm = remotoMaisNovo ? remoto.atualizadoEm : (local.atualizadoEm || remoto.atualizadoEm || "");
   aplicarExclusoesAtendimentos(mesclado);
+  aplicarLimpezaGeralSync(mesclado);
   deduplicarAtendimentos(mesclado);
   return mesclado;
 }
