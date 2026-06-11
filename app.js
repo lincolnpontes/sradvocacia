@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.36";
+const APP_VERSION = "1.0.37";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -2528,8 +2528,12 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
   const centroX = rect.left + rect.width / 2;
   const centroY = rect.top + rect.height / 2;
   const proporcao = alturaInicial / larguraInicial || 1;
+  let ultimoClientX = event.clientX;
+  let ultimoClientY = event.clientY;
 
   const mover = (moveEvent) => {
+    ultimoClientX = moveEvent.clientX;
+    ultimoClientY = moveEvent.clientY;
     if (acao.rotacionar) {
       const angulo = Math.atan2(moveEvent.clientY - centroY, moveEvent.clientX - centroX) * 180 / Math.PI + 90;
       const rotacao = Math.round(angulo / 5) * 5;
@@ -2542,7 +2546,7 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
     const deltaYOriginal = moveEvent.clientY - inicioY;
     if (acao.moverImagem) {
       if (img.dataset.imageLayout === "wrap") {
-        moverImagemComTextoAoRedor(img, moveEvent.clientX, moveEvent.clientY);
+        previsualizarMovimentoImagemWrap(img, moveEvent.clientX, moveEvent.clientY, inicioY);
         posicionarOverlayImagem(img);
         return;
       }
@@ -2589,6 +2593,12 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
     document.removeEventListener("pointerup", soltar);
     els.atendimentoEditor.classList.remove("is-image-moving");
     if (img.classList.contains("is-cropping") && acao.handle) finalizarCorteImagem(img, larguraInicial, alturaInicial);
+    if (acao.moverImagem && img.dataset.imageLayout === "wrap") {
+      finalizarMovimentoImagemWrap(img, ultimoClientX, ultimoClientY);
+      posicionarOverlayImagem(img);
+    } else if (acao.handle && img.dataset.imageLayout === "wrap") {
+      atualizarWrapAposRedimensionar(img);
+    }
     marcarAtendimentoAlterado();
     guardarSelecaoEditor();
   };
@@ -2608,116 +2618,252 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   if (!img || !els.atendimentoEditor?.contains(img)) return;
   img.dataset.offsetX = "0";
   img.dataset.offsetY = "0";
-  const editorRect = els.atendimentoEditor.getBoundingClientRect();
-  const estiloEditor = getComputedStyle(els.atendimentoEditor);
-  const zoom = atendimentoZoom / 100;
-  const limiteEsquerdo = editorRect.left + (Number.parseFloat(estiloEditor.paddingLeft) || 0) * zoom;
-  const limiteDireito = editorRect.right - (Number.parseFloat(estiloEditor.paddingRight) || 0) * zoom;
-  const larguraUtil = Math.max(1, limiteDireito - limiteEsquerdo);
-  const posicaoRelativa = (clientX - limiteEsquerdo) / larguraUtil;
-  const central = posicaoRelativa > 0.3 && posicaoRelativa < 0.7;
-  if (central) {
-    if (img.dataset.wrapSide === "center" && img.closest(".image-wrap-center-frame")) {
-      moverFrameWrapCentral(img, clientY);
-    } else if (!montarWrapCentral(img, clientY)) {
-      img.dataset.wrapSide = posicaoRelativa >= 0.5 ? "right" : "left";
-      ancorarImagemNoFluxo(img);
-    }
-    aplicarTransformImagemAtendimento(img);
-    agendarPaginacaoAtendimento();
-    return;
-  }
-  if (img.dataset.wrapSide === "center") desmontarWrapCentral(img);
-  img.dataset.wrapSide = posicaoRelativa >= 0.5 ? "right" : "left";
+  if (img.closest(".image-wrap-center-frame")) desmontarWrapCentral(img, false);
+  montarWrapLivre(img, clientX, clientY);
   aplicarTransformImagemAtendimento(img);
-  const range = rangeEditorNoPonto(clientX, clientY);
-  if (range && pontoValidoParaImagem(range, img)) {
-    range.collapse(true);
-    range.insertNode(img);
-    img.parentElement?.normalize();
-    agendarPaginacaoAtendimento();
-    return;
-  }
-  const blocoRange = range && els.atendimentoEditor.contains(range.startContainer)
-    ? blocoSuperiorDoEditor(range.startContainer)
-    : null;
-  const bloco = blocoRange || blocoMaisProximoDoPonto(clientY, img);
-  if (!bloco || bloco === img) {
-    els.atendimentoEditor.appendChild(img);
-    return;
-  }
-  const rect = bloco.getBoundingClientRect?.();
-  if (rect && clientY > rect.top + rect.height / 2) bloco.after(img);
-  else bloco.before(img);
   agendarPaginacaoAtendimento();
 }
 
-function montarWrapCentral(img, clientY) {
-  if (!img || !els.atendimentoEditor.contains(img)) return false;
-  const editorRect = els.atendimentoEditor.getBoundingClientRect();
-  const estiloEditor = getComputedStyle(els.atendimentoEditor);
-  const zoom = atendimentoZoom / 100;
-  const larguraUtil = editorRect.width
-    - ((Number.parseFloat(estiloEditor.paddingLeft) || 0) + (Number.parseFloat(estiloEditor.paddingRight) || 0)) * zoom;
-  const rectImagem = img.getBoundingClientRect();
-  const larguraImagem = Math.min(rectImagem.width, larguraUtil * 0.62);
-  const larguraLateral = (larguraUtil - larguraImagem - 28) / 2;
-  if (larguraLateral < 72) return false;
+function previsualizarMovimentoImagemWrap(img, clientX, clientY, inicioY) {
+  const frame = img.closest(".image-wrap-center-frame");
+  if (!frame) {
+    moverImagemComTextoAoRedor(img, clientX, clientY);
+    return;
+  }
+  configurarPosicaoHorizontalWrap(frame, img, clientX);
+  frame.style.transform = `translateY(${Math.round(clientY - inicioY)}px)`;
+  frame.dataset.pendingClientX = String(clientX);
+  frame.dataset.pendingClientY = String(clientY);
+}
 
-  const alvoOriginal = blocoMaisProximoDoPonto(clientY, img);
-  const alvo = garantirBlocoElementoWrap(alvoOriginal);
+function finalizarMovimentoImagemWrap(img, clientX, clientY) {
+  const frame = img.closest(".image-wrap-center-frame");
+  if (frame) frame.style.transform = "";
+  const x = Number(frame?.dataset.pendingClientX || clientX);
+  const y = Number(frame?.dataset.pendingClientY || clientY);
+  if (frame) {
+    delete frame.dataset.pendingClientX;
+    delete frame.dataset.pendingClientY;
+  }
+  moverImagemComTextoAoRedor(img, x, y);
+}
+
+function montarWrapLivre(img, clientX, clientY) {
+  if (!img) return false;
+  const zoom = atendimentoZoom / 100;
+  const rectImagem = img.getBoundingClientRect();
+  const larguraImagem = Math.max(40, Number.parseFloat(img.style.width) || rectImagem.width / zoom || img.naturalWidth || 240);
+  const alturaImagem = Math.max(30, Number.parseFloat(img.style.height) || rectImagem.height / zoom || img.naturalHeight || 120);
+  const alvo = prepararAlvoWrapNoPonto(clientX, clientY, img);
   const frame = document.createElement("div");
   frame.className = "image-wrap-center-frame";
-  frame.dataset.imageWrapFrame = "center";
-  frame.style.setProperty("--wrap-image-width", `${larguraImagem}px`);
-  frame.style.setProperty("--wrap-image-height", `${rectImagem.height}px`);
+  frame.dataset.imageWrapFrame = "free";
+  frame.dataset.wrapId = uid();
+  frame.dataset.wrapGroup = alvo?.dataset.wrapGroup || uid();
+  frame.style.setProperty("--wrap-image-height", `${alturaImagem}px`);
 
   const esquerda = document.createElement("div");
   esquerda.className = "image-wrap-side-text image-wrap-side-left";
   const direita = document.createElement("div");
   direita.className = "image-wrap-side-text image-wrap-side-right";
 
-  if (alvo) {
-    const fonte = Number.parseFloat(getComputedStyle(alvo).fontSize) || 16;
-    const alturaLinha = Number.parseFloat(getComputedStyle(alvo).lineHeight) || fonte * 1.5;
-    const linhas = Math.max(2, Math.floor(rectImagem.height / alturaLinha));
-    const caracteresLinha = Math.max(8, Math.floor(larguraLateral / (fonte * 0.52)));
-    const limiteAoRedor = Math.max(24, linhas * caracteresLinha * 2);
-    const fragmentoAoRedor = extrairInicioBlocoWrap(alvo, limiteAoRedor);
-    const recipiente = document.createElement("div");
-    recipiente.append(fragmentoAoRedor);
-    const total = recipiente.textContent?.length || 0;
-    esquerda.append(extrairInicioBlocoWrap(recipiente, Math.ceil(total / 2)));
-    while (recipiente.firstChild) direita.append(recipiente.firstChild);
-  }
-
-  img.dataset.wrapSide = "center";
+  img.dataset.wrapSide = "free";
   img.dataset.offsetX = "0";
   img.dataset.offsetY = "0";
   img.style.width = `${larguraImagem}px`;
+  img.style.height = `${alturaImagem}px`;
   img.style.float = "none";
   img.style.margin = "0";
   frame.append(esquerda, img, direita);
 
   if (alvo) {
+    alvo.dataset.wrapGroup = frame.dataset.wrapGroup;
     alvo.before(frame);
-    if (!alvo.textContent?.trim() && !alvo.querySelector("img,table")) alvo.remove();
+    alvo.dataset.wrapContinuation = frame.dataset.wrapId;
   } else {
     els.atendimentoEditor.appendChild(frame);
+    const continuacao = document.createElement("div");
+    continuacao.dataset.wrapContinuation = frame.dataset.wrapId;
+    continuacao.append(document.createElement("br"));
+    frame.after(continuacao);
   }
+  configurarPosicaoHorizontalWrap(frame, img, clientX);
+  redistribuirTextoWrap(frame);
   return true;
 }
 
-function garantirBlocoElementoWrap(node) {
-  if (!node || node === imagemAtivaAtendimento) return null;
-  if (node.nodeType === Node.TEXT_NODE) {
+function limitesHorizontaisEditorWrap() {
+  const editorRect = els.atendimentoEditor.getBoundingClientRect();
+  const estiloEditor = getComputedStyle(els.atendimentoEditor);
+  const zoom = atendimentoZoom / 100;
+  const esquerdo = editorRect.left + (Number.parseFloat(estiloEditor.paddingLeft) || 0) * zoom;
+  const direito = editorRect.right - (Number.parseFloat(estiloEditor.paddingRight) || 0) * zoom;
+  return {
+    esquerdo,
+    direito,
+    larguraCss: Math.max(1, (direito - esquerdo) / zoom),
+    zoom
+  };
+}
+
+function configurarPosicaoHorizontalWrap(frame, img, clientX) {
+  if (!frame || !img) return;
+  const { esquerdo, larguraCss, zoom } = limitesHorizontaisEditorWrap();
+  const larguraImagem = Math.min(
+    Math.max(40, (Number.parseFloat(img.style.width) || img.getBoundingClientRect().width / zoom)),
+    Math.max(40, larguraCss - 24)
+  );
+  const espaco = 12;
+  const disponivelLaterais = Math.max(0, larguraCss - larguraImagem - espaco * 2);
+  const centroDesejado = (clientX - esquerdo) / zoom;
+  const esquerda = Math.max(0, Math.min(disponivelLaterais, centroDesejado - larguraImagem / 2 - espaco));
+  const direita = Math.max(0, disponivelLaterais - esquerda);
+  const centroReal = (esquerda + espaco + larguraImagem / 2) / larguraCss;
+
+  frame.style.setProperty("--wrap-left-width", `${esquerda}px`);
+  frame.style.setProperty("--wrap-image-width", `${larguraImagem}px`);
+  frame.style.setProperty("--wrap-right-width", `${direita}px`);
+  frame.style.setProperty("--wrap-image-height", `${Math.max(30, Number.parseFloat(img.style.height) || img.getBoundingClientRect().height / zoom)}px`);
+  frame.dataset.wrapCenter = String(Math.max(0, Math.min(1, centroReal)));
+}
+
+function prepararAlvoWrapNoPonto(clientX, clientY, img) {
+  const range = rangeTextoEditorMaisProximo(clientX, clientY, img) || rangeEditorNoPonto(clientX, clientY);
+  if (range && pontoValidoParaImagem(range, img)) {
+    const bloco = blocoSuperiorDoEditor(range.startContainer);
+    if (bloco && !bloco.classList?.contains("image-wrap-center-frame")) {
+      const grupo = bloco.dataset.wrapGroup || uid();
+      bloco.dataset.wrapGroup = grupo;
+      const parteDepois = bloco.cloneNode(false);
+      parteDepois.dataset.wrapGroup = grupo;
+      const corte = document.createRange();
+      try {
+        corte.setStart(range.startContainer, range.startOffset);
+        corte.setEnd(bloco, bloco.childNodes.length);
+        parteDepois.append(corte.extractContents());
+        bloco.after(parteDepois);
+        if (!bloco.textContent?.trim() && !bloco.querySelector("img,table,br")) bloco.remove();
+        return parteDepois;
+      } catch {
+        // Alguns nós colados pelo navegador não aceitam divisão interna; usa o bloco inteiro.
+      }
+      return bloco;
+    }
+  }
+  const proximo = blocoMaisProximoDoPonto(clientY, img);
+  if (!proximo) return null;
+  if (proximo.nodeType === Node.TEXT_NODE) {
     const bloco = document.createElement("div");
-    node.before(bloco);
-    bloco.append(node);
+    bloco.dataset.wrapGroup = uid();
+    proximo.before(bloco);
+    bloco.append(proximo);
     return bloco;
   }
-  if (node.nodeType !== Node.ELEMENT_NODE || node.classList.contains("image-wrap-center-frame")) return null;
-  return node;
+  if (proximo.nodeType === Node.ELEMENT_NODE) {
+    if (!proximo.dataset.wrapGroup) proximo.dataset.wrapGroup = uid();
+    return proximo;
+  }
+  return null;
+}
+
+function rangeTextoEditorMaisProximo(clientX, clientY, img) {
+  const walker = document.createTreeWalker(els.atendimentoEditor, NodeFilter.SHOW_TEXT);
+  let melhor = null;
+  let node;
+  while ((node = walker.nextNode())) {
+    if (!node.textContent?.length) continue;
+    const pai = node.parentElement;
+    if (!pai || pai.closest(".editor-page-break, .image-wrap-center-frame") || pai === img) continue;
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    for (const rect of range.getClientRects()) {
+      const distanciaY = clientY < rect.top ? rect.top - clientY : clientY > rect.bottom ? clientY - rect.bottom : 0;
+      const distanciaX = clientX < rect.left ? rect.left - clientX : clientX > rect.right ? clientX - rect.right : 0;
+      const distancia = distanciaY * 4 + distanciaX;
+      if (!melhor || distancia < melhor.distancia) melhor = { node, rect, distancia };
+    }
+  }
+  if (!melhor) return null;
+
+  const texto = melhor.node.textContent || "";
+  let inicio = 0;
+  let fim = texto.length;
+  while (fim - inicio > 24) {
+    const meio = Math.floor((inicio + fim) / 2);
+    const range = document.createRange();
+    range.setStart(melhor.node, meio);
+    range.setEnd(melhor.node, Math.min(texto.length, meio + 1));
+    const rect = range.getBoundingClientRect();
+    if (rect.top < melhor.rect.top - 1) inicio = meio + 1;
+    else fim = meio;
+  }
+
+  let melhorOffset = inicio;
+  let melhorDistancia = Infinity;
+  const limiteInicio = Math.max(0, inicio - 32);
+  const limiteFim = Math.min(texto.length, fim + 96);
+  for (let offset = limiteInicio; offset < limiteFim; offset += 1) {
+    const range = document.createRange();
+    range.setStart(melhor.node, offset);
+    range.setEnd(melhor.node, Math.min(texto.length, offset + 1));
+    const rect = range.getBoundingClientRect();
+    const distanciaY = Math.abs((rect.top + rect.bottom) / 2 - clientY);
+    const distanciaX = Math.abs(rect.left - clientX);
+    const distancia = distanciaY * 4 + distanciaX;
+    if (distancia < melhorDistancia) {
+      melhorDistancia = distancia;
+      melhorOffset = offset;
+    }
+  }
+  const range = document.createRange();
+  if (melhorOffset > 0 && melhorOffset < texto.length) {
+    const antes = Math.max(
+      texto.lastIndexOf(" ", melhorOffset),
+      texto.lastIndexOf("\n", melhorOffset),
+      texto.lastIndexOf("\t", melhorOffset)
+    );
+    const depoisRelativo = texto.slice(melhorOffset).search(/\s/);
+    const depois = depoisRelativo >= 0 ? melhorOffset + depoisRelativo + 1 : texto.length;
+    const limiteAntes = antes >= 0 ? antes + 1 : 0;
+    melhorOffset = melhorOffset - limiteAntes <= depois - melhorOffset ? limiteAntes : depois;
+  }
+  range.setStart(melhor.node, melhorOffset);
+  range.collapse(true);
+  return range;
+}
+
+function capacidadeTextoWrap(largura, altura, fonte, alturaLinha) {
+  if (largura < 24) return 0;
+  const linhas = Math.max(1, Math.floor(altura / alturaLinha));
+  return Math.max(0, Math.floor(largura / (fonte * 0.52)) * linhas);
+}
+
+function redistribuirTextoWrap(frame) {
+  if (!frame) return;
+  const esquerda = frame.querySelector(".image-wrap-side-left");
+  const direita = frame.querySelector(".image-wrap-side-right");
+  const continuacao = frame.nextElementSibling?.dataset.wrapContinuation === frame.dataset.wrapId
+    ? frame.nextElementSibling
+    : null;
+  if (!esquerda || !direita || !continuacao) return;
+
+  const fonte = Number.parseFloat(getComputedStyle(continuacao).fontSize) || 16;
+  const alturaLinha = Number.parseFloat(getComputedStyle(continuacao).lineHeight) || fonte * 1.5;
+  const altura = Number.parseFloat(frame.style.getPropertyValue("--wrap-image-height")) || 120;
+  const larguraEsquerda = Number.parseFloat(frame.style.getPropertyValue("--wrap-left-width")) || 0;
+  const larguraDireita = Number.parseFloat(frame.style.getPropertyValue("--wrap-right-width")) || 0;
+  const limiteEsquerda = capacidadeTextoWrap(larguraEsquerda, altura, fonte, alturaLinha);
+  const limiteDireita = capacidadeTextoWrap(larguraDireita, altura, fonte, alturaLinha);
+
+  const recipiente = document.createElement("div");
+  while (esquerda.firstChild) recipiente.append(esquerda.firstChild);
+  while (direita.firstChild) recipiente.append(direita.firstChild);
+  while (continuacao.firstChild) recipiente.append(continuacao.firstChild);
+
+  if (limiteEsquerda) esquerda.append(extrairInicioBlocoWrap(recipiente, limiteEsquerda));
+  if (limiteDireita) direita.append(extrairInicioBlocoWrap(recipiente, limiteDireita));
+  while (recipiente.firstChild) continuacao.append(recipiente.firstChild);
+  if (!continuacao.childNodes.length) continuacao.append(document.createElement("br"));
 }
 
 function extrairInicioBlocoWrap(bloco, limite) {
@@ -2739,6 +2885,11 @@ function extrairInicioBlocoWrap(bloco, limite) {
     if (restante <= tamanho) {
       finalNode = texto;
       finalOffset = Math.max(0, restante);
+      if (finalOffset > 0 && finalOffset < tamanho) {
+        const trecho = texto.textContent.slice(0, finalOffset);
+        const limitePalavra = Math.max(trecho.lastIndexOf(" "), trecho.lastIndexOf("\n"), trecho.lastIndexOf("\t"));
+        if (limitePalavra > 0 && finalOffset - limitePalavra <= 32) finalOffset = limitePalavra + 1;
+      }
       break;
     }
     restante -= tamanho;
@@ -2749,34 +2900,61 @@ function extrairInicioBlocoWrap(bloco, limite) {
   return range.extractContents();
 }
 
-function desmontarWrapCentral(img) {
+function desmontarWrapCentral(img, recolocarNoFluxo = true) {
   const frame = img?.closest?.(".image-wrap-center-frame");
   if (!frame) return;
   const bloco = document.createElement("div");
-  frame.querySelectorAll(".image-wrap-side-text").forEach((lado) => {
-    while (lado.firstChild) bloco.append(lado.firstChild);
-  });
-  frame.replaceWith(img, bloco);
+  const esquerda = frame.querySelector(".image-wrap-side-left");
+  const direita = frame.querySelector(".image-wrap-side-right");
+  const continuacao = frame.nextElementSibling?.dataset.wrapContinuation === frame.dataset.wrapId
+    ? frame.nextElementSibling
+    : null;
+  bloco.dataset.wrapGroup = frame.dataset.wrapGroup || continuacao?.dataset.wrapGroup || uid();
+  while (esquerda?.firstChild) bloco.append(esquerda.firstChild);
+  while (direita?.firstChild) bloco.append(direita.firstChild);
+  while (continuacao?.firstChild) bloco.append(continuacao.firstChild);
+  continuacao?.remove();
+  img.remove();
+  frame.replaceWith(bloco);
+  const blocoUnido = unirBlocosWrapVizinhos(bloco);
+  if (recolocarNoFluxo) blocoUnido.before(img);
   img.style.float = "";
   img.style.margin = "";
-  if (!bloco.textContent?.trim() && !bloco.querySelector("img,table")) bloco.remove();
+  delete img.dataset.wrapSide;
+  if (!blocoUnido.textContent?.trim() && !blocoUnido.querySelector("img,table")) blocoUnido.remove();
 }
 
-function moverFrameWrapCentral(img, clientY) {
+function unirBlocosWrapVizinhos(bloco) {
+  if (!bloco) return bloco;
+  const grupo = bloco.dataset.wrapGroup || "";
+  let anterior = bloco.previousElementSibling;
+  while (grupo && anterior?.dataset.wrapGroup === grupo) {
+    const atual = anterior;
+    anterior = atual.previousElementSibling;
+    while (bloco.firstChild) atual.append(bloco.firstChild);
+    bloco.remove();
+    bloco = atual;
+  }
+  let proximo = bloco.nextElementSibling;
+  while (grupo && proximo?.dataset.wrapGroup === grupo) {
+    const atual = proximo;
+    proximo = atual.nextElementSibling;
+    while (atual.firstChild) bloco.append(atual.firstChild);
+    atual.remove();
+  }
+  bloco.normalize();
+  return bloco;
+}
+
+function atualizarWrapAposRedimensionar(img) {
   const frame = img.closest(".image-wrap-center-frame");
   if (!frame) return;
-  const alvo = blocoMaisProximoDoPonto(clientY, img);
-  if (!alvo || alvo === frame || frame.contains(alvo)) return;
-  const rect = alvo.nodeType === Node.TEXT_NODE
-    ? (() => {
-        const range = document.createRange();
-        range.selectNodeContents(alvo);
-        return range.getBoundingClientRect();
-      })()
-    : alvo.getBoundingClientRect?.();
-  if (!rect) return;
-  if (clientY > rect.top + rect.height / 2) alvo.after(frame);
-  else alvo.before(frame);
+  const { esquerdo, larguraCss, zoom } = limitesHorizontaisEditorWrap();
+  const centro = Number(frame.dataset.wrapCenter || 0.5);
+  const clientX = esquerdo + larguraCss * centro * zoom;
+  configurarPosicaoHorizontalWrap(frame, img, clientX);
+  redistribuirTextoWrap(frame);
+  agendarPaginacaoAtendimento();
 }
 
 function pontoValidoParaImagem(range, img) {

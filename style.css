@@ -2012,25 +2012,23 @@ tr:last-child td {
   cursor: pointer;
   transform-origin: center center;
   touch-action: none;
-  z-index: 8;
+  z-index: auto;
   pointer-events: auto;
 }
 
 .attendance-editor img.editor-image.is-selected {
   outline: 0;
   cursor: move;
-  z-index: 12;
+  z-index: 1;
 }
 
 .attendance-editor img.image-layout-wrap {
   display: block;
-  float: left;
-  max-width: 48%;
-  margin: 6px 14px 8px 0;
+  float: none;
+  max-width: 100%;
+  margin: 0;
   clear: none;
-  shape-outside: margin-box;
-  shape-margin: 4px;
-  z-index: 2;
+  z-index: auto;
 }
 
 .attendance-editor img.image-layout-wrap[data-wrap-side="right"] {
@@ -2049,20 +2047,27 @@ tr:last-child td {
 
 .image-wrap-center-frame {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--wrap-image-width, 240px) minmax(0, 1fr);
+  grid-template-columns:
+    minmax(0, var(--wrap-left-width, 0px))
+    minmax(40px, var(--wrap-image-width, 240px))
+    minmax(0, var(--wrap-right-width, 0px));
   align-items: start;
-  gap: 14px;
+  column-gap: 12px;
   width: 100%;
   min-height: var(--wrap-image-height, 120px);
   margin: 8px 0;
   clear: both;
+  transform-origin: center top;
 }
 
 .image-wrap-center-frame .image-wrap-side-text {
   min-width: 0;
   min-height: var(--wrap-image-height, 120px);
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+  position: relative;
+  z-index: 0;
 }
 
 .image-wrap-center-frame img.image-layout-wrap {
@@ -2073,6 +2078,8 @@ tr:last-child td {
   max-width: 100%;
   margin: 0;
   clear: none;
+  position: relative;
+  z-index: 0;
 }
 
 .image-layout-popover {
