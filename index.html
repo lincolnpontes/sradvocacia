@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.38">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.38">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.38">
-  <link rel="stylesheet" href="style.css?v=1.0.38">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.39">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.39">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.39">
+  <link rel="stylesheet" href="style.css?v=1.0.39">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.38</small>
+        <small>Versão 1.0.39</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -245,14 +245,16 @@
                         </button>
                       </div>
                     </div>
-                    <button class="toolbar-edge-action toolbar-print-action" type="button" id="btnImprimirAtendimento" title="Imprimir atendimento" aria-label="Imprimir atendimento">🖨️</button>
+                    <button class="toolbar-edge-action toolbar-print-action" type="button" id="btnImprimirAtendimento" title="Imprimir atendimento" aria-label="Imprimir atendimento"><span class="toolbar-print-emoji" aria-hidden="true">🖨️</span></button>
+                    <button class="toolbar-edge-action toolbar-history-action" type="button" id="btnDesfazerAtendimento" title="Desfazer (Ctrl + Z)" aria-label="Desfazer">↶</button>
+                    <button class="toolbar-edge-action toolbar-history-action" type="button" id="btnRefazerAtendimento" title="Refazer (Ctrl + Y)" aria-label="Refazer">↷</button>
                   </div>
                   <div class="toolbar-format-group">
                   <button type="button" data-editor-command="bold" title="N -> Negrito (Ctrl + B)" aria-label="Negrito">N</button>
                   <button type="button" data-editor-command="italic" title="I -> Itálico (Ctrl + I)" aria-label="Itálico">I</button>
                   <button type="button" data-editor-command="underline" title="S -> Sublinhar (Ctrl + S)" aria-label="Sublinhar">S</button>
                   <div class="editor-dropdown toolbar-split-button">
-                    <button class="toolbar-icon-button" type="button" data-editor-command="justifyLeft" title="Alinhar à esquerda" aria-label="Alinhar à esquerda">
+                    <button class="toolbar-icon-button" id="btnAlignmentTool" type="button" data-editor-command="justifyLeft" title="Alinhar à esquerda" aria-label="Alinhar à esquerda">
                       <span class="align-lines align-left" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
                     </button>
                     <button class="toolbar-caret-button" type="button" data-editor-menu="align" title="Mais alinhamentos" aria-label="Mais alinhamentos">
@@ -351,9 +353,25 @@
                       <button type="button" data-editor-command="lineSpacing" data-editor-value="3" title="3,0" aria-label="Espaçamento 3,0"><span>3,0</span></button>
                     </div>
                   </div>
+                  <div class="editor-font-color-group editor-dropdown toolbar-split-button">
+                    <button class="font-color-tool toolbar-icon-button" type="button" data-editor-command="fontColor" data-editor-value="#222222" title="Cor da fonte" aria-label="Cor da fonte">
+                      <span class="font-color-letter">A</span>
+                    </button>
+                    <button class="toolbar-caret-button" type="button" data-editor-menu="fontColor" title="Mais cores da fonte" aria-label="Mais cores da fonte">
+                      <span class="toolbar-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="editor-menu color-menu" data-editor-menu-panel="fontColor">
+                      <button type="button" data-editor-command="fontColor" data-editor-value="#222222" title="Preto" aria-label="Preto"><span class="color-swatch" style="--swatch-color:#222222" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="fontColor" data-editor-value="#8f1d14" title="Vinho" aria-label="Vinho"><span class="color-swatch" style="--swatch-color:#8f1d14" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="fontColor" data-editor-value="#c62828" title="Vermelho" aria-label="Vermelho"><span class="color-swatch" style="--swatch-color:#c62828" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="fontColor" data-editor-value="#1f5ca8" title="Azul" aria-label="Azul"><span class="color-swatch" style="--swatch-color:#1f5ca8" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="fontColor" data-editor-value="#217346" title="Verde" aria-label="Verde"><span class="color-swatch" style="--swatch-color:#217346" aria-hidden="true"></span></button>
+                      <button type="button" data-editor-command="fontColor" data-editor-value="#a56b00" title="Dourado" aria-label="Dourado"><span class="color-swatch" style="--swatch-color:#a56b00" aria-hidden="true"></span></button>
+                    </div>
+                  </div>
                   <div class="editor-highlight-group editor-dropdown toolbar-split-button">
-                    <button class="highlight-tool toolbar-icon-button" type="button" data-editor-command="toggleHighlight" data-editor-value="#fff0b8" title="Destaque" aria-label="Destaque">
-                      <span class="highlight-letter">A</span>
+                    <button class="highlight-tool toolbar-icon-button" type="button" data-editor-command="toggleHighlight" data-editor-value="#fff0b8" title="Destaque do texto" aria-label="Destaque do texto">
+                      <span class="text-marker-icon" aria-hidden="true"><i></i></span>
                     </button>
                     <button class="toolbar-caret-button" type="button" data-editor-menu="highlight" title="Cores do destaque" aria-label="Cores do destaque">
                       <span class="toolbar-caret" aria-hidden="true"></span>
@@ -1197,6 +1215,6 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.38"></script>
+  <script src="app.js?v=1.0.39"></script>
 </body>
 </html>

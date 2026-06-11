@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.38";
+const APP_VERSION = "1.0.39";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -165,6 +165,9 @@ const els = {
   btnExportarAtendimento: document.querySelector("#btnExportarAtendimento"),
   menuExportarAtendimento: document.querySelector("#menuExportarAtendimento"),
   btnImprimirAtendimento: document.querySelector("#btnImprimirAtendimento"),
+  btnDesfazerAtendimento: document.querySelector("#btnDesfazerAtendimento"),
+  btnRefazerAtendimento: document.querySelector("#btnRefazerAtendimento"),
+  btnAlignmentTool: document.querySelector("#btnAlignmentTool"),
   btnAtendimentoProcessoRodape: document.querySelector("#btnAtendimentoProcessoRodape"),
   btnExpandirAtendimento: document.querySelector("#btnExpandirAtendimento"),
   btnZoomMenos: document.querySelector("#btnZoomMenos"),
@@ -341,6 +344,8 @@ function configurarEventos() {
   els.btnExportarAtendimento.addEventListener("click", alternarMenuExportarAtendimento);
   els.menuExportarAtendimento.addEventListener("click", exportarAtendimentoPeloMenu);
   els.btnImprimirAtendimento.addEventListener("click", () => imprimirAtendimentoAtual());
+  els.btnDesfazerAtendimento.addEventListener("click", executarDesfazerAtendimento);
+  els.btnRefazerAtendimento.addEventListener("click", executarRefazerAtendimento);
   els.btnAtendimentoProcessoRodape.addEventListener("click", transformarAtendimentoEmProcesso);
   els.btnZoomMenos.addEventListener("click", () => alterarZoomAtendimento(-5));
   els.btnZoomMais.addEventListener("click", () => alterarZoomAtendimento(5));
@@ -1692,6 +1697,7 @@ function preencherFormularioAtendimento(atendimento) {
   els.atendimentoAgendadoEm.value = atendimento.agendadoEm || "";
   els.formAtendimento.assunto.value = atendimento.assunto || "";
   els.atendimentoEditor.innerHTML = atendimento.conteudoHtml || modeloAtendimento();
+  normalizarImagensBlocoEditor();
   documentosAtendimento = (atendimento.anexos || []).map((anexo) => ({ ...anexo }));
   renderDocumentosAtendimento();
   atendimentoAlterado = false;
@@ -1855,6 +1861,7 @@ function restaurarVersaoAtendimento(event) {
 
   els.formAtendimento.assunto.value = versao.assunto || atual.assunto;
   els.atendimentoEditor.innerHTML = versao.conteudoHtml || "";
+  normalizarImagensBlocoEditor();
   limparHistoricoImagemAtendimento();
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = "Versão restaurada em rascunho";
@@ -1889,7 +1896,9 @@ function aplicarComandoEditor(event) {
   event.preventDefault();
   const valor = botao.dataset.editorValue || null;
   if (valor && botao.dataset.editorCommand === "toggleHighlight") atualizarCorDestaque(valor);
+  if (valor && botao.dataset.editorCommand === "fontColor") atualizarCorFonte(valor);
   executarComandoEditor(botao.dataset.editorCommand, valor, botao.dataset.listStyle || "", botao.dataset.listType || "");
+  if (botao.dataset.editorCommand.startsWith("justify")) atualizarControleAlinhamento(botao.dataset.editorCommand);
   atualizarIconeListaToolbar(botao);
   fecharMenusEditor();
   marcarAtendimentoAlterado();
@@ -1938,6 +1947,11 @@ function executarComandoEditor(comando, valor = null, listStyle = "", listType =
   restaurarSelecaoEditor();
   if (comando === "toggleHighlight") {
     alternarDestaqueTexto(valor || corDestaqueSelecionada());
+    guardarSelecaoEditor();
+    return;
+  }
+  if (comando === "fontColor") {
+    document.execCommand("foreColor", false, valor || "#222222");
     guardarSelecaoEditor();
     return;
   }
@@ -2048,6 +2062,27 @@ function atualizarSelecaoEditor() {
   guardarSelecaoEditor();
   atualizarControleTamanhoFonte();
   atualizarControleEspacamento();
+  atualizarControleAlinhamento();
+}
+
+function atualizarControleAlinhamento(comando = "") {
+  if (!els.btnAlignmentTool) return;
+  const opcoes = {
+    justifyLeft: { classe: "align-left", titulo: "Alinhar à esquerda" },
+    justifyCenter: { classe: "align-center", titulo: "Centralizar" },
+    justifyRight: { classe: "align-right", titulo: "Alinhar à direita" },
+    justifyFull: { classe: "align-justify", titulo: "Justificar" }
+  };
+  let atual = comando;
+  if (!atual) {
+    atual = ["justifyFull", "justifyRight", "justifyCenter", "justifyLeft"]
+      .find((item) => document.queryCommandState?.(item)) || "justifyLeft";
+  }
+  const config = opcoes[atual] || opcoes.justifyLeft;
+  els.btnAlignmentTool.dataset.editorCommand = atual;
+  els.btnAlignmentTool.title = config.titulo;
+  els.btnAlignmentTool.setAttribute("aria-label", config.titulo);
+  els.btnAlignmentTool.innerHTML = `<span class="align-lines ${config.classe}" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`;
 }
 
 function atualizarControleTamanhoFonte() {
@@ -2074,8 +2109,18 @@ function fecharMenusEditor() {
 }
 
 function atualizarCorDestaque(cor) {
-  document.querySelector(".editor-highlight-group")?.style.setProperty("--highlight-color", cor);
+  const grupo = document.querySelector(".editor-highlight-group");
+  grupo?.style.setProperty("--highlight-color", cor);
+  const botao = grupo?.querySelector("[data-editor-command='toggleHighlight']");
+  if (botao) botao.dataset.editorValue = cor;
   document.querySelector(".color-swatch.is-current")?.style.setProperty("--swatch-color", cor);
+}
+
+function atualizarCorFonte(cor) {
+  const grupo = document.querySelector(".editor-font-color-group");
+  grupo?.style.setProperty("--font-color", cor);
+  const botao = grupo?.querySelector("[data-editor-command='fontColor']");
+  if (botao) botao.dataset.editorValue = cor;
 }
 
 function guardarSelecaoEditor() {
@@ -2315,6 +2360,43 @@ function inserirImagemEmBlocoProprio(img, range, selection) {
   selection.addRange(range);
 }
 
+function normalizarImagensBlocoEditor() {
+  els.atendimentoEditor
+    .querySelectorAll("img.image-layout-block, img[data-image-layout='block']")
+    .forEach(normalizarImagemBlocoNoFluxo);
+}
+
+function normalizarImagemBlocoNoFluxo(img) {
+  if (!img || !els.atendimentoEditor.contains(img)) return;
+  img.dataset.imageLayout = "block";
+  img.dataset.offsetX = "0";
+  img.dataset.offsetY = "0";
+  const rotacao = Number(img.dataset.rotation || 0);
+  img.style.transform = `translate(0px, 0px) rotate(${rotacao}deg)`;
+
+  const moldura = img.closest(".image-wrap-center-frame");
+  if (moldura && els.atendimentoEditor.contains(moldura)) {
+    moldura.after(img);
+    moldura.remove();
+  }
+
+  const pai = img.parentElement;
+  if (!pai || pai === els.atendimentoEditor) return;
+  const bloco = blocoSuperiorDoEditor(img);
+  if (!bloco || bloco === els.atendimentoEditor) return;
+
+  if (pai === bloco && /^(P|DIV)$/.test(bloco.tagName)) {
+    const depois = bloco.cloneNode(false);
+    while (img.nextSibling) depois.append(img.nextSibling);
+    bloco.after(img);
+    if (depois.childNodes.length) img.after(depois);
+    if (!bloco.textContent?.trim() && !bloco.querySelector("br,img,table")) bloco.remove();
+    return;
+  }
+
+  bloco.after(img);
+}
+
 function selecionarImagemAtendimento(event) {
   const img = imagemNoPontoAtendimento(event);
   if (!img || !els.atendimentoEditor.contains(img)) return;
@@ -2324,6 +2406,7 @@ function selecionarImagemAtendimento(event) {
   if (!img.dataset.rotation) img.dataset.rotation = "0";
   if (!img.dataset.offsetX) img.dataset.offsetX = "0";
   if (!img.dataset.offsetY) img.dataset.offsetY = "0";
+  if (img.dataset.imageLayout === "block") normalizarImagemBlocoNoFluxo(img);
   aplicarTransformImagemAtendimento(img);
   abrirOpcoesImagemAtendimento(img);
 }
@@ -2392,6 +2475,9 @@ function aplicarLayoutImagemAtendimento(event) {
     );
   } else {
     delete imagemAtivaAtendimento.dataset.wrapSide;
+    imagemAtivaAtendimento.dataset.offsetX = "0";
+    imagemAtivaAtendimento.dataset.offsetY = "0";
+    imagemAtivaAtendimento.style.transform = "";
     ancorarImagemNoFluxo(imagemAtivaAtendimento);
   }
   aplicarTransformImagemAtendimento(imagemAtivaAtendimento);
@@ -2589,9 +2675,7 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
         posicionarOverlayImagem(img);
         return;
       }
-      img.dataset.offsetX = String(Math.round(offsetInicialX + deltaXOriginal));
-      img.dataset.offsetY = String(Math.round(offsetInicialY + deltaYOriginal));
-      aplicarTransformImagemAtendimento(img);
+      previsualizarMovimentoImagemBloco(img, deltaXOriginal, deltaYOriginal);
       posicionarOverlayImagem(img);
       return;
     }
@@ -2635,6 +2719,9 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
     if (acao.moverImagem && img.dataset.imageLayout === "wrap") {
       finalizarMovimentoImagemWrap(img, ultimoClientX, ultimoClientY);
       posicionarOverlayImagem(img);
+    } else if (acao.moverImagem) {
+      finalizarMovimentoImagemBloco(img, ultimoClientX, ultimoClientY);
+      posicionarOverlayImagem(img);
     } else if (acao.handle && img.dataset.imageLayout === "wrap") {
       atualizarWrapAposRedimensionar(img);
     }
@@ -2645,6 +2732,52 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
 
   document.addEventListener("pointermove", mover);
   document.addEventListener("pointerup", soltar, { once: true });
+}
+
+function previsualizarMovimentoImagemBloco(img, deltaX, deltaY) {
+  const rotacao = Number(img.dataset.rotation || 0);
+  img.style.transform = `translate(${Math.round(deltaX)}px, ${Math.round(deltaY)}px) rotate(${rotacao}deg)`;
+}
+
+function finalizarMovimentoImagemBloco(img, clientX, clientY) {
+  img.dataset.offsetX = "0";
+  img.dataset.offsetY = "0";
+  img.style.transform = "";
+  reposicionarImagemBlocoNoFluxo(img, clientX, clientY);
+  aplicarTransformImagemAtendimento(img);
+  agendarPaginacaoAtendimento();
+}
+
+function reposicionarImagemBlocoNoFluxo(img, clientX, clientY) {
+  const marcador = document.createComment("imagem-bloco");
+  img.before(marcador);
+  img.remove();
+  const range = rangeTextoEditorMaisProximo(clientX, clientY, img) || rangeEditorNoPonto(clientX, clientY);
+  const bloco = range ? blocoSuperiorDoEditor(range.startContainer) : blocoMaisProximoDoPonto(clientY, img);
+  if (range && bloco && bloco !== els.atendimentoEditor && !bloco.classList.contains("image-wrap-center-frame")) {
+    const depois = bloco.cloneNode(false);
+    const restante = document.createRange();
+    try {
+      restante.setStart(range.startContainer, range.startOffset);
+      restante.setEnd(bloco, bloco.childNodes.length);
+      depois.append(restante.extractContents());
+      bloco.after(img, depois);
+      if (!bloco.textContent?.trim() && !bloco.querySelector("br,img,table")) bloco.append(document.createElement("br"));
+      if (!depois.textContent?.trim() && !depois.querySelector("br,img,table")) depois.append(document.createElement("br"));
+      marcador.remove();
+      return;
+    } catch {
+      // Conteúdos complexos colados pelo navegador usam o bloco inteiro.
+    }
+  }
+  if (bloco && bloco !== els.atendimentoEditor) {
+    const rect = bloco.getBoundingClientRect();
+    if (clientY > rect.top + rect.height / 2) bloco.after(img);
+    else bloco.before(img);
+    marcador.remove();
+    return;
+  }
+  marcador.replaceWith(img);
 }
 
 function aplicarTransformImagemAtendimento(img) {
@@ -3233,6 +3366,7 @@ function restaurarHistoricoImagem(html, mensagem) {
   fecharOpcoesImagemAtendimento();
   imagemAtivaAtendimento = null;
   els.atendimentoEditor.innerHTML = html;
+  normalizarImagensBlocoEditor();
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = mensagem;
   agendarPaginacaoAtendimento();
@@ -3243,6 +3377,20 @@ function limparHistoricoImagemAtendimento() {
   historicoImagemAtendimento = [];
   historicoRefazerImagemAtendimento = [];
   historicoCorteImagemAtendimento = new WeakMap();
+}
+
+function executarDesfazerAtendimento() {
+  if (desfazerAlteracaoImagem()) return;
+  restaurarSelecaoEditor();
+  document.execCommand("undo");
+  marcarAtendimentoAlterado();
+}
+
+function executarRefazerAtendimento() {
+  if (refazerAlteracaoImagem()) return;
+  restaurarSelecaoEditor();
+  document.execCommand("redo");
+  marcarAtendimentoAlterado();
 }
 
 function sairFocoAtendimento() {

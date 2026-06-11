@@ -1427,6 +1427,27 @@ tr:last-child td {
   font-weight: 900 !important;
 }
 
+.toolbar-history-action {
+  font-family: "Segoe UI Symbol", "Arial Unicode MS", Arial, sans-serif;
+  font-size: 23px;
+  font-weight: 400 !important;
+}
+
+.toolbar-print-action {
+  padding: 0 !important;
+}
+
+.toolbar-print-emoji {
+  display: inline-grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-family: "Segoe UI Emoji", sans-serif;
+  font-size: 17px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
 .toolbar-zoom-control {
   display: inline-flex;
   align-items: center;
@@ -1478,7 +1499,8 @@ tr:last-child td {
 }
 
 .editor-dropdown,
-.editor-highlight-group {
+.editor-highlight-group,
+.editor-font-color-group {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -1791,7 +1813,8 @@ tr:last-child td {
   background: var(--swatch-color, var(--highlight-color, #fff0b8));
 }
 
-.editor-toolbar .highlight-tool {
+.editor-toolbar .highlight-tool,
+.editor-toolbar .font-color-tool {
   position: relative;
 }
 
@@ -1799,7 +1822,7 @@ tr:last-child td {
   content: none;
 }
 
-.highlight-letter {
+.font-color-letter {
   position: relative;
   display: inline-grid;
   place-items: center;
@@ -1808,7 +1831,7 @@ tr:last-child td {
   line-height: 1;
 }
 
-.highlight-letter::after {
+.font-color-letter::after {
   content: "";
   position: absolute;
   right: 0;
@@ -1816,7 +1839,48 @@ tr:last-child td {
   left: 0;
   height: 3px;
   border-radius: 999px;
-  background: var(--highlight-color, #f2c95c);
+  background: var(--font-color, #222222);
+}
+
+.text-marker-icon {
+  position: relative;
+  display: block;
+  width: 21px;
+  height: 21px;
+  transform: rotate(-12deg);
+}
+
+.text-marker-icon::before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 9px;
+  height: 13px;
+  border: 1.5px solid #333;
+  border-radius: 2px 2px 1px 1px;
+  background: linear-gradient(135deg, #f7f7f7 0 55%, #d9d9d9 56% 100%);
+}
+
+.text-marker-icon::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  bottom: 0;
+  width: 15px;
+  height: 4px;
+  border: 1px solid rgba(0,0,0,0.16);
+  background: var(--highlight-color, #fff0b8);
+}
+
+.text-marker-icon i {
+  position: absolute;
+  left: 4px;
+  top: 14px;
+  width: 12px;
+  height: 4px;
+  clip-path: polygon(0 0, 100% 0, 78% 100%, 18% 100%);
+  background: #333;
 }
 
 .spacing-icon {
@@ -2038,17 +2102,23 @@ tr:last-child td {
 }
 
 .attendance-editor img.image-layout-block {
-  position: relative;
+  position: static;
   display: block;
   float: none;
   max-width: 100%;
   margin: 10px auto;
   clear: both;
-  z-index: 0;
+  z-index: auto;
 }
 
 .attendance-editor img.image-layout-block.is-selected {
-  z-index: 1;
+  z-index: auto;
+}
+
+.attendance-editor.is-image-moving img.image-layout-block.is-selected {
+  position: relative;
+  z-index: 4;
+  opacity: 0.94;
 }
 
 .image-wrap-center-frame {
