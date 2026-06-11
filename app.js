@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.39";
+const APP_VERSION = "1.0.40";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -440,9 +440,12 @@ function abrirModalCliente(id = "") {
   els.formCliente.profissao.value = cliente?.profissao || "";
   els.formCliente.nacionalidade.value = cliente?.nacionalidade || "";
   els.formCliente.rg.value = cliente?.rg || "";
+  els.formCliente.rgOrgaoEmissor.value = cliente?.rgOrgaoEmissor || "";
+  els.formCliente.rgUf.value = cliente?.rgUf || "";
   els.formCliente.nascimento.value = cliente?.nascimento || "";
   els.formCliente.nomeFantasia.value = cliente?.nomeFantasia || "";
   els.formCliente.inscricaoEstadual.value = cliente?.inscricaoEstadual || "";
+  els.formCliente.inscricaoEstadualUf.value = cliente?.inscricaoEstadualUf || "";
   els.formCliente.representante.value = cliente?.representante || "";
   els.formCliente.representanteCpf.value = formatarDocumento(cliente?.representanteCpf || "", "CPF");
   els.formCliente.representanteCargo.value = cliente?.representanteCargo || "";
@@ -546,9 +549,12 @@ function salvarCliente(event) {
     profissao: dados.profissao.trim(),
     nacionalidade: dados.nacionalidade?.trim() || "",
     rg: dados.rg?.trim() || "",
+    rgOrgaoEmissor: dados.rgOrgaoEmissor?.trim().toUpperCase() || "",
+    rgUf: dados.rgUf?.trim().toUpperCase() || "",
     nascimento: dados.nascimento || "",
     nomeFantasia: dados.nomeFantasia?.trim() || "",
     inscricaoEstadual: dados.inscricaoEstadual?.trim() || "",
+    inscricaoEstadualUf: dados.inscricaoEstadualUf?.trim().toUpperCase() || "",
     representante: dados.representante?.trim() || "",
     representanteCpf: formatarDocumento(dados.representanteCpf || "", "CPF"),
     representanteCargo: dados.representanteCargo?.trim() || "",
@@ -1166,11 +1172,14 @@ function renderAtendimentos() {
     const cliente = obterCliente(atendimento.clienteId);
     const responsavel = obterUsuario(atendimento.responsavelId);
     const agenda = atendimento.agendadoEm ? ` · Agendado: ${dataHoraCurta(atendimento.agendadoEm)}` : "";
+    const criadoEm = atendimento.criadoEm || atendimento.data;
+    const ultimoSalvamento = atendimento.salvoEm || atendimento.atualizadoEm || criadoEm;
     return `
       <article class="attendance-item clickable ${atendimento.arquivado ? "is-archived" : ""}" data-open-attendance="${escapeHtml(referencia)}">
         <strong><span class="attendance-number">${rotuloAtendimento(atendimento)}</span>${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
-        <span>${escapeHtml(cliente?.nome || "Cliente não informado")} · ${escapeHtml(atendimento.area)} · ${dataHoraCurta(atendimento.data)}</span>
+        <span>${escapeHtml(cliente?.nome || "Cliente não informado")} · ${escapeHtml(atendimento.area)} · Data do atendimento: ${dataHoraCurta(atendimento.data)}</span>
         <small>Responsável: ${escapeHtml(responsavel?.nome || "")}${agenda}</small>
+        <small class="attendance-dates">Criado em: ${dataHoraCurta(criadoEm)} · Último salvamento: ${dataHoraCurta(ultimoSalvamento)}</small>
         <div class="attendance-actions">
           <button class="ghost-button table-action" type="button" data-toggle-archive-attendance="${escapeHtml(referencia)}">
             ${atendimento.arquivado ? "Desarquivar" : "Arquivar"}
@@ -1332,7 +1341,8 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
     }
     atendimento.versoes = manterTresVersoes(atendimento, { ...atendimento }).versoes;
   }
-  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, salvoEm: agoraSyncIso(), atualizadoEm: agoraSyncIso() });
+  const salvoEm = agoraSyncIso();
+  Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, salvoEm, atualizadoEm: salvoEm });
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
@@ -4795,9 +4805,12 @@ function normalizarEstado(raw) {
     profissao: cliente.profissao || "",
     nacionalidade: cliente.nacionalidade || "Brasileiro(a)",
     rg: cliente.rg || "",
+    rgOrgaoEmissor: cliente.rgOrgaoEmissor || cliente.orgaoEmissorRg || "",
+    rgUf: String(cliente.rgUf || cliente.ufRg || "").toUpperCase(),
     nascimento: cliente.nascimento || "",
     nomeFantasia: cliente.nomeFantasia || "",
     inscricaoEstadual: cliente.inscricaoEstadual || "",
+    inscricaoEstadualUf: String(cliente.inscricaoEstadualUf || cliente.ufInscricaoEstadual || "").toUpperCase(),
     representante: cliente.representante || "",
     representanteCpf: formatarDocumento(cliente.representanteCpf || "", "CPF"),
     representanteCargo: cliente.representanteCargo || "",
@@ -4831,9 +4844,9 @@ function normalizarAtendimento(atendimento = {}, opcoes = {}) {
   return {
     id: atendimento.id || (gerarId ? uid() : ""),
     numero: atendimento.numero || "",
-    criadoEm: atendimento.criadoEm || hojeIso(),
-    salvoEm: atendimento.salvoEm || "",
-    atualizadoEm: atendimento.atualizadoEm || atendimento.salvoEm || "",
+    criadoEm: atendimento.criadoEm || atendimento.salvoEm || atendimento.data || hojeIso(),
+    salvoEm: atendimento.salvoEm || atendimento.atualizadoEm || atendimento.criadoEm || atendimento.data || "",
+    atualizadoEm: atendimento.atualizadoEm || atendimento.salvoEm || atendimento.criadoEm || atendimento.data || "",
     clienteId: atendimento.clienteId || "",
     area: atendimento.area || "",
     responsavelId: atendimento.responsavelId || "",
@@ -4984,7 +4997,7 @@ function normalizarProcesso(processo, estado) {
   if (!clienteId && processo.cliente) {
     let cliente = estado.clientes.find((item) => item.nome === processo.cliente);
     if (!cliente) {
-      cliente = { id: uid(), criadoEm: hojeIso(), nome: processo.cliente, tipoDocumento: inferirTipoDocumento(processo.documento || ""), documento: formatarDocumento(processo.documento || "", inferirTipoDocumento(processo.documento || "")), cpf: processo.documento || "", email: "", whatsapp: "", estadoCivil: "", profissao: "", nacionalidade: "Brasileiro(a)", rg: "", nascimento: "", nomeFantasia: "", inscricaoEstadual: "", representante: "", representanteCpf: "", representanteCargo: "", domicilio: "", observacoes: "" };
+      cliente = { id: uid(), criadoEm: hojeIso(), nome: processo.cliente, tipoDocumento: inferirTipoDocumento(processo.documento || ""), documento: formatarDocumento(processo.documento || "", inferirTipoDocumento(processo.documento || "")), cpf: processo.documento || "", email: "", whatsapp: "", estadoCivil: "", profissao: "", nacionalidade: "Brasileiro(a)", rg: "", rgOrgaoEmissor: "", rgUf: "", nascimento: "", nomeFantasia: "", inscricaoEstadual: "", inscricaoEstadualUf: "", representante: "", representanteCpf: "", representanteCargo: "", domicilio: "", observacoes: "" };
       estado.clientes.push(cliente);
     }
     clienteId = cliente.id;

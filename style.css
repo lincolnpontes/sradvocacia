@@ -1417,9 +1417,19 @@ tr:last-child td {
   font-weight: 900 !important;
 }
 
-.toolbar-process-action span {
+.toolbar-process-action {
+  padding: 0 !important;
+}
+
+.toolbar-process-emoji {
+  display: inline-grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
   filter: grayscale(0.65) contrast(1.2);
+  font-family: "Segoe UI Emoji", sans-serif;
   font-size: 17px;
+  line-height: 1;
 }
 
 .toolbar-expand-action {
@@ -1428,9 +1438,19 @@ tr:last-child td {
 }
 
 .toolbar-history-action {
+  padding: 0 !important;
   font-family: "Segoe UI Symbol", "Arial Unicode MS", Arial, sans-serif;
-  font-size: 23px;
-  font-weight: 400 !important;
+}
+
+.toolbar-history-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  -webkit-text-stroke: 0.55px currentColor;
 }
 
 .toolbar-print-action {
@@ -1844,43 +1864,63 @@ tr:last-child td {
 
 .text-marker-icon {
   position: relative;
-  display: block;
-  width: 21px;
-  height: 21px;
-  transform: rotate(-12deg);
+  display: inline-block;
+  width: 22px;
+  height: 22px;
 }
 
-.text-marker-icon::before {
+.text-marker-icon i {
   content: "";
   position: absolute;
-  left: 5px;
-  top: 2px;
-  width: 9px;
-  height: 13px;
-  border: 1.5px solid #333;
+  left: 8px;
+  top: 1px;
+  width: 6px;
+  height: 14px;
+  border: 1.7px solid #303236;
   border-radius: 2px 2px 1px 1px;
-  background: linear-gradient(135deg, #f7f7f7 0 55%, #d9d9d9 56% 100%);
+  background: linear-gradient(90deg, #f7f7f7 0 58%, #d6d6d6 59% 100%);
+  transform: rotate(38deg);
+  transform-origin: 50% 72%;
+}
+
+.text-marker-icon i::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  bottom: -6px;
+  width: 10px;
+  height: 6px;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  background: #303236;
+}
+
+.text-marker-icon i::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -1.7px;
+  width: 6px;
+  height: 3px;
+  border: 1.7px solid #303236;
+  border-radius: 2px 2px 0 0;
+  background: #d8d8d8;
 }
 
 .text-marker-icon::after {
   content: "";
   position: absolute;
-  left: 3px;
-  bottom: 0;
-  width: 15px;
-  height: 4px;
-  border: 1px solid rgba(0,0,0,0.16);
+  right: 1px;
+  bottom: 1px;
+  left: 1px;
+  height: 3px;
+  border-radius: 1px;
   background: var(--highlight-color, #fff0b8);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.12);
 }
 
-.text-marker-icon i {
-  position: absolute;
-  left: 4px;
-  top: 14px;
-  width: 12px;
-  height: 4px;
-  clip-path: polygon(0 0, 100% 0, 78% 100%, 18% 100%);
-  background: #333;
+.attendance-dates {
+  color: #756650;
+  font-size: 12px;
 }
 
 .spacing-icon {
