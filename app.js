@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.40";
+const APP_VERSION = "1.0.41";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -1172,14 +1172,13 @@ function renderAtendimentos() {
     const cliente = obterCliente(atendimento.clienteId);
     const responsavel = obterUsuario(atendimento.responsavelId);
     const agenda = atendimento.agendadoEm ? ` · Agendado: ${dataHoraCurta(atendimento.agendadoEm)}` : "";
-    const criadoEm = atendimento.criadoEm || atendimento.data;
-    const ultimoSalvamento = atendimento.salvoEm || atendimento.atualizadoEm || criadoEm;
+    const ultimoSalvamento = atendimento.salvoEm || atendimento.atualizadoEm || atendimento.criadoEm || atendimento.data;
     return `
       <article class="attendance-item clickable ${atendimento.arquivado ? "is-archived" : ""}" data-open-attendance="${escapeHtml(referencia)}">
         <strong><span class="attendance-number">${rotuloAtendimento(atendimento)}</span>${escapeHtml(atendimento.assunto || "Atendimento sem assunto")}</strong>
         <span>${escapeHtml(cliente?.nome || "Cliente não informado")} · ${escapeHtml(atendimento.area)} · Data do atendimento: ${dataHoraCurta(atendimento.data)}</span>
         <small>Responsável: ${escapeHtml(responsavel?.nome || "")}${agenda}</small>
-        <small class="attendance-dates">Criado em: ${dataHoraCurta(criadoEm)} · Último salvamento: ${dataHoraCurta(ultimoSalvamento)}</small>
+        <small class="attendance-dates">Último salvamento: ${dataHoraCurta(ultimoSalvamento)}</small>
         <div class="attendance-actions">
           <button class="ghost-button table-action" type="button" data-toggle-archive-attendance="${escapeHtml(referencia)}">
             ${atendimento.arquivado ? "Desarquivar" : "Arquivar"}
@@ -4833,7 +4832,7 @@ function normalizarEstado(raw) {
     localStorage.setItem(DEMO_CLEANUP_SYNC_KEY, "1");
   }
   const usuarioSessao = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
-  estado.usuarioAtivoId = estado.usuarios.some((usuario) => usuario.id === usuarioSessao) ? usuarioSessao : estado.usuarios[0]?.id || null;
+  estado.usuarioAtivoId = estado.usuarios.some((usuario) => usuario.id === usuarioSessao) ? usuarioSessao : null;
   if (typeof sessionStorage !== "undefined" && estado.usuarioAtivoId) sessionStorage.setItem(SESSION_KEY, estado.usuarioAtivoId);
   salvarEstadoNormalizado(estado);
   return estado;

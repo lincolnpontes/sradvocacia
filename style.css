@@ -1451,6 +1451,7 @@ tr:last-child td {
   font-weight: 700;
   line-height: 1;
   -webkit-text-stroke: 0.55px currentColor;
+  transform: translateY(-1px);
 }
 
 .toolbar-print-action {
@@ -1606,6 +1607,10 @@ tr:last-child td {
 .color-menu {
   grid-template-columns: repeat(4, 36px);
   min-width: auto;
+}
+
+.editor-font-color-group .color-menu {
+  grid-template-columns: repeat(4, 36px);
 }
 
 .align-lines {
@@ -3364,6 +3369,29 @@ dialog::backdrop {
   gap: 6px;
 }
 
+.client-document-row {
+  display: grid;
+  gap: 10px;
+  align-items: end;
+}
+
+.client-rg-row {
+  grid-template-columns: minmax(0, 1.6fr) minmax(120px, 0.9fr) 92px;
+}
+
+.client-state-registration-row {
+  grid-template-columns: minmax(0, 1fr) 92px;
+}
+
+.client-document-row label {
+  min-width: 0;
+}
+
+.client-document-row input,
+.client-document-row select {
+  width: 100%;
+}
+
 .form-grid label span {
   color: var(--muted);
   font-size: 13px;
@@ -4132,6 +4160,11 @@ dd {
   .receipt-summary,
   .client-overview-grid,
   .receipt-list > div {
+    grid-template-columns: 1fr;
+  }
+
+  .client-rg-row,
+  .client-state-registration-row {
     grid-template-columns: 1fr;
   }
 
