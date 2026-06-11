@@ -2038,11 +2038,17 @@ tr:last-child td {
 }
 
 .attendance-editor img.image-layout-block {
+  position: relative;
   display: block;
   float: none;
   max-width: 100%;
   margin: 10px auto;
   clear: both;
+  z-index: 0;
+}
+
+.attendance-editor img.image-layout-block.is-selected {
+  z-index: 1;
 }
 
 .image-wrap-center-frame {

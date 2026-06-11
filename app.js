@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.37";
+const APP_VERSION = "1.0.38";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -59,6 +59,9 @@ let feriadoPendenteData = "";
 let atendimentoZoom = 100;
 let imagemAtivaAtendimento = null;
 let imagemInteracaoAte = 0;
+let historicoImagemAtendimento = [];
+let historicoRefazerImagemAtendimento = [];
+let historicoCorteImagemAtendimento = new WeakMap();
 let documentosAtendimento = [];
 let syncMeta = carregarSyncMeta();
 let syncPronto = false;
@@ -227,6 +230,7 @@ function iniciar() {
 function configurarEventos() {
   els.formLogin.addEventListener("submit", entrar);
   bloquearZoom();
+  document.addEventListener("keydown", atalhosGlobaisImagemAtendimento);
   document.querySelector("#btnSair").addEventListener("click", sair);
   els.brandButton.addEventListener("click", alternarMenuMarca);
   els.brandButton.addEventListener("keydown", (event) => {
@@ -1243,6 +1247,7 @@ function filtrarAtendimentos() {
 
 function novoAtendimento() {
   salvarRascunhoAtendimento(true);
+  limparHistoricoImagemAtendimento();
   atendimentoAbertoId = "";
   atendimentoAlterado = false;
   atendimentoModoEditor = true;
@@ -1372,6 +1377,7 @@ function fecharEditorAtendimento() {
   els.formAtendimento.reset();
   els.formAtendimento.elements.id.value = "";
   els.atendimentoEditor.innerHTML = "";
+  limparHistoricoImagemAtendimento();
   documentosAtendimento = [];
   renderDocumentosAtendimento();
   els.atendimentoStatus.textContent = "Rascunho pronto";
@@ -1674,6 +1680,7 @@ function abrirAtendimentoDaLista(event) {
 }
 
 function preencherFormularioAtendimento(atendimento) {
+  limparHistoricoImagemAtendimento();
   atendimentoModoEditor = true;
   atendimentoAbertoId = atendimento.id || "";
   els.formAtendimento.elements.id.value = atendimento.id || "";
@@ -1848,6 +1855,7 @@ function restaurarVersaoAtendimento(event) {
 
   els.formAtendimento.assunto.value = versao.assunto || atual.assunto;
   els.atendimentoEditor.innerHTML = versao.conteudoHtml || "";
+  limparHistoricoImagemAtendimento();
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = "Versão restaurada em rascunho";
   agendarPaginacaoAtendimento();
@@ -2259,6 +2267,7 @@ function inserirArquivoImagemAtendimento(arquivo) {
 }
 
 function inserirImagemAtendimento(src) {
+  const historicoAntes = capturarHtmlHistoricoImagem();
   restaurarSelecaoEditor();
   const img = document.createElement("img");
   img.src = src;
@@ -2269,18 +2278,41 @@ function inserirImagemAtendimento(src) {
   const selection = window.getSelection?.();
   if (selection?.rangeCount) {
     const range = selection.getRangeAt(0);
-    range.deleteContents();
-    range.insertNode(img);
-    range.setStartAfter(img);
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    inserirImagemEmBlocoProprio(img, range, selection);
   } else {
     els.atendimentoEditor.appendChild(img);
   }
   imagemAtivaAtendimento = img;
+  registrarHistoricoImagem(historicoAntes);
   marcarAtendimentoAlterado();
   agendarPaginacaoAtendimento();
+}
+
+function inserirImagemEmBlocoProprio(img, range, selection) {
+  range.deleteContents();
+  const bloco = blocoSuperiorDoEditor(range.startContainer);
+  if (bloco && bloco !== els.atendimentoEditor && !bloco.classList.contains("image-wrap-center-frame")) {
+    const depois = bloco.cloneNode(false);
+    const restante = document.createRange();
+    try {
+      restante.setStart(range.startContainer, range.startOffset);
+      restante.setEnd(bloco, bloco.childNodes.length);
+      depois.append(restante.extractContents());
+      bloco.after(img, depois);
+      if (!bloco.textContent?.trim() && !bloco.querySelector("br,img,table")) bloco.append(document.createElement("br"));
+      if (!depois.textContent?.trim() && !depois.querySelector("br,img,table")) depois.append(document.createElement("br"));
+      range.setStart(depois, 0);
+    } catch {
+      bloco.after(img);
+      range.setStartAfter(img);
+    }
+  } else {
+    range.insertNode(img);
+    range.setStartAfter(img);
+  }
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
 }
 
 function selecionarImagemAtendimento(event) {
@@ -2343,6 +2375,7 @@ function aplicarLayoutImagemAtendimento(event) {
   }
   const botao = event.target.closest("[data-image-layout]");
   if (!botao || !imagemAtivaAtendimento) return;
+  const historicoAntes = capturarHtmlHistoricoImagem();
   const layout = botao.dataset.imageLayout;
   const rectAnterior = imagemAtivaAtendimento.getBoundingClientRect();
   if (layout !== "wrap") desmontarWrapCentral(imagemAtivaAtendimento);
@@ -2364,6 +2397,7 @@ function aplicarLayoutImagemAtendimento(event) {
   aplicarTransformImagemAtendimento(imagemAtivaAtendimento);
   atualizarOpcoesLayoutImagem(layout);
   posicionarOverlayImagem(imagemAtivaAtendimento);
+  registrarHistoricoImagem(historicoAntes);
   marcarAtendimentoAlterado();
 }
 
@@ -2393,11 +2427,15 @@ function posicionarOverlayImagem(img) {
 function alternarCorteImagemAtendimento() {
   if (!imagemAtivaAtendimento) return;
   if (imagemAtivaAtendimento.classList.contains("is-cropping")) {
+    const historicoAntes = historicoCorteImagemAtendimento.get(imagemAtivaAtendimento) || capturarHtmlHistoricoImagem();
     const rect = imagemAtivaAtendimento.getBoundingClientRect();
     finalizarCorteImagem(imagemAtivaAtendimento, rect.width, rect.height);
+    historicoCorteImagemAtendimento.delete(imagemAtivaAtendimento);
+    registrarHistoricoImagem(historicoAntes);
     marcarAtendimentoAlterado();
     return;
   }
+  historicoCorteImagemAtendimento.set(imagemAtivaAtendimento, capturarHtmlHistoricoImagem());
   imagemAtivaAtendimento.classList.add("is-cropping");
   posicionarOverlayImagem(imagemAtivaAtendimento);
 }
@@ -2513,6 +2551,7 @@ function iniciarArrasteImagemDireto(event) {
 
 function iniciarInteracaoImagemAtendimento(event, img, acao) {
   event.preventDefault();
+  const historicoAntes = capturarHtmlHistoricoImagem();
   imagemAtivaAtendimento = img;
   if (acao.moverImagem) els.atendimentoEditor.classList.add("is-image-moving");
   const inicioX = event.clientX;
@@ -2546,7 +2585,7 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
     const deltaYOriginal = moveEvent.clientY - inicioY;
     if (acao.moverImagem) {
       if (img.dataset.imageLayout === "wrap") {
-        previsualizarMovimentoImagemWrap(img, moveEvent.clientX, moveEvent.clientY, inicioY);
+        previsualizarMovimentoImagemWrap(img, moveEvent.clientX, moveEvent.clientY, centroX, centroY);
         posicionarOverlayImagem(img);
         return;
       }
@@ -2599,6 +2638,7 @@ function iniciarInteracaoImagemAtendimento(event, img, acao) {
     } else if (acao.handle && img.dataset.imageLayout === "wrap") {
       atualizarWrapAposRedimensionar(img);
     }
+    registrarHistoricoImagem(historicoAntes);
     marcarAtendimentoAlterado();
     guardarSelecaoEditor();
   };
@@ -2624,21 +2664,23 @@ function moverImagemComTextoAoRedor(img, clientX, clientY) {
   agendarPaginacaoAtendimento();
 }
 
-function previsualizarMovimentoImagemWrap(img, clientX, clientY, inicioY) {
+function previsualizarMovimentoImagemWrap(img, clientX, clientY, centroInicialX, centroInicialY) {
   const frame = img.closest(".image-wrap-center-frame");
   if (!frame) {
     moverImagemComTextoAoRedor(img, clientX, clientY);
     return;
   }
-  configurarPosicaoHorizontalWrap(frame, img, clientX);
-  frame.style.transform = `translateY(${Math.round(clientY - inicioY)}px)`;
+  const deltaX = clientX - centroInicialX;
+  const deltaY = clientY - centroInicialY;
+  const rotacao = Number(img.dataset.rotation || 0);
+  img.style.transform = `translate(${Math.round(deltaX)}px, ${Math.round(deltaY)}px) rotate(${rotacao}deg)`;
   frame.dataset.pendingClientX = String(clientX);
   frame.dataset.pendingClientY = String(clientY);
 }
 
 function finalizarMovimentoImagemWrap(img, clientX, clientY) {
   const frame = img.closest(".image-wrap-center-frame");
-  if (frame) frame.style.transform = "";
+  img.style.transform = "";
   const x = Number(frame?.dataset.pendingClientX || clientX);
   const y = Number(frame?.dataset.pendingClientY || clientY);
   if (frame) {
@@ -3022,6 +3064,17 @@ function rangeEditorNoPonto(clientX, clientY) {
 }
 
 function atalhosEditorAtendimento(event) {
+  if (event.ctrlKey || event.metaKey) {
+    const teclaHistorico = event.key.toLowerCase();
+    if (teclaHistorico === "z" && !event.shiftKey && desfazerAlteracaoImagem()) {
+      event.preventDefault();
+      return;
+    }
+    if ((teclaHistorico === "y" || (teclaHistorico === "z" && event.shiftKey)) && refazerAlteracaoImagem()) {
+      event.preventDefault();
+      return;
+    }
+  }
   if (event.key === "Tab") {
     event.preventDefault();
     alterarRecuoAtendimento(event.shiftKey ? -1 : 1);
@@ -3044,7 +3097,7 @@ function atalhosEditorAtendimento(event) {
   }
   if (!(event.ctrlKey || event.metaKey)) return;
   const tecla = event.key.toLowerCase();
-  const comandos = { n: "bold", s: "underline", i: "italic", d: "toggleHighlight" };
+  const comandos = { b: "bold", s: "underline", i: "italic", d: "toggleHighlight" };
   if (!comandos[tecla]) return;
   event.preventDefault();
   executarComandoEditor(comandos[tecla], tecla === "d" ? corDestaqueSelecionada() : null);
@@ -3125,6 +3178,71 @@ function alternarFocoAtendimento() {
   document.body.classList.toggle("attendance-focus-mode");
   atualizarBotaoFocoAtendimento();
   agendarPaginacaoAtendimento();
+}
+
+function atalhosGlobaisImagemAtendimento(event) {
+  if (event.defaultPrevented || !(event.ctrlKey || event.metaKey)) return;
+  const ativo = document.activeElement;
+  if (ativo?.matches?.("input, textarea, select")) return;
+  const tecla = event.key.toLowerCase();
+  if (tecla === "z" && !event.shiftKey && desfazerAlteracaoImagem()) {
+    event.preventDefault();
+    return;
+  }
+  if ((tecla === "y" || (tecla === "z" && event.shiftKey)) && refazerAlteracaoImagem()) {
+    event.preventDefault();
+  }
+}
+
+function capturarHtmlHistoricoImagem() {
+  const clone = els.atendimentoEditor.cloneNode(true);
+  clone.querySelectorAll(".editor-page-break, .editor-page-caret").forEach((item) => item.remove());
+  clone.querySelectorAll("img.editor-image").forEach((img) => {
+    img.classList.remove("is-selected", "is-cropping");
+  });
+  return clone.innerHTML;
+}
+
+function registrarHistoricoImagem(antes) {
+  const depois = capturarHtmlHistoricoImagem();
+  if (!antes || antes === depois) return;
+  historicoImagemAtendimento.push({ antes, depois });
+  if (historicoImagemAtendimento.length > 40) historicoImagemAtendimento.shift();
+  historicoRefazerImagemAtendimento = [];
+}
+
+function desfazerAlteracaoImagem() {
+  const item = historicoImagemAtendimento.at(-1);
+  if (!item || capturarHtmlHistoricoImagem() !== item.depois) return false;
+  historicoImagemAtendimento.pop();
+  historicoRefazerImagemAtendimento.push(item);
+  restaurarHistoricoImagem(item.antes, "Alteração de imagem desfeita");
+  return true;
+}
+
+function refazerAlteracaoImagem() {
+  const item = historicoRefazerImagemAtendimento.at(-1);
+  if (!item || capturarHtmlHistoricoImagem() !== item.antes) return false;
+  historicoRefazerImagemAtendimento.pop();
+  historicoImagemAtendimento.push(item);
+  restaurarHistoricoImagem(item.depois, "Alteração de imagem refeita");
+  return true;
+}
+
+function restaurarHistoricoImagem(html, mensagem) {
+  fecharOpcoesImagemAtendimento();
+  imagemAtivaAtendimento = null;
+  els.atendimentoEditor.innerHTML = html;
+  atendimentoAlterado = true;
+  els.atendimentoStatus.textContent = mensagem;
+  agendarPaginacaoAtendimento();
+  marcarAtendimentoAlterado();
+}
+
+function limparHistoricoImagemAtendimento() {
+  historicoImagemAtendimento = [];
+  historicoRefazerImagemAtendimento = [];
+  historicoCorteImagemAtendimento = new WeakMap();
 }
 
 function sairFocoAtendimento() {
