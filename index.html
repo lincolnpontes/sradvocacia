@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.41">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.41">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.41">
-  <link rel="stylesheet" href="style.css?v=1.0.41">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.42">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.42">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.42">
+  <link rel="stylesheet" href="style.css?v=1.0.42">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.41</small>
+        <small>Versão 1.0.42</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -636,6 +636,10 @@
           <select name="responsavelId" id="processoResponsavel" required></select>
         </label>
         <label>
+          <span>Processo criminal</span>
+          <input name="processoCriminal" placeholder="Ex.: MPU">
+        </label>
+        <label>
           <span>Honorários</span>
           <input name="honorarios" type="number" min="0" step="100" placeholder="4500">
         </label>
@@ -814,6 +818,17 @@
           <textarea name="observacoes" rows="4" placeholder="Informações importantes sobre o cliente"></textarea>
         </label>
       </div>
+      <section class="entity-delete-zone is-hidden" id="clienteDeleteZone">
+        <div class="entity-delete-copy">
+          <strong>Excluir cliente</strong>
+          <small id="clienteDeleteMessage">Esta ação remove definitivamente o cadastro.</small>
+        </div>
+        <label>
+          <span>Digite “desejo excluir” para confirmar</span>
+          <input id="clienteDeleteConfirm" type="text" autocomplete="off" spellcheck="false" placeholder="desejo excluir">
+        </label>
+        <button class="danger-button" id="btnExcluirCliente" type="button" disabled>Excluir cliente</button>
+      </section>
       <div class="modal-actions">
         <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
         <button class="primary-button" value="default" type="submit">Salvar cliente</button>
@@ -954,6 +969,13 @@
             <button class="ghost-button" type="button" id="btnSyncPush">Enviar este dispositivo</button>
           </div>
         </div>
+        <section class="advanced-backup-zone span-2">
+          <div>
+            <strong>Salvar histórico completo</strong>
+            <small>Baixa uma cópia de segurança com clientes, processos, atendimentos, agenda, honorários e configurações. O token de sincronização não será incluído. O arquivo contém dados sigilosos e deve ser guardado com segurança.</small>
+          </div>
+          <button class="ghost-button" type="button" id="btnExportarHistorico">Salvar histórico</button>
+        </section>
         <section class="advanced-danger-zone span-2">
           <div>
             <strong>Limpar dados operacionais</strong>
@@ -1255,6 +1277,56 @@
     </div>
   </dialog>
 
-  <script src="app.js?v=1.0.41"></script>
+  <dialog id="modalEditarProcesso">
+    <form method="dialog" class="modal-card process-edit-modal" id="formEditarProcesso">
+      <input type="hidden" name="id">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Processo</p>
+          <h2>Editar dados do processo</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="form-grid">
+        <label>
+          <span>Área</span>
+          <select name="area" required></select>
+        </label>
+        <label>
+          <span>Vara/Fórum</span>
+          <select name="orgao" required></select>
+        </label>
+        <label>
+          <span>Responsável</span>
+          <select name="responsavelId" required></select>
+        </label>
+        <label>
+          <span>Processo criminal</span>
+          <input name="processoCriminal" placeholder="Ex.: MPU">
+        </label>
+        <label class="span-2">
+          <span>Resumo do caso</span>
+          <textarea name="resumo" rows="3" placeholder="Síntese objetiva do caso"></textarea>
+        </label>
+      </div>
+      <section class="entity-delete-zone process-delete-zone">
+        <div class="entity-delete-copy">
+          <strong>Excluir processo</strong>
+          <small>Os atendimentos vinculados serão preservados e voltarão para a lista de atendimentos.</small>
+        </div>
+        <label>
+          <span>Digite “desejo excluir” para confirmar</span>
+          <input id="processoDeleteConfirm" type="text" autocomplete="off" spellcheck="false" placeholder="desejo excluir">
+        </label>
+        <button class="danger-button" id="btnExcluirProcesso" type="button" disabled>Excluir processo</button>
+      </section>
+      <div class="modal-actions">
+        <button class="ghost-button" data-close-dialog type="button">Cancelar</button>
+        <button class="primary-button" type="submit">Salvar alterações</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js?v=1.0.42"></script>
 </body>
 </html>

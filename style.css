@@ -3814,6 +3814,92 @@ dialog::backdrop {
   grid-column: 1 / -1;
 }
 
+.detail-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.detail-panel-title h3 {
+  margin: 0;
+}
+
+.detail-edit-action {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  color: var(--wine);
+  background: transparent;
+  font-family: "Segoe UI Symbol", Arial, sans-serif;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.detail-edit-action:hover {
+  color: var(--wine-soft);
+  background: rgba(128, 46, 62, 0.08);
+}
+
+.process-edit-modal {
+  width: min(720px, calc(100vw - 24px));
+}
+
+.entity-delete-zone,
+.advanced-backup-zone {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(210px, 0.72fr) auto;
+  gap: 14px;
+  align-items: end;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid rgba(180, 35, 24, 0.28);
+  border-radius: 8px;
+  background: #fff7f5;
+}
+
+.entity-delete-copy,
+.advanced-backup-zone > div {
+  display: grid;
+  gap: 4px;
+  align-self: center;
+}
+
+.entity-delete-copy strong {
+  color: #7a1d16;
+}
+
+.entity-delete-copy small,
+.advanced-backup-zone small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.entity-delete-zone label {
+  display: grid;
+  gap: 6px;
+}
+
+.entity-delete-zone label span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.advanced-backup-zone {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-color: rgba(197, 154, 70, 0.34);
+  background: #fffaf4;
+}
+
+.advanced-backup-zone strong {
+  color: var(--ink);
+}
+
 .process-status-form {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto;
@@ -4526,6 +4612,16 @@ dd {
 }
 
 @media (max-width: 720px) {
+  .entity-delete-zone,
+  .advanced-backup-zone {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .entity-delete-zone .danger-button,
+  .advanced-backup-zone .ghost-button {
+    width: 100%;
+  }
   .advanced-danger-zone {
     align-items: stretch;
     flex-direction: column;

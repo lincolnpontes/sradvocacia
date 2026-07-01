@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.41";
+const APP_VERSION = "1.0.42";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -16,6 +16,7 @@ const DEMO_CLEANUP_SYNC_KEY = "sr-advocacia-demo-cleanup-v128";
 const SYNC_DEBOUNCE_MS = 350;
 const SYNC_INTERVAL_MS = 3000;
 const CLEANUP_CONFIRMATION_PHRASE = "quero excluir tudo e entendo as implicações referentes a esse pedido";
+const ENTITY_DELETE_CONFIRMATION_PHRASE = "desejo excluir";
 const ADVANCED_ACCESS_DURATION_MS = 10 * 60 * 1000;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
@@ -102,6 +103,9 @@ const els = {
   modalProcesso: document.querySelector("#modalProcesso"),
   modalCliente: document.querySelector("#modalCliente"),
   modalDetalhe: document.querySelector("#modalDetalheProcesso"),
+  modalEditarProcesso: document.querySelector("#modalEditarProcesso"),
+  processoDeleteConfirm: document.querySelector("#processoDeleteConfirm"),
+  btnExcluirProcesso: document.querySelector("#btnExcluirProcesso"),
   modalUsuario: document.querySelector("#modalUsuario"),
   modalConfig: document.querySelector("#modalConfig"),
   modalAvancadas: document.querySelector("#modalAvancadas"),
@@ -121,11 +125,16 @@ const els = {
   modalTema: document.querySelector("#modalTema"),
   modalAgendarAtendimento: document.querySelector("#modalAgendarAtendimento"),
   formProcesso: document.querySelector("#formProcesso"),
+  formEditarProcesso: document.querySelector("#formEditarProcesso"),
   processoClienteBusca: document.querySelector("#processoClienteBusca"),
   processoClienteId: document.querySelector("#processoClienteId"),
   clienteSugestoes: document.querySelector("#clienteSugestoes"),
   formCliente: document.querySelector("#formCliente"),
   clientePainel: document.querySelector("#clientePainel"),
+  clienteDeleteZone: document.querySelector("#clienteDeleteZone"),
+  clienteDeleteMessage: document.querySelector("#clienteDeleteMessage"),
+  clienteDeleteConfirm: document.querySelector("#clienteDeleteConfirm"),
+  btnExcluirCliente: document.querySelector("#btnExcluirCliente"),
   formUsuario: document.querySelector("#formUsuarioDetalhe"),
   formConfigItem: document.querySelector("#formConfigItem"),
   formAvancadas: document.querySelector("#formAvancadas"),
@@ -134,6 +143,7 @@ const els = {
   btnSyncNow: document.querySelector("#btnSyncNow"),
   btnSyncPull: document.querySelector("#btnSyncPull"),
   btnSyncPush: document.querySelector("#btnSyncPush"),
+  btnExportarHistorico: document.querySelector("#btnExportarHistorico"),
   formRecebimento: document.querySelector("#formRecebimento"),
   formContrato: document.querySelector("#formContrato"),
   formAtendimento: document.querySelector("#formAtendimento"),
@@ -300,6 +310,11 @@ function configurarEventos() {
   els.filtroStatus.addEventListener("change", renderizarTudo);
   els.formCliente.addEventListener("submit", salvarCliente);
   els.formProcesso.addEventListener("submit", salvarProcesso);
+  els.formEditarProcesso.addEventListener("submit", salvarEdicaoProcesso);
+  els.processoDeleteConfirm.addEventListener("input", validarExclusaoProcesso);
+  els.btnExcluirProcesso.addEventListener("click", excluirProcessoConfirmado);
+  els.clienteDeleteConfirm.addEventListener("input", validarExclusaoCliente);
+  els.btnExcluirCliente.addEventListener("click", excluirClienteConfirmado);
   els.processoClienteBusca.addEventListener("input", renderSugestoesCliente);
   els.processoClienteBusca.addEventListener("focus", renderSugestoesCliente);
   els.formUsuario.addEventListener("submit", salvarUsuario);
@@ -314,6 +329,7 @@ function configurarEventos() {
   els.btnSyncNow?.addEventListener("click", () => sincronizarComServidor({ manual: true }));
   els.btnSyncPull?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePull: true }));
   els.btnSyncPush?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePush: true }));
+  els.btnExportarHistorico.addEventListener("click", exportarDados);
   els.formRecebimento.addEventListener("submit", salvarRecebimento);
   els.formContrato.addEventListener("submit", salvarContratoHonorarios);
   els.formAgendarAtendimento.addEventListener("submit", salvarAgendamentoAtendimento);
@@ -366,6 +382,7 @@ function configurarEventos() {
   els.listaConfigModal.addEventListener("click", editarOuExcluirConfig);
   els.detalheConteudo.addEventListener("submit", salvarItemProcesso);
   els.detalheConteudo.addEventListener("click", concluirPrazo);
+  els.detalheConteudo.addEventListener("click", abrirEdicaoProcessoPorBotao);
   document.querySelector("#btnNovoUsuario").addEventListener("click", () => abrirModalUsuario());
   document.querySelector("#btnExcluirUsuario").addEventListener("click", excluirUsuarioAberto);
   document.querySelector("#btnForceUpdateConfig").addEventListener("click", forcarAtualizacao);
@@ -453,6 +470,7 @@ function abrirModalCliente(id = "") {
   els.formCliente.observacoes.value = cliente?.observacoes || "";
   atualizarCamposClientePorTipo();
   renderPainelCliente(cliente);
+  prepararExclusaoCliente(cliente);
   els.modalCliente.showModal();
 }
 
@@ -569,6 +587,58 @@ function salvarCliente(event) {
   trocarView("clientes");
 }
 
+function prepararExclusaoCliente(cliente) {
+  const editando = !!cliente?.id;
+  els.clienteDeleteZone.classList.toggle("is-hidden", !editando);
+  els.clienteDeleteConfirm.value = "";
+  els.clienteDeleteConfirm.disabled = !editando;
+  els.btnExcluirCliente.disabled = true;
+  delete els.btnExcluirCliente.dataset.deleteClientId;
+  if (!editando) return;
+
+  const dependencias = dependenciasCliente(cliente.id);
+  const bloqueado = dependencias.processos > 0 || dependencias.atendimentos > 0;
+  els.clienteDeleteConfirm.disabled = bloqueado;
+  els.btnExcluirCliente.dataset.deleteClientId = cliente.id;
+  els.clienteDeleteMessage.textContent = bloqueado
+    ? `Exclusão bloqueada: este cliente possui ${dependencias.processos} processo(s) e ${dependencias.atendimentos} atendimento(s). Exclua ou desvincule esses registros primeiro.`
+    : "Esta ação remove definitivamente o cadastro deste cliente.";
+}
+
+function dependenciasCliente(clienteId) {
+  return {
+    processos: state.processos.filter((processo) => processo.clienteId === clienteId).length,
+    atendimentos: state.atendimentos.filter((atendimento) => atendimento.clienteId === clienteId).length
+  };
+}
+
+function validarExclusaoCliente() {
+  const clienteId = els.btnExcluirCliente.dataset.deleteClientId || "";
+  const dependencias = dependenciasCliente(clienteId);
+  const semVinculos = dependencias.processos === 0 && dependencias.atendimentos === 0;
+  els.btnExcluirCliente.disabled = !clienteId || !semVinculos || fraseExclusaoInvalida(els.clienteDeleteConfirm.value);
+}
+
+function excluirClienteConfirmado() {
+  const clienteId = els.btnExcluirCliente.dataset.deleteClientId || "";
+  const cliente = obterCliente(clienteId);
+  if (!cliente || fraseExclusaoInvalida(els.clienteDeleteConfirm.value)) return;
+  const dependencias = dependenciasCliente(clienteId);
+  if (dependencias.processos || dependencias.atendimentos) {
+    prepararExclusaoCliente(cliente);
+    return;
+  }
+  registrarExclusaoCliente(cliente);
+  state.clientes = state.clientes.filter((item) => item.id !== clienteId);
+  salvarEstado();
+  els.modalCliente.close();
+  renderizarTudo();
+}
+
+function fraseExclusaoInvalida(valor = "") {
+  return String(valor).trim().toLocaleLowerCase("pt-BR") !== ENTITY_DELETE_CONFIRMATION_PHRASE;
+}
+
 function salvarProcesso(event) {
   event.preventDefault();
   const dados = Object.fromEntries(new FormData(els.formProcesso));
@@ -589,6 +659,7 @@ function salvarProcesso(event) {
     orgao: dados.orgao,
     prazo: dados.prazo,
     responsavelId: dados.responsavelId,
+    processoCriminal: dados.processoCriminal?.trim() || "",
     honorarios: Number(dados.honorarios || 0),
     recebido: Number(dados.recebido || 0),
     recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "", atualizadoEm: agoraSyncIso() }] : [],
@@ -3841,6 +3912,76 @@ function renderConfigModal() {
   `).join("");
 }
 
+function abrirEdicaoProcessoPorBotao(event) {
+  const botao = event.target.closest("[data-edit-process]");
+  if (!botao) return;
+  abrirEdicaoProcesso(botao.dataset.editProcess);
+}
+
+function abrirEdicaoProcesso(id = processoAbertoId) {
+  const processo = obterProcesso(id);
+  if (!processo) return;
+  els.formEditarProcesso.reset();
+  const areas = state.configs.areas.includes(processo.area) ? state.configs.areas : [processo.area, ...state.configs.areas].filter(Boolean);
+  const orgaos = state.configs.orgaos.includes(processo.orgao) ? state.configs.orgaos : [processo.orgao, ...state.configs.orgaos].filter(Boolean);
+  preencherSelect(els.formEditarProcesso.area, areas.map(opcao));
+  preencherSelect(els.formEditarProcesso.orgao, orgaos.map(opcao));
+  preencherSelect(els.formEditarProcesso.responsavelId, state.usuarios.map((usuario) => ({ value: usuario.id, label: usuario.nome })));
+  els.formEditarProcesso.elements.id.value = processo.id;
+  els.formEditarProcesso.area.value = processo.area || "";
+  els.formEditarProcesso.orgao.value = processo.orgao || "";
+  els.formEditarProcesso.responsavelId.value = processo.responsavelId || "";
+  els.formEditarProcesso.processoCriminal.value = processo.processoCriminal || "";
+  els.formEditarProcesso.resumo.value = processo.resumo || "";
+  els.processoDeleteConfirm.value = "";
+  els.btnExcluirProcesso.disabled = true;
+  els.btnExcluirProcesso.dataset.deleteProcessId = processo.id;
+  els.modalEditarProcesso.showModal();
+}
+
+function salvarEdicaoProcesso(event) {
+  event.preventDefault();
+  const dados = Object.fromEntries(new FormData(els.formEditarProcesso));
+  const processo = obterProcesso(dados.id);
+  if (!processo) return;
+  Object.assign(processo, {
+    area: dados.area,
+    orgao: dados.orgao,
+    responsavelId: dados.responsavelId,
+    processoCriminal: dados.processoCriminal?.trim() || "",
+    resumo: dados.resumo?.trim() || "",
+    atualizadoEm: agoraSyncIso()
+  });
+  salvarEstado();
+  els.modalEditarProcesso.close();
+  renderizarTudo();
+  abrirDetalheProcesso(processo.id);
+}
+
+function validarExclusaoProcesso() {
+  const processoId = els.btnExcluirProcesso.dataset.deleteProcessId || "";
+  els.btnExcluirProcesso.disabled = !processoId || fraseExclusaoInvalida(els.processoDeleteConfirm.value);
+}
+
+function excluirProcessoConfirmado() {
+  const processoId = els.btnExcluirProcesso.dataset.deleteProcessId || "";
+  const processo = obterProcesso(processoId);
+  if (!processo || fraseExclusaoInvalida(els.processoDeleteConfirm.value)) return;
+  registrarExclusaoProcesso(processo);
+  const agora = agoraSyncIso();
+  state.atendimentos.forEach((atendimento) => {
+    if (atendimento.processoId !== processoId) return;
+    atendimento.processoId = "";
+    atendimento.atualizadoEm = agora;
+  });
+  state.processos = state.processos.filter((item) => item.id !== processoId);
+  processoAbertoId = null;
+  salvarEstado();
+  els.modalEditarProcesso.close();
+  els.modalDetalhe.close();
+  renderizarTudo();
+}
+
 function abrirDetalheProcesso(id) {
   const processo = obterProcesso(id);
   if (!processo) return;
@@ -3877,7 +4018,10 @@ function abrirDetalheProcesso(id) {
 
       <div class="detail-board">
         <section class="detail-panel detail-main">
-          <h3>Dados do processo</h3>
+          <div class="detail-panel-title">
+            <h3>Dados do processo</h3>
+            <button class="detail-edit-action" type="button" data-edit-process="${processo.id}" title="Editar dados do processo" aria-label="Editar dados do processo"><span aria-hidden="true">✎</span></button>
+          </div>
           <form class="process-status-form" data-detail-form="status">
             <label>
               <span>Status do processo</span>
@@ -3892,6 +4036,7 @@ function abrirDetalheProcesso(id) {
             <dt>Vara/Fórum</dt><dd>${escapeHtml(processo.orgao)}</dd>
             <dt>Responsável</dt><dd>${escapeHtml(responsavel?.nome || "")}</dd>
             <dt>Próximo prazo</dt><dd>${dataCurta(processo.prazo)}</dd>
+            ${processo.processoCriminal || normalizar(processo.area).includes("criminal") ? `<dt>Processo criminal</dt><dd>${escapeHtml(processo.processoCriminal || "Não informado")}</dd>` : ""}
           </dl>
           <p>${escapeHtml(processo.resumo || "Sem resumo cadastrado.")}</p>
         </section>
@@ -4343,6 +4488,8 @@ async function confirmarLimpezaGeral(event) {
   state.atendimentos = [];
   state.rascunhoAtendimento = null;
   state.exclusoesAtendimentos = [];
+  state.exclusoesProcessos = [];
+  state.exclusoesClientes = [];
   state.atendimentoMostrarArquivados = false;
   state.limpezaGeralEm = limpezaEm;
   state.atualizadoEm = limpezaEm;
@@ -4455,6 +4602,24 @@ function registrarExclusaoAtendimento(atendimento = {}) {
   const item = { id: atendimento.id || "", numero: atendimento.numero || "", excluidoEm: new Date().toISOString() };
   state.exclusoesAtendimentos = [
     ...state.exclusoesAtendimentos.filter((exclusao) => exclusao.id !== item.id && exclusao.numero !== item.numero),
+    item
+  ].slice(-500);
+}
+
+function registrarExclusaoProcesso(processo = {}) {
+  if (!state.exclusoesProcessos) state.exclusoesProcessos = [];
+  const item = { id: processo.id || "", numero: processo.numero || "", excluidoEm: agoraSyncIso() };
+  state.exclusoesProcessos = [
+    ...state.exclusoesProcessos.filter((exclusao) => exclusao.id !== item.id),
+    item
+  ].slice(-500);
+}
+
+function registrarExclusaoCliente(cliente = {}) {
+  if (!state.exclusoesClientes) state.exclusoesClientes = [];
+  const item = { id: cliente.id || "", nome: cliente.nome || "", excluidoEm: agoraSyncIso() };
+  state.exclusoesClientes = [
+    ...state.exclusoesClientes.filter((exclusao) => exclusao.id !== item.id),
     item
   ].slice(-500);
 }
@@ -4761,6 +4926,16 @@ function normalizarEstado(raw) {
     numero: item.numero || "",
     excluidoEm: item.excluidoEm || hojeIso()
   })).filter((item) => item.id || item.numero).slice(-500) : [];
+  estado.exclusoesProcessos = Array.isArray(raw.exclusoesProcessos) ? raw.exclusoesProcessos.map((item) => ({
+    id: item.id || "",
+    numero: item.numero || "",
+    excluidoEm: item.excluidoEm || hojeIso()
+  })).filter((item) => item.id).slice(-500) : [];
+  estado.exclusoesClientes = Array.isArray(raw.exclusoesClientes) ? raw.exclusoesClientes.map((item) => ({
+    id: item.id || "",
+    nome: item.nome || "",
+    excluidoEm: item.excluidoEm || hojeIso()
+  })).filter((item) => item.id).slice(-500) : [];
   estado.sidebarRecolhida = !!estado.sidebarRecolhida;
   estado.agendaModo = ["mes", "semana", "dia"].includes(raw.agendaModo) ? raw.agendaModo : "mes";
   estado.agendaDiaSelecionado = raw.agendaDiaSelecionado || hojeIso();
@@ -4827,6 +5002,7 @@ function normalizarEstado(raw) {
   }
   estado.processos = (estado.processos || []).map((processo) => normalizarProcesso(processo, estado));
   aplicarExclusoesAtendimentos(estado);
+  aplicarExclusoesEntidades(estado);
   aplicarLimpezaGeralSync(estado);
   if (removerDadosDemonstrativos(estado) && typeof localStorage !== "undefined") {
     localStorage.setItem(DEMO_CLEANUP_SYNC_KEY, "1");
@@ -4900,6 +5076,25 @@ function aplicarExclusoesAtendimentos(estado) {
   }
 }
 
+function aplicarExclusoesEntidades(estado) {
+  const processosExcluidos = new Set((estado.exclusoesProcessos || []).map((item) => item.id).filter(Boolean));
+  const clientesExcluidos = new Set((estado.exclusoesClientes || []).map((item) => item.id).filter(Boolean));
+  if (processosExcluidos.size) {
+    estado.processos = (estado.processos || []).filter((processo) => !processosExcluidos.has(processo.id));
+    estado.atendimentos = (estado.atendimentos || []).map((atendimento) => processosExcluidos.has(atendimento.processoId)
+      ? { ...atendimento, processoId: "" }
+      : atendimento);
+  }
+  if (clientesExcluidos.size) {
+    const clientesComVinculos = new Set([
+      ...(estado.processos || []).map((processo) => processo.clienteId),
+      ...(estado.atendimentos || []).map((atendimento) => atendimento.clienteId)
+    ].filter(Boolean));
+    estado.clientes = (estado.clientes || []).filter((cliente) => !clientesExcluidos.has(cliente.id) || clientesComVinculos.has(cliente.id));
+  }
+  return estado;
+}
+
 function aplicarLimpezaGeralSync(estado) {
   const limite = timestampIsoSync(estado?.limpezaGeralEm || "");
   if (!limite || !estado) return estado;
@@ -4907,6 +5102,8 @@ function aplicarLimpezaGeralSync(estado) {
   estado.atendimentos = (estado.atendimentos || []).filter((item) => timestampAtendimento(item) > limite);
   estado.processos = (estado.processos || []).filter((item) => timestampProcessoSync(item) > limite);
   estado.exclusoesAtendimentos = (estado.exclusoesAtendimentos || []).filter((item) => timestampGenericoSync(item) > limite);
+  estado.exclusoesProcessos = (estado.exclusoesProcessos || []).filter((item) => timestampGenericoSync(item) > limite);
+  estado.exclusoesClientes = (estado.exclusoesClientes || []).filter((item) => timestampGenericoSync(item) > limite);
   if (estado.rascunhoAtendimento && timestampAtendimento(estado.rascunhoAtendimento) <= limite) {
     estado.rascunhoAtendimento = null;
   }
@@ -5044,6 +5241,7 @@ function normalizarProcesso(processo, estado) {
     orgao,
     prazo: processo.prazo || proximoPrazoLista(prazos),
     responsavelId,
+    processoCriminal: migrarTextoParaPb(processo.processoCriminal || processo.tipoProcessoCriminal || ""),
     honorarios: Number(processo.honorarios || 0),
     recebido: soma(recebimentos, "valor"),
     recebimentos,
@@ -5182,6 +5380,8 @@ function criarEstadoPadrao() {
     clienteOrdenacao: "nome",
     atendimentoMostrarArquivados: false,
     exclusoesAtendimentos: [],
+    exclusoesProcessos: [],
+    exclusoesClientes: [],
     sidebarRecolhida: false,
     agendaModo: "mes",
     agendaDiaSelecionado: hojeIso(),
@@ -5541,6 +5741,8 @@ function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
   mesclado.processos = mesclarProcessosSync(remoto.processos, local.processos, remotoMaisNovo);
   mesclado.atendimentos = mesclarArrayPorIdSync(remoto.atendimentos, local.atendimentos, timestampAtendimento, remotoMaisNovo);
   mesclado.exclusoesAtendimentos = mesclarExclusoesAtendimentosSync(remoto.exclusoesAtendimentos, local.exclusoesAtendimentos);
+  mesclado.exclusoesProcessos = mesclarExclusoesEntidadesSync(remoto.exclusoesProcessos, local.exclusoesProcessos);
+  mesclado.exclusoesClientes = mesclarExclusoesEntidadesSync(remoto.exclusoesClientes, local.exclusoesClientes);
   const feriadosRemotosMaisNovos = timestampIsoSync(remoto.feriadosAtualizadoEm) > timestampIsoSync(local.feriadosAtualizadoEm);
   if (timestampIsoSync(remoto.feriadosAtualizadoEm) === timestampIsoSync(local.feriadosAtualizadoEm)) {
     mesclado.feriadosDesmarcados = Array.from(new Set([...(remoto.feriadosDesmarcados || []), ...(local.feriadosDesmarcados || [])]));
@@ -5555,6 +5757,7 @@ function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
   mesclado.limpezaGeralEm = limpezaGeralEm;
   mesclado.atualizadoEm = remotoMaisNovo ? remoto.atualizadoEm : (local.atualizadoEm || remoto.atualizadoEm || "");
   aplicarExclusoesAtendimentos(mesclado);
+  aplicarExclusoesEntidades(mesclado);
   aplicarLimpezaGeralSync(mesclado);
   deduplicarAtendimentos(mesclado);
   return mesclado;
@@ -5625,6 +5828,13 @@ function mesclarProcessoSync(a = {}, b = {}) {
 function mesclarExclusoesAtendimentosSync(remotas = [], locais = []) {
   return mesclarArrayPorIdSync(remotas, locais, timestampGenericoSync)
     .filter((item) => item.id || item.numero)
+    .sort((a, b) => timestampGenericoSync(a) - timestampGenericoSync(b))
+    .slice(-500);
+}
+
+function mesclarExclusoesEntidadesSync(remotas = [], locais = []) {
+  return mesclarArrayPorIdSync(remotas, locais, timestampGenericoSync)
+    .filter((item) => item.id)
     .sort((a, b) => timestampGenericoSync(a) - timestampGenericoSync(b))
     .slice(-500);
 }
@@ -6105,8 +6315,10 @@ function exportarDados() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `sr-advocacia-${new Date().toISOString().slice(0, 10)}.json`;
+  const instante = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+  a.download = `sr-advocacia-historico-completo-${instante}.json`;
   a.click();
+  a.remove();
   URL.revokeObjectURL(url);
 }
 
