@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.42">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.42">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.42">
-  <link rel="stylesheet" href="style.css?v=1.0.42">
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.43">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.43">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.43">
+  <link rel="stylesheet" href="style.css?v=1.0.43">
 </head>
 <body>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
@@ -27,7 +27,7 @@
 
       <button class="primary-button full" type="submit">Entrar</button>
       <div class="login-version">
-        <small>Versão 1.0.42</small>
+        <small>Versão 1.0.43</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -575,6 +575,17 @@
               <button class="ghost-button" type="button" id="btnNovoUsuario">Novo usuário</button>
             </div>
             <div class="user-list" id="listaUsuarios"></div>
+          </section>
+
+          <section class="panel system-audit-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Auditoria do sistema</h2>
+                <p>Histórico de alterações, exclusões e acessos realizados no escritório</p>
+              </div>
+              <button class="ghost-button" type="button" id="btnAbrirAuditoria">Abrir auditoria</button>
+            </div>
+            <div class="audit-summary" id="auditoriaResumo"></div>
           </section>
 
           <section class="panel advanced-panel">
@@ -1327,6 +1338,33 @@
     </form>
   </dialog>
 
-  <script src="app.js?v=1.0.42"></script>
+  <dialog id="modalAuditoria">
+    <div class="modal-card audit-modal">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow">Configurações</p>
+          <h2>Auditoria do sistema</h2>
+        </div>
+        <button class="icon-button" data-close-dialog type="button" title="Fechar">×</button>
+      </div>
+      <div class="audit-toolbar">
+        <label>
+          <span>Buscar</span>
+          <input id="buscaAuditoria" type="search" placeholder="Ação, cliente, processo ou usuário">
+        </label>
+        <label>
+          <span>Usuário</span>
+          <select id="filtroUsuarioAuditoria"></select>
+        </label>
+      </div>
+      <div class="audit-list" id="listaAuditoria"></div>
+      <div class="modal-actions">
+        <small>São exibidas as ações registradas a partir desta versão.</small>
+        <button class="ghost-button" data-close-dialog type="button">Fechar</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js?v=1.0.43"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.42";
+const APP_VERSION = "1.0.43";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -17,6 +17,8 @@ const SYNC_DEBOUNCE_MS = 350;
 const SYNC_INTERVAL_MS = 3000;
 const CLEANUP_CONFIRMATION_PHRASE = "quero excluir tudo e entendo as implicações referentes a esse pedido";
 const ENTITY_DELETE_CONFIRMATION_PHRASE = "desejo excluir";
+const AUDIT_RETENTION_DAYS = 180;
+const AUDIT_MAX_ITEMS = 2000;
 const ADVANCED_ACCESS_DURATION_MS = 10 * 60 * 1000;
 const FERIADOS_FIXOS_BRASIL = Object.freeze([
   { mes: 1, dia: 1, nome: "Confraternização Universal" },
@@ -104,6 +106,7 @@ const els = {
   modalCliente: document.querySelector("#modalCliente"),
   modalDetalhe: document.querySelector("#modalDetalheProcesso"),
   modalEditarProcesso: document.querySelector("#modalEditarProcesso"),
+  modalAuditoria: document.querySelector("#modalAuditoria"),
   processoDeleteConfirm: document.querySelector("#processoDeleteConfirm"),
   btnExcluirProcesso: document.querySelector("#btnExcluirProcesso"),
   modalUsuario: document.querySelector("#modalUsuario"),
@@ -144,6 +147,11 @@ const els = {
   btnSyncPull: document.querySelector("#btnSyncPull"),
   btnSyncPush: document.querySelector("#btnSyncPush"),
   btnExportarHistorico: document.querySelector("#btnExportarHistorico"),
+  btnAbrirAuditoria: document.querySelector("#btnAbrirAuditoria"),
+  auditoriaResumo: document.querySelector("#auditoriaResumo"),
+  buscaAuditoria: document.querySelector("#buscaAuditoria"),
+  filtroUsuarioAuditoria: document.querySelector("#filtroUsuarioAuditoria"),
+  listaAuditoria: document.querySelector("#listaAuditoria"),
   formRecebimento: document.querySelector("#formRecebimento"),
   formContrato: document.querySelector("#formContrato"),
   formAtendimento: document.querySelector("#formAtendimento"),
@@ -310,11 +318,11 @@ function configurarEventos() {
   els.filtroStatus.addEventListener("change", renderizarTudo);
   els.formCliente.addEventListener("submit", salvarCliente);
   els.formProcesso.addEventListener("submit", salvarProcesso);
-  els.formEditarProcesso.addEventListener("submit", salvarEdicaoProcesso);
-  els.processoDeleteConfirm.addEventListener("input", validarExclusaoProcesso);
-  els.btnExcluirProcesso.addEventListener("click", excluirProcessoConfirmado);
-  els.clienteDeleteConfirm.addEventListener("input", validarExclusaoCliente);
-  els.btnExcluirCliente.addEventListener("click", excluirClienteConfirmado);
+  els.formEditarProcesso?.addEventListener("submit", salvarEdicaoProcesso);
+  els.processoDeleteConfirm?.addEventListener("input", validarExclusaoProcesso);
+  els.btnExcluirProcesso?.addEventListener("click", excluirProcessoConfirmado);
+  els.clienteDeleteConfirm?.addEventListener("input", validarExclusaoCliente);
+  els.btnExcluirCliente?.addEventListener("click", excluirClienteConfirmado);
   els.processoClienteBusca.addEventListener("input", renderSugestoesCliente);
   els.processoClienteBusca.addEventListener("focus", renderSugestoesCliente);
   els.formUsuario.addEventListener("submit", salvarUsuario);
@@ -329,7 +337,10 @@ function configurarEventos() {
   els.btnSyncNow?.addEventListener("click", () => sincronizarComServidor({ manual: true }));
   els.btnSyncPull?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePull: true }));
   els.btnSyncPush?.addEventListener("click", () => sincronizarComServidor({ manual: true, forcePush: true }));
-  els.btnExportarHistorico.addEventListener("click", exportarDados);
+  els.btnExportarHistorico?.addEventListener("click", exportarDados);
+  els.btnAbrirAuditoria?.addEventListener("click", abrirAuditoria);
+  els.buscaAuditoria?.addEventListener("input", renderAuditoria);
+  els.filtroUsuarioAuditoria?.addEventListener("change", renderAuditoria);
   els.formRecebimento.addEventListener("submit", salvarRecebimento);
   els.formContrato.addEventListener("submit", salvarContratoHonorarios);
   els.formAgendarAtendimento.addEventListener("submit", salvarAgendamentoAtendimento);
@@ -410,6 +421,7 @@ function entrar(event) {
   }
   state.usuarioAtivoId = usuario.id;
   sessionStorage.setItem(SESSION_KEY, usuario.id);
+  registrarAuditoria("Acesso realizado", usuario.nome || usuario.email || "Usuário", "usuario", usuario.id);
   salvarEstado();
   atualizarPerfil();
   aplicarPermissoes();
@@ -417,6 +429,8 @@ function entrar(event) {
 }
 
 function sair() {
+  const usuario = obterUsuario(state.usuarioAtivoId);
+  registrarAuditoria("Sessão encerrada", usuario?.nome || "Usuário", "usuario", usuario?.id || "");
   state.usuarioAtivoId = null;
   sessionStorage.removeItem(SESSION_KEY);
   salvarEstado();
@@ -581,6 +595,7 @@ function salvarCliente(event) {
     atualizadoEm: agoraSyncIso()
   });
 
+  registrarAuditoria(atual ? "Cliente atualizado" : "Cliente cadastrado", cliente.nome, "cliente", cliente.id);
   if (!atual) state.clientes.unshift(cliente);
   salvarEstado();
   els.modalCliente.close();
@@ -588,6 +603,7 @@ function salvarCliente(event) {
 }
 
 function prepararExclusaoCliente(cliente) {
+  if (!els.clienteDeleteZone || !els.clienteDeleteConfirm || !els.btnExcluirCliente || !els.clienteDeleteMessage) return;
   const editando = !!cliente?.id;
   els.clienteDeleteZone.classList.toggle("is-hidden", !editando);
   els.clienteDeleteConfirm.value = "";
@@ -629,6 +645,7 @@ function excluirClienteConfirmado() {
     return;
   }
   registrarExclusaoCliente(cliente);
+  registrarAuditoria("Cliente excluído", cliente.nome, "cliente", cliente.id);
   state.clientes = state.clientes.filter((item) => item.id !== clienteId);
   salvarEstado();
   els.modalCliente.close();
@@ -683,6 +700,7 @@ function salvarProcesso(event) {
       { id: uid(), data: hojeIso(), descricao: atendimentoOrigem ? "Processo criado a partir de atendimento." : "Processo cadastrado no sistema.", atualizadoEm: agoraSyncIso() }
     ]
   };
+  registrarAuditoria("Processo cadastrado", `${processo.numero} · ${obterCliente(processo.clienteId)?.nome || "Cliente"}`, "processo", processo.id);
   if (atendimentoOrigem) {
     processo.atendimentos = [atendimentoOrigem.id];
     atendimentoOrigem.processoId = processo.id;
@@ -723,6 +741,7 @@ function salvarUsuario(event) {
     atualizadoEm: agoraSyncIso()
   });
 
+  registrarAuditoria(atual ? "Usuário atualizado" : "Usuário cadastrado", usuario.nome, "usuario", usuario.id);
   if (!atual) state.usuarios.push(usuario);
   salvarEstado();
   popularLogin();
@@ -892,6 +911,13 @@ function salvarItemProcesso(event) {
     processo.movimentacoes.unshift({ id: uid(), data: dados.data, descricao: dados.descricao.trim(), atualizadoEm: agoraSyncIso() });
   }
 
+  const acaoAuditoria = {
+    andamento: "Movimentação registrada",
+    status: "Status do processo atualizado",
+    prazo: "Prazo registrado",
+    movimentacao: "Movimentação registrada"
+  }[form.dataset.detailForm] || "Processo atualizado";
+  registrarAuditoria(acaoAuditoria, processo.numero || processo.id, "processo", processo.id);
   marcarEntidadeAtualizada(processo);
   form.reset();
   salvarEstado();
@@ -1395,6 +1421,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
   }
   const idReferencia = dados.id || atendimentoAbertoId || state.rascunhoAtendimento?.id || "";
   let atendimento = idReferencia ? state.atendimentos.find((item) => item.id === idReferencia) : null;
+  const novoAtendimento = !atendimento;
   if (!dados.id && atendimento) dados.id = atendimento.id;
   if (!atendimento) {
     atendimento = { id: uid(), numero: proximoNumeroAtendimento(), criadoEm: agoraSyncIso(), versoes: [] };
@@ -1413,6 +1440,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
   }
   const salvoEm = agoraSyncIso();
   Object.assign(atendimento, dados, { numero: atendimento.numero || proximoNumeroAtendimento(), arquivado: !!atendimento.arquivado, salvoEm, atualizadoEm: salvoEm });
+  registrarAuditoria(novoAtendimento ? "Atendimento cadastrado" : "Atendimento atualizado", `${rotuloAtendimento(atendimento)} · ${atendimento.assunto}`, "atendimento", atendimento.id);
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
@@ -3497,6 +3525,7 @@ function alternarArquivoAtendimento(referencia) {
   if (!atendimento) return;
   atendimento.arquivado = !atendimento.arquivado;
   atendimento.atualizadoEm = agoraSyncIso();
+  registrarAuditoria(atendimento.arquivado ? "Atendimento arquivado" : "Atendimento restaurado", `${rotuloAtendimento(atendimento)} · ${atendimento.assunto || "Sem assunto"}`, "atendimento", atendimento.id);
   salvarEstado();
   renderAtendimentos();
 }
@@ -3868,6 +3897,80 @@ function renderConfiguracoes() {
       <span class="edit-hint">Editar</span>
     </button>
   `).join("");
+  renderAuditoriaResumo();
+}
+
+function registrarAuditoria(acao, detalhes = "", entidade = "sistema", entidadeId = "") {
+  if (!acao) return;
+  const usuario = obterUsuario(state.usuarioAtivoId);
+  const criadoEm = agoraSyncIso();
+  state.auditoria = normalizarAuditoria([{
+    id: uid(),
+    acao: String(acao),
+    detalhes: String(detalhes || ""),
+    entidade: String(entidade || "sistema"),
+    entidadeId: String(entidadeId || ""),
+    usuarioId: usuario?.id || "",
+    usuario: usuario?.nome || "Sistema",
+    dispositivoId: idDispositivoSync(),
+    dispositivo: nomeDispositivoSync(),
+    criadoEm,
+    atualizadoEm: criadoEm
+  }, ...(state.auditoria || [])]);
+}
+
+function normalizarAuditoria(lista = []) {
+  const limite = Date.now() - (AUDIT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  return (Array.isArray(lista) ? lista : [])
+    .filter((item) => item?.id && (!timestampGenericoSync(item) || timestampGenericoSync(item) >= limite))
+    .sort((a, b) => timestampGenericoSync(b) - timestampGenericoSync(a))
+    .slice(0, AUDIT_MAX_ITEMS);
+}
+
+function renderAuditoriaResumo() {
+  if (!els.auditoriaResumo) return;
+  const itens = normalizarAuditoria(state.auditoria || []);
+  const hoje = hojeIso();
+  const hojeTotal = itens.filter((item) => String(item.criadoEm || "").slice(0, 10) === hoje).length;
+  const ultimo = itens[0];
+  els.auditoriaResumo.innerHTML = `
+    <span><strong>${itens.length}</strong><small>ações preservadas</small></span>
+    <span><strong>${hojeTotal}</strong><small>ações hoje</small></span>
+    <span><strong>${escapeHtml(ultimo?.usuario || "Sem registro")}</strong><small>${ultimo ? `última ação · ${dataHoraCurta(ultimo.criadoEm)}` : "nenhuma ação registrada"}</small></span>
+  `;
+}
+
+function abrirAuditoria() {
+  if (!els.modalAuditoria || !els.buscaAuditoria || !els.filtroUsuarioAuditoria) return;
+  els.buscaAuditoria.value = "";
+  const usuarios = Array.from(new Set((state.auditoria || []).map((item) => item.usuario).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  preencherSelect(els.filtroUsuarioAuditoria, [{ value: "", label: "Todos os usuários" }, ...usuarios.map((nome) => ({ value: nome, label: nome }))]);
+  renderAuditoria();
+  els.modalAuditoria.showModal();
+}
+
+function renderAuditoria() {
+  if (!els.listaAuditoria) return;
+  const termo = normalizar(els.buscaAuditoria?.value || "");
+  const usuario = els.filtroUsuarioAuditoria?.value || "";
+  const itens = normalizarAuditoria(state.auditoria || []).filter((item) => {
+    if (usuario && item.usuario !== usuario) return false;
+    const texto = normalizar(`${item.acao || ""} ${item.detalhes || ""} ${item.usuario || ""} ${item.dispositivo || ""}`);
+    return !termo || texto.includes(termo);
+  });
+  els.listaAuditoria.innerHTML = itens.length ? itens.map((item) => `
+    <article class="audit-row">
+      <div class="audit-main">
+        <strong>${escapeHtml(item.acao || "Alteração")}</strong>
+        <span>${escapeHtml(item.detalhes || "Sem detalhes adicionais")}</span>
+      </div>
+      <div class="audit-meta">
+        <strong>${escapeHtml(item.usuario || "Sistema")}</strong>
+        <span>${dataHoraCurta(item.criadoEm)}</span>
+        <small>${escapeHtml(item.dispositivo || "Dispositivo não identificado")}</small>
+      </div>
+    </article>
+  `).join("") : `<div class="empty-state">Nenhuma ação encontrada.</div>`;
 }
 
 function temasDisponiveis() {
@@ -3920,7 +4023,7 @@ function abrirEdicaoProcessoPorBotao(event) {
 
 function abrirEdicaoProcesso(id = processoAbertoId) {
   const processo = obterProcesso(id);
-  if (!processo) return;
+  if (!processo || !els.formEditarProcesso || !els.modalEditarProcesso || !els.processoDeleteConfirm || !els.btnExcluirProcesso) return;
   els.formEditarProcesso.reset();
   const areas = state.configs.areas.includes(processo.area) ? state.configs.areas : [processo.area, ...state.configs.areas].filter(Boolean);
   const orgaos = state.configs.orgaos.includes(processo.orgao) ? state.configs.orgaos : [processo.orgao, ...state.configs.orgaos].filter(Boolean);
@@ -3952,6 +4055,7 @@ function salvarEdicaoProcesso(event) {
     resumo: dados.resumo?.trim() || "",
     atualizadoEm: agoraSyncIso()
   });
+  registrarAuditoria("Dados do processo atualizados", `${processo.numero} · ${processo.orgao}`, "processo", processo.id);
   salvarEstado();
   els.modalEditarProcesso.close();
   renderizarTudo();
@@ -3968,6 +4072,7 @@ function excluirProcessoConfirmado() {
   const processo = obterProcesso(processoId);
   if (!processo || fraseExclusaoInvalida(els.processoDeleteConfirm.value)) return;
   registrarExclusaoProcesso(processo);
+  registrarAuditoria("Processo excluído", processo.numero || processo.id, "processo", processo.id);
   const agora = agoraSyncIso();
   state.atendimentos.forEach((atendimento) => {
     if (atendimento.processoId !== processoId) return;
@@ -4213,6 +4318,7 @@ function salvarContratoHonorarios(event) {
   processo.descontoHonorarios = Number(String(dados.descontoHonorarios || "0").replace(",", "."));
   processo.observacaoHonorarios = dados.observacaoHonorarios.trim();
   processo.descontos = [];
+  registrarAuditoria("Contrato de honorários atualizado", `${processo.numero} · ${moeda(valorHonorariosLiquido(processo))}`, "processo", processo.id);
   marcarEntidadeAtualizada(processo);
   salvarEstado();
   els.modalContrato.close();
@@ -4314,6 +4420,7 @@ function salvarRecebimento(event) {
     observacoes: dados.observacoes.trim(),
     atualizadoEm: agoraSyncIso()
   });
+  registrarAuditoria("Recebimento registrado", `${processo.numero} · ${moeda(valor)}`, "processo", processo.id);
   recalcularRecebido(processo);
   marcarEntidadeAtualizada(processo);
   salvarEstado();
@@ -4482,6 +4589,7 @@ async function confirmarLimpezaGeral(event) {
     return;
   }
   els.btnConfirmarLimpezaGeral.disabled = true;
+  registrarAuditoria("Histórico operacional apagado", "Clientes, processos, atendimentos, agenda e honorários", "sistema", "");
   const limpezaEm = agoraSyncIso();
   state.clientes = [];
   state.processos = [];
@@ -4585,6 +4693,7 @@ function confirmarExclusaoAtendimento(event) {
   const idsRemovidos = new Set([alvo.id].filter(Boolean));
   const numerosRemovidos = new Set(!alvo.id && alvo.numero ? [alvo.numero] : []);
   registrarExclusaoAtendimento(alvo);
+  registrarAuditoria("Atendimento excluído", `${rotuloAtendimento(alvo)} · ${alvo.assunto || "Sem assunto"}`, "atendimento", alvo.id || alvo.numero || "");
   state.atendimentos = state.atendimentos.filter((atendimento) => !idsRemovidos.has(atendimento.id) && !numerosRemovidos.has(atendimento.numero));
   state.processos.forEach((processo) => {
     processo.atendimentos = (processo.atendimentos || []).filter((atendimentoId) => !idsRemovidos.has(atendimentoId));
@@ -4936,6 +5045,7 @@ function normalizarEstado(raw) {
     nome: item.nome || "",
     excluidoEm: item.excluidoEm || hojeIso()
   })).filter((item) => item.id).slice(-500) : [];
+  estado.auditoria = normalizarAuditoria(raw.auditoria || estado.auditoria || []);
   estado.sidebarRecolhida = !!estado.sidebarRecolhida;
   estado.agendaModo = ["mes", "semana", "dia"].includes(raw.agendaModo) ? raw.agendaModo : "mes";
   estado.agendaDiaSelecionado = raw.agendaDiaSelecionado || hojeIso();
@@ -5382,6 +5492,7 @@ function criarEstadoPadrao() {
     exclusoesAtendimentos: [],
     exclusoesProcessos: [],
     exclusoesClientes: [],
+    auditoria: [],
     sidebarRecolhida: false,
     agendaModo: "mes",
     agendaDiaSelecionado: hojeIso(),
@@ -5743,6 +5854,7 @@ function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
   mesclado.exclusoesAtendimentos = mesclarExclusoesAtendimentosSync(remoto.exclusoesAtendimentos, local.exclusoesAtendimentos);
   mesclado.exclusoesProcessos = mesclarExclusoesEntidadesSync(remoto.exclusoesProcessos, local.exclusoesProcessos);
   mesclado.exclusoesClientes = mesclarExclusoesEntidadesSync(remoto.exclusoesClientes, local.exclusoesClientes);
+  mesclado.auditoria = normalizarAuditoria(mesclarArrayPorIdSync(remoto.auditoria, local.auditoria, timestampGenericoSync));
   const feriadosRemotosMaisNovos = timestampIsoSync(remoto.feriadosAtualizadoEm) > timestampIsoSync(local.feriadosAtualizadoEm);
   if (timestampIsoSync(remoto.feriadosAtualizadoEm) === timestampIsoSync(local.feriadosAtualizadoEm)) {
     mesclado.feriadosDesmarcados = Array.from(new Set([...(remoto.feriadosDesmarcados || []), ...(local.feriadosDesmarcados || [])]));
@@ -6309,6 +6421,8 @@ function crc32(bytes) {
 }
 
 function exportarDados() {
+  registrarAuditoria("Backup do histórico exportado", `Versão ${APP_VERSION}`, "sistema", "");
+  salvarEstado();
   const backup = JSON.parse(JSON.stringify({ versao: APP_VERSION, ...state }));
   if (backup.avancadas) backup.avancadas.syncToken = "";
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
