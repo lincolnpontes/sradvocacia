@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.43";
+const APP_VERSION = "1.0.44";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -66,10 +66,12 @@ let historicoImagemAtendimento = [];
 let historicoRefazerImagemAtendimento = [];
 let historicoCorteImagemAtendimento = new WeakMap();
 let documentosAtendimento = [];
+let documentoPreviewUrl = "";
 let syncMeta = carregarSyncMeta();
 let syncPronto = false;
 let syncEmAndamento = false;
 let syncAplicandoRemoto = false;
+let syncRevisaoLocal = 0;
 let syncTimer = null;
 let syncInterval = null;
 let paginacaoTimer = null;
@@ -169,6 +171,11 @@ const els = {
   atendimentoDocumentosPanel: document.querySelector("#atendimentoDocumentosPanel"),
   atendimentoDocumentosResumo: document.querySelector("#atendimentoDocumentosResumo"),
   atendimentoDocumentosLista: document.querySelector("#atendimentoDocumentosLista"),
+  modalDocumento: document.querySelector("#modalDocumento"),
+  documentoTitulo: document.querySelector("#documentoTitulo"),
+  documentoDetalhes: document.querySelector("#documentoDetalhes"),
+  documentoPreview: document.querySelector("#documentoPreview"),
+  btnBaixarDocumento: document.querySelector("#btnBaixarDocumento"),
   atendimentoEditor: document.querySelector("#atendimentoEditor"),
   atendimentoStatus: document.querySelector("#atendimentoStatus"),
   attendanceLayout: document.querySelector("#attendanceLayout"),
@@ -361,6 +368,8 @@ function configurarEventos() {
   els.btnAdicionarDocumentoAtendimento.addEventListener("click", () => els.atendimentoDocumentoInput.click());
   els.atendimentoDocumentoInput.addEventListener("change", adicionarDocumentosAtendimento);
   els.atendimentoDocumentosLista.addEventListener("click", gerenciarDocumentoAtendimento);
+  els.btnBaixarDocumento.addEventListener("click", () => baixarDocumentoAtendimento(els.modalDocumento.dataset.documentoId));
+  els.modalDocumento.addEventListener("close", limparPreviewDocumento);
   document.querySelector("#editorToolbar").addEventListener("mousedown", manterSelecaoAoClicarToolbar);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
   els.editorFontSize.addEventListener("change", aplicarTamanhoFonteSelecionado);
@@ -1867,20 +1876,28 @@ function renderDocumentosAtendimento() {
   els.atendimentoDocumentosResumo.textContent = `${total} documento${total !== 1 ? "s" : ""}`;
   els.atendimentoDocumentosLista.innerHTML = total ? documentosAtendimento.map((anexo) => `
     <article class="document-card">
-      <button class="document-preview" type="button" data-open-document="${anexo.id}" title="Visualizar documento">
+      <button class="document-preview" type="button" data-open-document="${escapeHtml(anexo.id)}" title="Visualizar documento" aria-label="Visualizar ${escapeHtml(anexo.nome)}">
         ${iconeDocumento(anexo)}
       </button>
       <div>
         <strong>${escapeHtml(anexo.nome)}</strong>
         <span>${escapeHtml(tipoDocumentoAmigavel(anexo.tipo))} · ${formatarTamanhoArquivo(anexo.tamanho)} · ${dataHoraCurta(anexo.adicionadoEm)}</span>
       </div>
-      <button class="ghost-button table-action" type="button" data-open-document="${anexo.id}">Abrir</button>
-      <button class="danger-button table-action" type="button" data-remove-document="${anexo.id}">Excluir</button>
+      <div class="document-actions">
+        <button class="ghost-button table-action" type="button" data-open-document="${escapeHtml(anexo.id)}">Abrir</button>
+        <button class="ghost-button table-action" type="button" data-download-document="${escapeHtml(anexo.id)}" aria-label="Baixar ${escapeHtml(anexo.nome)}"><span aria-hidden="true">↓</span> Baixar</button>
+        <button class="danger-button table-action" type="button" data-remove-document="${escapeHtml(anexo.id)}">Excluir</button>
+      </div>
     </article>
   `).join("") : "";
 }
 
 function gerenciarDocumentoAtendimento(event) {
+  const baixar = event.target.closest("[data-download-document]");
+  if (baixar) {
+    baixarDocumentoAtendimento(baixar.dataset.downloadDocument);
+    return;
+  }
   const abrir = event.target.closest("[data-open-document]");
   if (abrir) {
     abrirDocumentoAtendimento(abrir.dataset.openDocument);
@@ -1898,18 +1915,95 @@ function gerenciarDocumentoAtendimento(event) {
 
 function abrirDocumentoAtendimento(id) {
   const anexo = documentosAtendimento.find((item) => item.id === id);
-  if (!anexo?.dataUrl) return;
-  const janela = window.open("", "_blank", "noopener,noreferrer");
-  if (!janela) return;
-  if (anexo.tipo?.startsWith("image/")) {
-    janela.document.write(`<title>${escapeHtml(anexo.nome)}</title><img src="${anexo.dataUrl}" alt="${escapeHtml(anexo.nome)}" style="max-width:100%;height:auto;display:block;margin:24px auto;">`);
-    return;
+  try {
+    const arquivo = arquivoDoAnexoAtendimento(anexo);
+    if (arquivo.url) {
+      abrirLinkDocumento(arquivo.url);
+      return;
+    }
+    limparPreviewDocumento();
+    els.modalDocumento.dataset.documentoId = id;
+    els.documentoTitulo.textContent = anexo.nome;
+    els.documentoDetalhes.textContent = `${tipoDocumentoAmigavel(arquivo.blob.type)} · ${formatarTamanhoArquivo(arquivo.blob.size)}`;
+    if (arquivo.blob.type.startsWith("image/")) {
+      documentoPreviewUrl = URL.createObjectURL(arquivo.blob);
+      const preview = document.createElement("img");
+      preview.title = anexo.nome;
+      preview.src = documentoPreviewUrl;
+      preview.alt = anexo.nome;
+      els.documentoPreview.appendChild(preview);
+    } else {
+      const aviso = document.createElement("p");
+      aviso.className = "empty-state";
+      aviso.textContent = "Pré-visualização indisponível para este formato.";
+      els.documentoPreview.appendChild(aviso);
+    }
+    els.modalDocumento.showModal();
+  } catch (error) {
+    limparPreviewDocumento();
+    alert(`Não foi possível abrir o documento. ${error.message}`);
   }
-  janela.location.href = anexo.dataUrl;
+}
+
+function baixarDocumentoAtendimento(id) {
+  const anexo = documentosAtendimento.find((item) => item.id === id);
+  try {
+    const arquivo = arquivoDoAnexoAtendimento(anexo);
+    if (arquivo.url) abrirLinkDocumento(arquivo.url);
+    else baixarBlob(arquivo.blob, anexo.nome);
+  } catch (error) {
+    alert(`Não foi possível baixar o documento. ${error.message}`);
+  }
+}
+
+function arquivoDoAnexoAtendimento(anexo) {
+  const origem = anexo?.dataUrl || anexo?.url || "";
+  if (typeof origem !== "string" || !origem) {
+    throw new Error("O conteúdo do anexo não está disponível. O registro foi mantido; confira a sincronização com o servidor.");
+  }
+  if (!origem.startsWith("data:")) {
+    const url = new URL(origem);
+    if (!["https:", "http:"].includes(url.protocol)) {
+      throw new Error("O endereço do anexo é inválido ou temporário. O registro foi mantido.");
+    }
+    return { url: url.href };
+  }
+  const separador = origem.indexOf(",");
+  if (separador < 0) throw new Error("O conteúdo do anexo está incompleto. O registro foi mantido.");
+  const metadados = origem.slice(5, separador).split(";");
+  const tipo = metadados[0] || anexo.tipo || "application/octet-stream";
+  const conteudo = origem.slice(separador + 1);
+  let bytes;
+  try {
+    if (metadados.includes("base64")) {
+      const binario = atob(conteudo);
+      bytes = Uint8Array.from(binario, (caractere) => caractere.charCodeAt(0));
+    } else {
+      bytes = new TextEncoder().encode(decodeURIComponent(conteudo));
+    }
+  } catch {
+    throw new Error("O conteúdo do anexo está inválido ou incompleto. O registro foi mantido.");
+  }
+  if (Number(anexo.tamanho) > 0 && bytes.length !== Number(anexo.tamanho)) {
+    throw new Error("O conteúdo do anexo está incompleto. O registro foi mantido; confira a sincronização com o servidor.");
+  }
+  return { blob: new Blob([bytes], { type: tipo }) };
+}
+
+function abrirLinkDocumento(url) {
+  // Links antigos do Drive continuam externos, sem exigir CORS nem tornar o arquivo público.
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function limparPreviewDocumento() {
+  els.documentoPreview.replaceChildren();
+  if (documentoPreviewUrl) URL.revokeObjectURL(documentoPreviewUrl);
+  documentoPreviewUrl = "";
+  delete els.modalDocumento.dataset.documentoId;
 }
 
 function iconeDocumento(anexo) {
-  if (anexo.tipo?.startsWith("image/") && anexo.dataUrl) return `<img src="${anexo.dataUrl}" alt="">`;
+  if (anexo.tipo?.startsWith("image/") && /^data:image\//i.test(anexo.dataUrl || "")) return `<img src="${escapeHtml(anexo.dataUrl)}" alt="">`;
   const texto = anexo.tipo?.includes("pdf") ? "PDF" : anexo.nome.split(".").pop()?.slice(0, 4).toUpperCase() || "DOC";
   return `<span>${escapeHtml(texto)}</span>`;
 }
@@ -4937,19 +5031,18 @@ function escolherTema(event) {
 
 async function forcarAtualizacao() {
   try {
-    if ("serviceWorker" in navigator) {
-      const registros = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registros.map((registro) => registro.unregister()));
+    if (atendimentoModoEditor && atendimentoAlterado && !conteudoAtendimentoPreenchido(els.atendimentoEditor.innerHTML)) {
+      alert("Há alterações no atendimento. Salve o atendimento antes de atualizar para preservar os documentos e os campos preenchidos.");
+      return;
     }
-    if ("caches" in window) {
-      const nomes = await caches.keys();
-      await Promise.all(nomes.map((nome) => caches.delete(nome)));
-    }
+    salvarRascunhoAtendimento(true);
   } catch {
-    // A atualização por URL ainda resolve quando o navegador não expõe cache/service worker.
+    alert("Não foi possível guardar o rascunho. A atualização foi cancelada para preservar as alterações abertas.");
+    return;
   }
-  const base = window.location.href.split("#")[0].split("?")[0];
-  window.location.replace(`${base}?v=${APP_VERSION}-${Date.now()}`);
+  const destino = new URL(window.location.href);
+  destino.searchParams.set("v", `${APP_VERSION}-${Date.now()}`);
+  window.location.replace(destino.href);
 }
 
 function aplicarSidebar() {
@@ -5635,6 +5728,7 @@ function tokenSyncAppsScript() {
 
 function marcarSyncSujo() {
   if (!syncPronto || syncAplicandoRemoto) return;
+  syncRevisaoLocal += 1;
   syncMeta.dirty = true;
   syncMeta.localDirtyAt = agoraSyncIso();
   syncMeta.conflict = false;
@@ -5743,6 +5837,7 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
 }
 
 async function enviarEstadoServidor(force = false, manual = false, recordAtual = null, tentativa = 0) {
+  const revisaoLocalEnviada = syncRevisaoLocal;
   const payload = {
     appId: "sr-advocacia",
     appVersion: APP_VERSION,
@@ -5759,7 +5854,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
   limparErroSync();
   if (resposta.status === "conflict" || resposta.conflict) {
     if (tentativa < 2 && resposta.record?.data) {
-      const mesclado = mesclarEstadosSync(resposta.record.data, payload.data);
+      const mesclado = mesclarEstadosSync(resposta.record.data, estadoParaSync());
       aplicarDadosSync(mesclado);
       atualizarMetaSync(resposta.record);
       syncMeta.dirty = true;
@@ -5767,7 +5862,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
       salvarSyncMeta();
       return enviarEstadoServidor(false, manual, resposta.record, tentativa + 1);
     }
-    guardarConflitoSync(recordAtual || resposta.record, payload.data);
+    guardarConflitoSync(recordAtual || resposta.record, estadoParaSync());
     syncMeta.conflict = true;
     syncMeta.dirty = true;
     salvarSyncMeta();
@@ -5775,8 +5870,11 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     if (manual) alert("O servidor tem uma versão mais nova. A sua cópia local foi guardada neste navegador; escolha Baixar servidor ou Enviar este dispositivo.");
     return false;
   }
+  const houveAlteracaoDuranteEnvio = syncRevisaoLocal !== revisaoLocalEnviada;
   if (resposta.status === "merged" && resposta.record?.data) {
-    aplicarDadosSync(resposta.record.data);
+    aplicarDadosSync(houveAlteracaoDuranteEnvio
+      ? mesclarEstadosSync(resposta.record.data, estadoParaSync())
+      : resposta.record.data);
     aplicarTema();
     aplicarSidebar();
     atualizarPerfil();
@@ -5784,10 +5882,12 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
   }
   atualizarMetaSync(resposta.record);
   localStorage.removeItem(DEMO_CLEANUP_SYNC_KEY);
-  syncMeta.dirty = false;
+  // A resposta confirma apenas o snapshot enviado, nao edicoes feitas durante a requisicao.
+  syncMeta.dirty = houveAlteracaoDuranteEnvio;
   syncMeta.conflict = false;
   salvarSyncMeta();
-  atualizarStatusSync("Sincronizada");
+  atualizarStatusSync(syncMeta.dirty ? "Alterações aguardando sincronização" : "Sincronizada");
+  if (syncMeta.dirty) agendarSincronizacao("alteracao-durante-envio");
   return true;
 }
 
@@ -6335,10 +6435,16 @@ function baixarBlob(blob, nome) {
   const a = document.createElement("a");
   a.href = url;
   a.download = nome;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  try {
+    document.body.appendChild(a);
+    a.click();
+  } finally {
+    a.remove();
+    // Safari e navegadores móveis podem iniciar o download depois do clique retornar.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
 }
 
 function criarZipSemCompressao(entradas) {
@@ -6426,14 +6532,8 @@ function exportarDados() {
   const backup = JSON.parse(JSON.stringify({ versao: APP_VERSION, ...state }));
   if (backup.avancadas) backup.avancadas.syncToken = "";
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
   const instante = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  a.download = `sr-advocacia-historico-completo-${instante}.json`;
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  baixarBlob(blob, `sr-advocacia-historico-completo-${instante}.json`);
 }
 
 function formatarDocumento(valor, tipo = "CPF") {
