@@ -289,7 +289,7 @@ test('refresh salva rascunho, preserva parametros e nunca limpa caches ou banco'
   assert.ok(salvo);
   const url = new URL(env.destino());
   assert.equal(url.searchParams.get('admin'), 'keep');
-  assert.match(url.searchParams.get('v'), /^1\.0\.44-/);
+  assert.match(url.searchParams.get('v'), /^1\.0\.45-/);
   assert.equal(url.hash, '#atendimentos');
   assert.equal(env.gravacoes.length, 0);
 });
@@ -312,12 +312,12 @@ test('erro de armazenamento cancela refresh em vez de perder edicao', async () =
 });
 
 test('versao muda sem criar chave de armazenamento nova', () => {
-  assert.match(source, /const APP_VERSION = "1\.0\.44"/);
+  assert.match(source, /const APP_VERSION = "1\.0\.45"/);
   assert.match(source, /const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134"/);
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /app\.js\?v=1\.0\.44/);
-  assert.match(html, /style\.css\?v=1\.0\.44/);
-  assert.doesNotMatch(html, /1\.0\.43/);
+  assert.match(html, /app\.js\?v=1\.0\.45/);
+  assert.match(html, /style\.css\?v=1\.0\.45/);
+  assert.doesNotMatch(html, /1\.0\.44/);
 });
 
 function prepararSync(env) {
@@ -331,6 +331,39 @@ function prepararSync(env) {
   env.contexto.aplicarDadosSync = (data) => Object.assign(env.contexto.__testState, JSON.parse(JSON.stringify(data)));
   vm.runInContext('syncPronto = true; syncMeta.dirty = true;', env.contexto);
   return { agendamentos, status, dirty: () => vm.runInContext('syncMeta.dirty', env.contexto) };
+}
+
+for (const statusEnvio of ['saved', 'unchanged', 'erro']) {
+  test(`primeiro pull com alteracao local atualiza o painel antes do push: ${statusEnvio}`, async () => {
+    const env = ambiente();
+    prepararSync(env);
+    Object.assign(env.contexto.__testState, {
+      usuarios: [], clientes: [], processos: [], atendimentos: [],
+      avancadas: { googleScriptUrl: 'https://example.test/sync', syncToken: 'test-only' }
+    });
+    const data = {
+      usuarios: [], clientes: [{ id: 'cliente-remoto', atualizadoEm: '2026-10-10T12:00:00Z' }],
+      processos: [{ id: 'processo-remoto', atualizadoEm: '2026-10-10T12:00:00Z' }], atendimentos: []
+    };
+    const record = { hasData: true, data, serverVersion: 'v2', hash: 'hash-v2', revision: 2 };
+    let exibido = null;
+    let envios = 0;
+    env.contexto.renderizarTudo = () => {
+      exibido = { clientes: env.contexto.__testState.clientes.length, processos: env.contexto.__testState.processos.length };
+    };
+    env.contexto.chamarAppsScriptSync = async (action) => {
+      if (action === 'pull') return { ok: true, record };
+      envios += 1;
+      assert.deepEqual(exibido, { clientes: 1, processos: 1 });
+      if (statusEnvio === 'erro') throw new Error('Falha ficticia de envio');
+      return { ok: true, status: statusEnvio, record };
+    };
+    await env.contexto.sincronizarComServidor();
+    assert.equal(envios, 1);
+    assert.deepEqual(exibido, { clientes: 1, processos: 1 });
+    assert.equal(vm.runInContext('syncEmAndamento', env.contexto), false);
+    assert.equal(vm.runInContext('syncMeta.lastError || ""', env.contexto), statusEnvio === 'erro' ? 'Falha ficticia de envio' : '');
+  });
 }
 
 test('snapshot confirmado sem novas edicoes fica sincronizado', async () => {
@@ -392,12 +425,15 @@ test('retry de conflito usa os dados atuais e nao o snapshot antigo', async () =
   let remoto;
   let retry;
   let chamadas = 0;
+  let telasAtualizadas = 0;
+  env.contexto.renderizarTudo = () => { telasAtualizadas += 1; };
   env.contexto.chamarAppsScriptSync = (_, payload) => {
     chamadas += 1;
     if (chamadas === 1) {
       remoto = JSON.parse(JSON.stringify(payload.data));
       return new Promise((resolve) => { concluir = resolve; });
     }
+    assert.equal(telasAtualizadas, 1);
     retry = payload.data;
     return Promise.resolve({ ok: true, status: 'saved', record: { serverVersion: 'v3' } });
   };

@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.44";
+const APP_VERSION = "1.0.45";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -5717,10 +5717,7 @@ function iniciarSincronizacao() {
       if (!syncMeta.dirty && !syncAplicandoRemoto && event.newValue) {
         try {
           aplicarDadosSync(JSON.parse(event.newValue));
-          aplicarTema();
-          aplicarSidebar();
-          atualizarPerfil();
-          renderizarTudo();
+          atualizarInterfaceAposSync();
           atualizarStatusSync("Atualizada por outra aba");
         } catch {
           agendarSincronizacao("armazenamento-local");
@@ -5867,6 +5864,8 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
       if (syncMeta.dirty) {
         const mesclado = mesclarEstadosSync(record.data, estadoParaSync());
         aplicarDadosSync(mesclado);
+        // O login registra uma alteracao local; o pull precisa atualizar a tela antes do push.
+        atualizarInterfaceAposSync();
         atualizarMetaSync(record);
         syncMeta.dirty = true;
         syncMeta.conflict = false;
@@ -5912,6 +5911,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     if (tentativa < 2 && resposta.record?.data) {
       const mesclado = mesclarEstadosSync(resposta.record.data, estadoParaSync());
       aplicarDadosSync(mesclado);
+      atualizarInterfaceAposSync();
       atualizarMetaSync(resposta.record);
       syncMeta.dirty = true;
       syncMeta.conflict = false;
@@ -5931,10 +5931,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     aplicarDadosSync(houveAlteracaoDuranteEnvio
       ? mesclarEstadosSync(resposta.record.data, estadoParaSync())
       : resposta.record.data);
-    aplicarTema();
-    aplicarSidebar();
-    atualizarPerfil();
-    renderizarTudo();
+    atualizarInterfaceAposSync();
   }
   atualizarMetaSync(resposta.record);
   localStorage.removeItem(DEMO_CLEANUP_SYNC_KEY);
@@ -5954,11 +5951,15 @@ function aplicarEstadoServidor(record) {
   syncMeta.dirty = false;
   syncMeta.conflict = false;
   salvarSyncMeta();
+  atualizarInterfaceAposSync();
+  atualizarStatusSync("Atualizada pelo servidor");
+}
+
+function atualizarInterfaceAposSync() {
   aplicarTema();
   aplicarSidebar();
   atualizarPerfil();
   renderizarTudo();
-  atualizarStatusSync("Atualizada pelo servidor");
 }
 
 function aplicarDadosSync(dados) {

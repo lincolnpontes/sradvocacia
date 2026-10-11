@@ -53,6 +53,16 @@ let data = {
   processos: [], auditoria: []
 };
 let revision = 1;
+let primeiroPull = true;
+if (modo === 'primeiro-login') {
+  data.processos = [{
+    id: 'qa-processo', numero: '0000000-00.2026.8.15.0000', clienteId: 'qa-client',
+    responsavelId: 'qa-user', area: 'Civel', status: 'Ativo', orgao: 'Vara de teste - Joao Pessoa/PB',
+    criadoEm: agora, atualizadoEm: agora, prazo: '2026-12-01', honorarios: 0, recebido: 0,
+    prazos: [], movimentacoes: [], recebimentos: [], descontos: [], atendimentos: []
+  }];
+}
+const dadosLocais = modo === 'primeiro-login' ? { ...data, clientes: [], processos: [], atendimentos: [] } : data;
 function record() {
   return { hasData: true, data, serverVersion: `qa-${revision}`, hash: `qa-hash-${revision}`, revision, updatedAtServer: agora };
 }
@@ -72,6 +82,10 @@ http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       request = JSON.parse(body);
     } else request = Object.fromEntries(url.searchParams);
+    if (modo === 'primeiro-login' && primeiroPull && request.action === 'pull') {
+      primeiroPull = false;
+      await new Promise(resolve => setTimeout(resolve, 8000));
+    }
     if (request.action === 'push') { data = request.payload.data; revision += 1; }
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify({ ok: true, requestId: request.requestId, serverNow: new Date().toISOString(), syncProtocol: 5, status: 'saved', record: record() }));
@@ -80,8 +94,8 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/' || url.pathname === '/index.html') {
     const seed = `<script>
       if (!localStorage.getItem('sr-advocacia-gestao-juridica-v134')) {
-        localStorage.setItem('sr-advocacia-gestao-juridica-v134', ${JSON.stringify(modo === 'corrompido' ? '{copia ficticia invalida' : JSON.stringify(data))});
-        localStorage.setItem('sr-advocacia-sync-meta-v1', JSON.stringify({ serverVersion: 'qa-1', serverHash: 'qa-hash-1', dirty: false }));
+        localStorage.setItem('sr-advocacia-gestao-juridica-v134', ${JSON.stringify(modo === 'corrompido' ? '{copia ficticia invalida' : JSON.stringify(dadosLocais))});
+        localStorage.setItem('sr-advocacia-sync-meta-v1', JSON.stringify({ serverVersion: '${modo === 'primeiro-login' ? 'qa-0' : 'qa-1'}', serverHash: '${modo === 'primeiro-login' ? 'qa-hash-0' : 'qa-hash-1'}', dirty: false }));
       }
       localStorage.setItem('sr-advocacia-sync-config-v1', JSON.stringify({ googleScriptUrl: '${base}/qa-sync', syncToken: 'somente-teste-local' }));
       ${modo === 'quota' ? `const gravar = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key === 'sr-advocacia-gestao-juridica-v134') throw new DOMException('Quota ficticia', 'QuotaExceededError'); return gravar.call(this, key, value); };` : ''}
