@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.43";
+const APP_VERSION = "1.0.44";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -49,6 +49,8 @@ const CONFIG_META = {
   movimentacoes: { titulo: "Movimentações", descricao: "Motivos rápidos para andamentos e providências" }
 };
 
+let armazenamentoBloqueado = false;
+let erroPersistenciaLocal = "";
 const state = aplicarConfigSyncLocal(normalizarEstado(carregarEstado()));
 let viewAtual = "dashboard";
 let mesAgenda = new Date();
@@ -66,10 +68,12 @@ let historicoImagemAtendimento = [];
 let historicoRefazerImagemAtendimento = [];
 let historicoCorteImagemAtendimento = new WeakMap();
 let documentosAtendimento = [];
+let documentoPreviewUrl = "";
 let syncMeta = carregarSyncMeta();
 let syncPronto = false;
 let syncEmAndamento = false;
 let syncAplicandoRemoto = false;
+let syncRevisaoLocal = 0;
 let syncTimer = null;
 let syncInterval = null;
 let paginacaoTimer = null;
@@ -169,6 +173,11 @@ const els = {
   atendimentoDocumentosPanel: document.querySelector("#atendimentoDocumentosPanel"),
   atendimentoDocumentosResumo: document.querySelector("#atendimentoDocumentosResumo"),
   atendimentoDocumentosLista: document.querySelector("#atendimentoDocumentosLista"),
+  modalDocumento: document.querySelector("#modalDocumento"),
+  documentoTitulo: document.querySelector("#documentoTitulo"),
+  documentoDetalhes: document.querySelector("#documentoDetalhes"),
+  documentoPreview: document.querySelector("#documentoPreview"),
+  btnBaixarDocumento: document.querySelector("#btnBaixarDocumento"),
   atendimentoEditor: document.querySelector("#atendimentoEditor"),
   atendimentoStatus: document.querySelector("#atendimentoStatus"),
   attendanceLayout: document.querySelector("#attendanceLayout"),
@@ -232,6 +241,19 @@ const els = {
 iniciar();
 
 function iniciar() {
+  window.addEventListener("beforeunload", (event) => {
+    if (!erroPersistenciaLocal) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  document.querySelector("#btnBackupProtegido").addEventListener("click", baixarCopiaProtegida);
+  document.querySelector("#btnFecharFalhaLocal").addEventListener("click", () => document.querySelector("#modalFalhaLocal").close());
+  if (armazenamentoBloqueado) {
+    aplicarTema();
+    els.formLogin.hidden = true;
+    mostrarFalhaArmazenamento("Não foi possível ler os dados deste navegador. A cópia original foi preservada. Baixe uma cópia para recuperação e entre em contato com o administrador. Não limpe os dados do navegador.");
+    return;
+  }
   aplicarTamanhoPaginaAtendimento();
   aplicarZoomAtendimento();
   aplicarTema();
@@ -361,6 +383,8 @@ function configurarEventos() {
   els.btnAdicionarDocumentoAtendimento.addEventListener("click", () => els.atendimentoDocumentoInput.click());
   els.atendimentoDocumentoInput.addEventListener("change", adicionarDocumentosAtendimento);
   els.atendimentoDocumentosLista.addEventListener("click", gerenciarDocumentoAtendimento);
+  els.btnBaixarDocumento.addEventListener("click", () => baixarDocumentoAtendimento(els.modalDocumento.dataset.documentoId));
+  els.modalDocumento.addEventListener("close", limparPreviewDocumento);
   document.querySelector("#editorToolbar").addEventListener("mousedown", manterSelecaoAoClicarToolbar);
   document.querySelector("#editorToolbar").addEventListener("click", aplicarComandoEditor);
   els.editorFontSize.addEventListener("change", aplicarTamanhoFonteSelecionado);
@@ -1398,9 +1422,9 @@ function salvarRascunhoAtendimento(forcar = false) {
   if (atendimentoExistente?.numero) rascunho.numero = atendimentoExistente.numero;
   state.rascunhoAtendimento = manterTresVersoes(state.rascunhoAtendimento || {}, rascunho);
   Object.assign(state.rascunhoAtendimento, rascunho, { salvoEm: agoraSyncIso(), atualizadoEm: agoraSyncIso() });
+  salvarEstado();
   atendimentoAlterado = false;
   els.atendimentoStatus.textContent = `Rascunho salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-  salvarEstado();
   if (viewAtual === "atendimentos") renderRascunhoAtendimento();
 }
 
@@ -1428,7 +1452,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
     dados.id = atendimento.id;
     state.atendimentos.unshift(atendimento);
   } else {
-    if (assinaturaAtendimento(atendimento) === assinaturaAtendimento(dados)) {
+    if (!erroPersistenciaLocal && assinaturaAtendimento(atendimento) === assinaturaAtendimento(dados)) {
       atendimentoAbertoId = atendimento.id;
       els.formAtendimento.elements.id.value = atendimento.id;
       atendimentoAlterado = false;
@@ -1444,8 +1468,8 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
-  atendimentoAlterado = false;
   salvarEstado();
+  atendimentoAlterado = false;
   renderizarTudo();
   els.atendimentoStatus.textContent = `Atendimento ${rotuloAtendimento(atendimento)} salvo`;
   if (fechar) fecharEditorAtendimento();
@@ -1867,20 +1891,28 @@ function renderDocumentosAtendimento() {
   els.atendimentoDocumentosResumo.textContent = `${total} documento${total !== 1 ? "s" : ""}`;
   els.atendimentoDocumentosLista.innerHTML = total ? documentosAtendimento.map((anexo) => `
     <article class="document-card">
-      <button class="document-preview" type="button" data-open-document="${anexo.id}" title="Visualizar documento">
+      <button class="document-preview" type="button" data-open-document="${escapeHtml(anexo.id)}" title="Visualizar documento" aria-label="Visualizar ${escapeHtml(anexo.nome)}">
         ${iconeDocumento(anexo)}
       </button>
       <div>
         <strong>${escapeHtml(anexo.nome)}</strong>
         <span>${escapeHtml(tipoDocumentoAmigavel(anexo.tipo))} · ${formatarTamanhoArquivo(anexo.tamanho)} · ${dataHoraCurta(anexo.adicionadoEm)}</span>
       </div>
-      <button class="ghost-button table-action" type="button" data-open-document="${anexo.id}">Abrir</button>
-      <button class="danger-button table-action" type="button" data-remove-document="${anexo.id}">Excluir</button>
+      <div class="document-actions">
+        <button class="ghost-button table-action" type="button" data-open-document="${escapeHtml(anexo.id)}">Abrir</button>
+        <button class="ghost-button table-action" type="button" data-download-document="${escapeHtml(anexo.id)}" aria-label="Baixar ${escapeHtml(anexo.nome)}"><span aria-hidden="true">↓</span> Baixar</button>
+        <button class="danger-button table-action" type="button" data-remove-document="${escapeHtml(anexo.id)}">Excluir</button>
+      </div>
     </article>
   `).join("") : "";
 }
 
 function gerenciarDocumentoAtendimento(event) {
+  const baixar = event.target.closest("[data-download-document]");
+  if (baixar) {
+    baixarDocumentoAtendimento(baixar.dataset.downloadDocument);
+    return;
+  }
   const abrir = event.target.closest("[data-open-document]");
   if (abrir) {
     abrirDocumentoAtendimento(abrir.dataset.openDocument);
@@ -1898,18 +1930,95 @@ function gerenciarDocumentoAtendimento(event) {
 
 function abrirDocumentoAtendimento(id) {
   const anexo = documentosAtendimento.find((item) => item.id === id);
-  if (!anexo?.dataUrl) return;
-  const janela = window.open("", "_blank", "noopener,noreferrer");
-  if (!janela) return;
-  if (anexo.tipo?.startsWith("image/")) {
-    janela.document.write(`<title>${escapeHtml(anexo.nome)}</title><img src="${anexo.dataUrl}" alt="${escapeHtml(anexo.nome)}" style="max-width:100%;height:auto;display:block;margin:24px auto;">`);
-    return;
+  try {
+    const arquivo = arquivoDoAnexoAtendimento(anexo);
+    if (arquivo.url) {
+      abrirLinkDocumento(arquivo.url);
+      return;
+    }
+    limparPreviewDocumento();
+    els.modalDocumento.dataset.documentoId = id;
+    els.documentoTitulo.textContent = anexo.nome;
+    els.documentoDetalhes.textContent = `${tipoDocumentoAmigavel(arquivo.blob.type)} · ${formatarTamanhoArquivo(arquivo.blob.size)}`;
+    if (arquivo.blob.type.startsWith("image/")) {
+      documentoPreviewUrl = URL.createObjectURL(arquivo.blob);
+      const preview = document.createElement("img");
+      preview.title = anexo.nome;
+      preview.src = documentoPreviewUrl;
+      preview.alt = anexo.nome;
+      els.documentoPreview.appendChild(preview);
+    } else {
+      const aviso = document.createElement("p");
+      aviso.className = "empty-state";
+      aviso.textContent = "Pré-visualização indisponível para este formato.";
+      els.documentoPreview.appendChild(aviso);
+    }
+    els.modalDocumento.showModal();
+  } catch (error) {
+    limparPreviewDocumento();
+    alert(`Não foi possível abrir o documento. ${error.message}`);
   }
-  janela.location.href = anexo.dataUrl;
+}
+
+function baixarDocumentoAtendimento(id) {
+  const anexo = documentosAtendimento.find((item) => item.id === id);
+  try {
+    const arquivo = arquivoDoAnexoAtendimento(anexo);
+    if (arquivo.url) abrirLinkDocumento(arquivo.url);
+    else baixarBlob(arquivo.blob, anexo.nome);
+  } catch (error) {
+    alert(`Não foi possível baixar o documento. ${error.message}`);
+  }
+}
+
+function arquivoDoAnexoAtendimento(anexo) {
+  const origem = anexo?.dataUrl || anexo?.url || "";
+  if (typeof origem !== "string" || !origem) {
+    throw new Error("O conteúdo do anexo não está disponível. O registro foi mantido; confira a sincronização com o servidor.");
+  }
+  if (!origem.startsWith("data:")) {
+    const url = new URL(origem);
+    if (!["https:", "http:"].includes(url.protocol)) {
+      throw new Error("O endereço do anexo é inválido ou temporário. O registro foi mantido.");
+    }
+    return { url: url.href };
+  }
+  const separador = origem.indexOf(",");
+  if (separador < 0) throw new Error("O conteúdo do anexo está incompleto. O registro foi mantido.");
+  const metadados = origem.slice(5, separador).split(";");
+  const tipo = metadados[0] || anexo.tipo || "application/octet-stream";
+  const conteudo = origem.slice(separador + 1);
+  let bytes;
+  try {
+    if (metadados.includes("base64")) {
+      const binario = atob(conteudo);
+      bytes = Uint8Array.from(binario, (caractere) => caractere.charCodeAt(0));
+    } else {
+      bytes = new TextEncoder().encode(decodeURIComponent(conteudo));
+    }
+  } catch {
+    throw new Error("O conteúdo do anexo está inválido ou incompleto. O registro foi mantido.");
+  }
+  if (Number(anexo.tamanho) > 0 && bytes.length !== Number(anexo.tamanho)) {
+    throw new Error("O conteúdo do anexo está incompleto. O registro foi mantido; confira a sincronização com o servidor.");
+  }
+  return { blob: new Blob([bytes], { type: tipo }) };
+}
+
+function abrirLinkDocumento(url) {
+  // Links antigos do Drive continuam externos, sem exigir CORS nem tornar o arquivo público.
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
+function limparPreviewDocumento() {
+  els.documentoPreview.replaceChildren();
+  if (documentoPreviewUrl) URL.revokeObjectURL(documentoPreviewUrl);
+  documentoPreviewUrl = "";
+  delete els.modalDocumento.dataset.documentoId;
 }
 
 function iconeDocumento(anexo) {
-  if (anexo.tipo?.startsWith("image/") && anexo.dataUrl) return `<img src="${anexo.dataUrl}" alt="">`;
+  if (anexo.tipo?.startsWith("image/") && /^data:image\//i.test(anexo.dataUrl || "")) return `<img src="${escapeHtml(anexo.dataUrl)}" alt="">`;
   const texto = anexo.tipo?.includes("pdf") ? "PDF" : anexo.nome.split(".").pop()?.slice(0, 4).toUpperCase() || "DOC";
   return `<span>${escapeHtml(texto)}</span>`;
 }
@@ -4936,20 +5045,23 @@ function escolherTema(event) {
 }
 
 async function forcarAtualizacao() {
-  try {
-    if ("serviceWorker" in navigator) {
-      const registros = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registros.map((registro) => registro.unregister()));
-    }
-    if ("caches" in window) {
-      const nomes = await caches.keys();
-      await Promise.all(nomes.map((nome) => caches.delete(nome)));
-    }
-  } catch {
-    // A atualização por URL ainda resolve quando o navegador não expõe cache/service worker.
+  if (erroPersistenciaLocal) {
+    mostrarFalhaArmazenamento(erroPersistenciaLocal);
+    return;
   }
-  const base = window.location.href.split("#")[0].split("?")[0];
-  window.location.replace(`${base}?v=${APP_VERSION}-${Date.now()}`);
+  try {
+    if (atendimentoModoEditor && atendimentoAlterado && !conteudoAtendimentoPreenchido(els.atendimentoEditor.innerHTML)) {
+      alert("Há alterações no atendimento. Salve o atendimento antes de atualizar para preservar os documentos e os campos preenchidos.");
+      return;
+    }
+    salvarRascunhoAtendimento(true);
+  } catch {
+    alert("Não foi possível guardar o rascunho. A atualização foi cancelada para preservar as alterações abertas.");
+    return;
+  }
+  const destino = new URL(window.location.href);
+  destino.searchParams.set("v", `${APP_VERSION}-${Date.now()}`);
+  window.location.replace(destino.href);
 }
 
 function aplicarSidebar() {
@@ -4980,13 +5092,39 @@ function usuarioAtual() {
 }
 
 function carregarEstado() {
-  const salvo = localStorage.getItem(STORAGE_KEY) || LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
-  if (!salvo) return criarEstadoPadrao();
   try {
-    return JSON.parse(salvo);
+    const salvo = localStorage.getItem(STORAGE_KEY) ?? LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find((value) => value !== null);
+    if (salvo === undefined || salvo === null) return criarEstadoPadrao();
+    const parsed = JSON.parse(salvo);
+    validarEstadoLocal(parsed);
+    return parsed;
   } catch {
+    armazenamentoBloqueado = true;
     return criarEstadoPadrao();
   }
+}
+
+function validarEstadoLocal(dados) {
+  if (!dados || typeof dados !== "object" || Array.isArray(dados)) throw new Error("Dados locais inválidos.");
+  if (!["usuarios", "clientes", "processos", "atendimentos"].some((campo) => Array.isArray(dados[campo]))) throw new Error("Estrutura local não reconhecida.");
+  for (const campo of ["usuarios", "clientes", "processos", "atendimentos"]) {
+    if (campo in dados && !Array.isArray(dados[campo])) throw new Error(`Dados locais inválidos: ${campo}.`);
+    if (dados[campo]?.some((item) => !item || typeof item !== "object" || Array.isArray(item))) throw new Error(`Registro local inválido: ${campo}.`);
+  }
+}
+
+function mostrarFalhaArmazenamento(mensagem) {
+  const modal = document.querySelector("#modalFalhaLocal");
+  document.querySelector("#falhaLocalMensagem").textContent = mensagem;
+  if (els.atendimentoStatus && atendimentoModoEditor) els.atendimentoStatus.textContent = "Alterações ainda não salvas";
+  if (!modal.open) modal.showModal();
+}
+
+function baixarCopiaProtegida() {
+  const dados = armazenamentoBloqueado
+    ? JSON.stringify({ app: "SR Advocacia", copiasLocais: [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].map((key) => ({ key, value: localStorage.getItem(key) })).filter((item) => item.value !== null) }, null, 2)
+    : JSON.stringify({ app: "SR Advocacia", versao: APP_VERSION, exportadoEm: new Date().toISOString(), dados: { ...state, usuarioAtivoId: null, avancadas: { ...state.avancadas, syncToken: "" } } }, null, 2);
+  baixarBlob(new Blob([dados], { type: "application/json;charset=utf-8" }), `sr-advocacia-recuperacao-${Date.now()}.json`);
 }
 
 function migrarTextoParaPb(valor = "") {
@@ -5120,7 +5258,6 @@ function normalizarEstado(raw) {
   const usuarioSessao = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
   estado.usuarioAtivoId = estado.usuarios.some((usuario) => usuario.id === usuarioSessao) ? usuarioSessao : null;
   if (typeof sessionStorage !== "undefined" && estado.usuarioAtivoId) sessionStorage.setItem(SESSION_KEY, estado.usuarioAtivoId);
-  salvarEstadoNormalizado(estado);
   return estado;
 }
 
@@ -5545,12 +5682,20 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
 
 function salvarEstado() {
   if (!syncAplicandoRemoto) state.atualizadoEm = agoraSyncIso();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
+  salvarEstadoNormalizado(state);
   if (syncPronto && !syncAplicandoRemoto) marcarSyncSujo();
 }
 
 function salvarEstadoNormalizado(estado) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...estado, usuarioAtivoId: null }));
+  if (armazenamentoBloqueado) throw new Error("Gravação bloqueada para preservar os dados originais.");
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...estado, usuarioAtivoId: null }));
+    erroPersistenciaLocal = "";
+  } catch (error) {
+    erroPersistenciaLocal = "Não foi possível salvar neste navegador. As alterações continuam abertas, mas ainda não estão protegidas. Baixe uma cópia antes de fechar o app. Não exclua anexos nem limpe os dados do navegador para liberar espaço.";
+    mostrarFalhaArmazenamento(erroPersistenciaLocal);
+    throw error;
+  }
 }
 
 function iniciarSincronizacao() {
@@ -5635,6 +5780,7 @@ function tokenSyncAppsScript() {
 
 function marcarSyncSujo() {
   if (!syncPronto || syncAplicandoRemoto) return;
+  syncRevisaoLocal += 1;
   syncMeta.dirty = true;
   syncMeta.localDirtyAt = agoraSyncIso();
   syncMeta.conflict = false;
@@ -5684,6 +5830,10 @@ function atualizarStatusSync(texto = "") {
 }
 
 async function sincronizarComServidor({ manual = false, forcePush = false, forcePull = false } = {}) {
+  if (armazenamentoBloqueado || erroPersistenciaLocal) {
+    if (manual) mostrarFalhaArmazenamento(erroPersistenciaLocal || "Leitura local bloqueada. Preserve a cópia original antes de recuperar os dados.");
+    return;
+  }
   if (!urlSyncAppsScript()) {
     atualizarStatusSync();
     if (manual) alert("Informe a URL do Google Apps Script em Configurações > Avançadas.");
@@ -5743,6 +5893,7 @@ async function sincronizarComServidor({ manual = false, forcePush = false, force
 }
 
 async function enviarEstadoServidor(force = false, manual = false, recordAtual = null, tentativa = 0) {
+  const revisaoLocalEnviada = syncRevisaoLocal;
   const payload = {
     appId: "sr-advocacia",
     appVersion: APP_VERSION,
@@ -5759,7 +5910,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
   limparErroSync();
   if (resposta.status === "conflict" || resposta.conflict) {
     if (tentativa < 2 && resposta.record?.data) {
-      const mesclado = mesclarEstadosSync(resposta.record.data, payload.data);
+      const mesclado = mesclarEstadosSync(resposta.record.data, estadoParaSync());
       aplicarDadosSync(mesclado);
       atualizarMetaSync(resposta.record);
       syncMeta.dirty = true;
@@ -5767,7 +5918,7 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
       salvarSyncMeta();
       return enviarEstadoServidor(false, manual, resposta.record, tentativa + 1);
     }
-    guardarConflitoSync(recordAtual || resposta.record, payload.data);
+    guardarConflitoSync(recordAtual || resposta.record, estadoParaSync());
     syncMeta.conflict = true;
     syncMeta.dirty = true;
     salvarSyncMeta();
@@ -5775,8 +5926,11 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
     if (manual) alert("O servidor tem uma versão mais nova. A sua cópia local foi guardada neste navegador; escolha Baixar servidor ou Enviar este dispositivo.");
     return false;
   }
+  const houveAlteracaoDuranteEnvio = syncRevisaoLocal !== revisaoLocalEnviada;
   if (resposta.status === "merged" && resposta.record?.data) {
-    aplicarDadosSync(resposta.record.data);
+    aplicarDadosSync(houveAlteracaoDuranteEnvio
+      ? mesclarEstadosSync(resposta.record.data, estadoParaSync())
+      : resposta.record.data);
     aplicarTema();
     aplicarSidebar();
     atualizarPerfil();
@@ -5784,10 +5938,12 @@ async function enviarEstadoServidor(force = false, manual = false, recordAtual =
   }
   atualizarMetaSync(resposta.record);
   localStorage.removeItem(DEMO_CLEANUP_SYNC_KEY);
-  syncMeta.dirty = false;
+  // A resposta confirma apenas o snapshot enviado, nao edicoes feitas durante a requisicao.
+  syncMeta.dirty = houveAlteracaoDuranteEnvio;
   syncMeta.conflict = false;
   salvarSyncMeta();
-  atualizarStatusSync("Sincronizada");
+  atualizarStatusSync(syncMeta.dirty ? "Alterações aguardando sincronização" : "Sincronizada");
+  if (syncMeta.dirty) agendarSincronizacao("alteracao-durante-envio");
   return true;
 }
 
@@ -5809,18 +5965,22 @@ function aplicarDadosSync(dados) {
   const usuarioSessao = state.usuarioAtivoId;
   const avancadasLocais = { ...(state.avancadas || {}) };
   syncAplicandoRemoto = true;
-  const normalizado = normalizarEstado(dados);
-  Object.keys(state).forEach((key) => delete state[key]);
-  Object.assign(state, normalizado, { usuarioAtivoId: usuarioSessao || normalizado.usuarioAtivoId });
-  state.avancadas = {
-    ...(state.avancadas || {}),
-    googleScriptUrl: avancadasLocais.googleScriptUrl || state.avancadas?.googleScriptUrl || "",
-    syncToken: avancadasLocais.syncToken || "",
-    observacoesTecnicas: state.avancadas?.observacoesTecnicas || avancadasLocais.observacoesTecnicas || ""
-  };
-  salvarConfigSyncLocal(state.avancadas);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
-  syncAplicandoRemoto = false;
+  try {
+    validarEstadoLocal(dados);
+    const normalizado = normalizarEstado(dados);
+    normalizado.usuarioAtivoId = usuarioSessao || normalizado.usuarioAtivoId;
+    normalizado.avancadas = {
+      ...normalizado.avancadas,
+      googleScriptUrl: avancadasLocais.googleScriptUrl || normalizado.avancadas?.googleScriptUrl || "",
+      syncToken: avancadasLocais.syncToken || "",
+      observacoesTecnicas: normalizado.avancadas?.observacoesTecnicas || avancadasLocais.observacoesTecnicas || ""
+    };
+    salvarEstadoNormalizado(normalizado);
+    Object.keys(state).forEach((key) => delete state[key]);
+    Object.assign(state, normalizado);
+  } finally {
+    syncAplicandoRemoto = false;
+  }
 }
 
 function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {
@@ -6335,10 +6495,16 @@ function baixarBlob(blob, nome) {
   const a = document.createElement("a");
   a.href = url;
   a.download = nome;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  try {
+    document.body.appendChild(a);
+    a.click();
+  } finally {
+    a.remove();
+    // Safari e navegadores móveis podem iniciar o download depois do clique retornar.
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
 }
 
 function criarZipSemCompressao(entradas) {
@@ -6426,14 +6592,8 @@ function exportarDados() {
   const backup = JSON.parse(JSON.stringify({ versao: APP_VERSION, ...state }));
   if (backup.avancadas) backup.avancadas.syncToken = "";
   const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
   const instante = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-  a.download = `sr-advocacia-historico-completo-${instante}.json`;
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  baixarBlob(blob, `sr-advocacia-historico-completo-${instante}.json`);
 }
 
 function formatarDocumento(valor, tipo = "CPF") {
