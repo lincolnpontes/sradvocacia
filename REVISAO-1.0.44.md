@@ -1,8 +1,10 @@
 # Revisao de anexos - v1.0.44
 
 Base revisada: commit `1e1bd6bee85f112f7a28ffff00a1eedcc1f9cf52`, v1.0.43.
-O projeto do Google Apps Script foi lido pelo editor, sem executar funcoes,
-editar o codigo, acessar o arquivo de dados ou alterar a implantacao.
+A primeira revisao foi somente de leitura. Apos autorizacao do usuario,
+foram obtidos backups privados e publicada a protecao de integridade no
+Apps Script, editando a implantacao existente da versao 7 para a versao 8.
+O endereco `/exec`, o token e as permissoes da implantacao foram mantidos.
 
 ## Correcao
 
@@ -31,7 +33,27 @@ editar o codigo, acessar o arquivo de dados ou alterar a implantacao.
 Nao foram alterados `STORAGE_KEY`, chaves de sincronizacao, formato dos anexos,
 protocolo do servidor, IDs de registros, tokens ou senhas. Nenhuma rotina de
 limpeza, forcePush ou forcePull foi executada no ambiente real.
-O ZIP local da v1.0.43 e uma copia do codigo, NAO um backup dos dados do escritorio.
+O ZIP local da v1.0.43 e uma copia do codigo. Separadamente, o JSON completo
+do banco foi copiado para o Drive fora da retencao automatica, e baixado para
+uma pasta privada local junto ao codigo original e atualizado do Apps Script.
+Os arquivos de backup e o codigo privado nao fazem parte deste repositorio publico.
+
+## Protecoes Adicionais
+
+- Leitura local invalida bloqueia gravacao e sincronizacao, sem apagar a copia
+  original. Uma janela no tema permite baixar o conteudo para recuperacao.
+- A normalizacao nao regrava automaticamente o banco local ao abrir o app.
+- Falta de espaco nao anuncia atendimento ou rascunho salvo. A janela mantem
+  as alteracoes abertas e permite baixar uma copia; refresh e sync ficam bloqueados.
+- A resposta remota so substitui o estado em memoria depois de persistida,
+  com liberacao da trava de sincronizacao em `finally`.
+- O servidor usa os IDs do arquivo e pasta existentes, sem criar banco vazio
+  quando a localizacao original fica indisponivel.
+- JSON vazio, invalido, estrutura incompleta ou hash divergente bloqueiam escrita
+  no servidor. A leitura nao grava nada e nao substitui o arquivo original.
+- Backups automaticos sao lidos de volta e conferidos antes da substituicao;
+  gravacoes sao conferidas antes de confirmar sucesso. Retencao so inclui arquivos
+  nos padroes automaticos, mantendo copias manuais e arquivos corrompidos fora dela.
 
 ## Verificacao
 
@@ -39,15 +61,25 @@ O ZIP local da v1.0.43 e uma copia do codigo, NAO um backup dos dados do escrito
 
 `node --test tests/anexos.test.cjs`
 
-29 testes automatizados: downloads binarios, nomes, anexos antigos, erros,
-preservacao do payload, refresh e alteracoes durante sincronizacao.
+55 testes automatizados: downloads binarios, nomes, anexos antigos, erros,
+preservacao do payload, refresh, alteracoes durante sincronizacao, corrupcao,
+quota, backups e escrita protegida. Os testes privados de backend exigem
+`SR_BACKEND_SOURCE_PATH` apontando para a copia local do Apps Script e rodam
+somente com Drive e banco ficticios em memoria.
 O servidor opcional `node tests/servidor-qa.cjs 5493` usa exclusivamente localhost,
 dados ficticios, token de teste e banco em memoria. A politica de conteudo bloqueia
 conexoes externas, inclusive ao Apps Script real.
 No navegador: downloads PDF/PNG/TXT comparados por SHA-256 com os originais;
 upload pelo seletor, salvamento, reabertura e download do novo anexo;
 larguras 320, 390, 768, 1024 e 1280px sem overflow horizontal no atendimento.
-Nao foram testados aparelhos fisicos iOS/Android nem documentos reais da advogada.
+Nao foram testados aparelhos fisicos iOS/Android. A copia real do banco foi
+validada localmente: IDs de usuarios, clientes, processos e atendimentos,
+senhas existentes, anotacoes e anexos foram preservados pela normalizacao;
+os bytes dos anexos passaram na validacao do novo downloader. Nenhum dado real
+foi enviado ao ambiente de QA ou ao repositorio publico.
+No Apps Script, `verificarIntegridadeSrAdvocacia` executou somente leitura e
+confirmou o hash e as quantidades do banco original. Detalhes operacionais
+ficam somente no registro privado, fora deste repositorio publico.
 
 ## Publicacao Segura
 
@@ -63,21 +95,14 @@ Nao foram testados aparelhos fisicos iOS/Android nem documentos reais da advogad
 
 ## Outros Riscos Identificados
 
-- `carregarEstado` retorna estado vazio quando o JSON local e invalido e a
-  inicializacao o regrava. Isso deve passar a bloquear escrita e permitir
-  recuperacao, em uma alteracao dedicada com testes de migracao.
-- `salvarEstado` nao trata falta de espaco no localStorage. Anexos em base64,
+- Anexos em base64,
   imagens no editor e copias do rascunho dividem a quota do navegador. Uma futura
-  evolucao deve separar os arquivos dos registros e tratar erros de persistencia.
+  evolucao deve separar os arquivos dos registros. Esta versao avisa quando a
+  persistencia falha e oferece copia de recuperacao, mas nao aumenta a quota.
 - Senhas de usuarios ficam em texto claro nos registros sincronizados, e as
   permissoes das abas sao aplicadas no cliente. E necessario autenticar usuarios
   e autorizar operacoes no servidor, com migracao planejada e sem trocar senhas
   automaticamente.
-- O Apps Script cria backups antes de substituicoes, mas `srReadRecord_` retorna
-  estado vazio apos copiar um JSON corrompido. Isso pode permitir sobrescrita do
-  banco numa sincronizacao posterior. A leitura deve falhar de forma protegida;
-  nenhuma mudanca desse tipo foi aplicada ao servidor em uso nesta revisao.
-
 Estes pontos sao riscos do codigo existente, nao comprovacao de perda de dados
 ou de acesso indevido no escritorio. Eles nao foram resolvidos por uma reescrita
-ou migracao automatica neste patch.
+ou migracao automatica de autenticacao/armazenamento neste patch.

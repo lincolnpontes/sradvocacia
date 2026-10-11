@@ -6,6 +6,7 @@ const os = require('node:os');
 // Apenas localhost, dados ficticios e sincronizacao em memoria. Nunca usa o Apps Script.
 const root = path.resolve(__dirname, '..');
 const port = Number(process.argv[2] || 5493);
+const modo = process.argv[3] || '';
 const base = `http://127.0.0.1:${port}`;
 const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'sradvocacia-qa-'));
 function pdfTeste() {
@@ -79,10 +80,11 @@ http.createServer(async (req, res) => {
   if (url.pathname === '/' || url.pathname === '/index.html') {
     const seed = `<script>
       if (!localStorage.getItem('sr-advocacia-gestao-juridica-v134')) {
-        localStorage.setItem('sr-advocacia-gestao-juridica-v134', ${JSON.stringify(JSON.stringify(data))});
+        localStorage.setItem('sr-advocacia-gestao-juridica-v134', ${JSON.stringify(modo === 'corrompido' ? '{copia ficticia invalida' : JSON.stringify(data))});
         localStorage.setItem('sr-advocacia-sync-meta-v1', JSON.stringify({ serverVersion: 'qa-1', serverHash: 'qa-hash-1', dirty: false }));
       }
       localStorage.setItem('sr-advocacia-sync-config-v1', JSON.stringify({ googleScriptUrl: '${base}/qa-sync', syncToken: 'somente-teste-local' }));
+      ${modo === 'quota' ? `const gravar = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key === 'sr-advocacia-gestao-juridica-v134') throw new DOMException('Quota ficticia', 'QuotaExceededError'); return gravar.call(this, key, value); };` : ''}
     </script>`;
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8').replace('</head>', `${seed}</head>`);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');

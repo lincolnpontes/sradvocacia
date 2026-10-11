@@ -49,6 +49,8 @@ const CONFIG_META = {
   movimentacoes: { titulo: "Movimentações", descricao: "Motivos rápidos para andamentos e providências" }
 };
 
+let armazenamentoBloqueado = false;
+let erroPersistenciaLocal = "";
 const state = aplicarConfigSyncLocal(normalizarEstado(carregarEstado()));
 let viewAtual = "dashboard";
 let mesAgenda = new Date();
@@ -239,6 +241,19 @@ const els = {
 iniciar();
 
 function iniciar() {
+  window.addEventListener("beforeunload", (event) => {
+    if (!erroPersistenciaLocal) return;
+    event.preventDefault();
+    event.returnValue = "";
+  });
+  document.querySelector("#btnBackupProtegido").addEventListener("click", baixarCopiaProtegida);
+  document.querySelector("#btnFecharFalhaLocal").addEventListener("click", () => document.querySelector("#modalFalhaLocal").close());
+  if (armazenamentoBloqueado) {
+    aplicarTema();
+    els.formLogin.hidden = true;
+    mostrarFalhaArmazenamento("Não foi possível ler os dados deste navegador. A cópia original foi preservada. Baixe uma cópia para recuperação e entre em contato com o administrador. Não limpe os dados do navegador.");
+    return;
+  }
   aplicarTamanhoPaginaAtendimento();
   aplicarZoomAtendimento();
   aplicarTema();
@@ -1407,9 +1422,9 @@ function salvarRascunhoAtendimento(forcar = false) {
   if (atendimentoExistente?.numero) rascunho.numero = atendimentoExistente.numero;
   state.rascunhoAtendimento = manterTresVersoes(state.rascunhoAtendimento || {}, rascunho);
   Object.assign(state.rascunhoAtendimento, rascunho, { salvoEm: agoraSyncIso(), atualizadoEm: agoraSyncIso() });
+  salvarEstado();
   atendimentoAlterado = false;
   els.atendimentoStatus.textContent = `Rascunho salvo às ${new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
-  salvarEstado();
   if (viewAtual === "atendimentos") renderRascunhoAtendimento();
 }
 
@@ -1437,7 +1452,7 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
     dados.id = atendimento.id;
     state.atendimentos.unshift(atendimento);
   } else {
-    if (assinaturaAtendimento(atendimento) === assinaturaAtendimento(dados)) {
+    if (!erroPersistenciaLocal && assinaturaAtendimento(atendimento) === assinaturaAtendimento(dados)) {
       atendimentoAbertoId = atendimento.id;
       els.formAtendimento.elements.id.value = atendimento.id;
       atendimentoAlterado = false;
@@ -1453,8 +1468,8 @@ function salvarAtendimentoAtual({ fechar = false } = {}) {
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
   state.rascunhoAtendimento = null;
-  atendimentoAlterado = false;
   salvarEstado();
+  atendimentoAlterado = false;
   renderizarTudo();
   els.atendimentoStatus.textContent = `Atendimento ${rotuloAtendimento(atendimento)} salvo`;
   if (fechar) fecharEditorAtendimento();
@@ -5030,6 +5045,10 @@ function escolherTema(event) {
 }
 
 async function forcarAtualizacao() {
+  if (erroPersistenciaLocal) {
+    mostrarFalhaArmazenamento(erroPersistenciaLocal);
+    return;
+  }
   try {
     if (atendimentoModoEditor && atendimentoAlterado && !conteudoAtendimentoPreenchido(els.atendimentoEditor.innerHTML)) {
       alert("Há alterações no atendimento. Salve o atendimento antes de atualizar para preservar os documentos e os campos preenchidos.");
@@ -5073,13 +5092,39 @@ function usuarioAtual() {
 }
 
 function carregarEstado() {
-  const salvo = localStorage.getItem(STORAGE_KEY) || LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find(Boolean);
-  if (!salvo) return criarEstadoPadrao();
   try {
-    return JSON.parse(salvo);
+    const salvo = localStorage.getItem(STORAGE_KEY) ?? LEGACY_STORAGE_KEYS.map((key) => localStorage.getItem(key)).find((value) => value !== null);
+    if (salvo === undefined || salvo === null) return criarEstadoPadrao();
+    const parsed = JSON.parse(salvo);
+    validarEstadoLocal(parsed);
+    return parsed;
   } catch {
+    armazenamentoBloqueado = true;
     return criarEstadoPadrao();
   }
+}
+
+function validarEstadoLocal(dados) {
+  if (!dados || typeof dados !== "object" || Array.isArray(dados)) throw new Error("Dados locais inválidos.");
+  if (!["usuarios", "clientes", "processos", "atendimentos"].some((campo) => Array.isArray(dados[campo]))) throw new Error("Estrutura local não reconhecida.");
+  for (const campo of ["usuarios", "clientes", "processos", "atendimentos"]) {
+    if (campo in dados && !Array.isArray(dados[campo])) throw new Error(`Dados locais inválidos: ${campo}.`);
+    if (dados[campo]?.some((item) => !item || typeof item !== "object" || Array.isArray(item))) throw new Error(`Registro local inválido: ${campo}.`);
+  }
+}
+
+function mostrarFalhaArmazenamento(mensagem) {
+  const modal = document.querySelector("#modalFalhaLocal");
+  document.querySelector("#falhaLocalMensagem").textContent = mensagem;
+  if (els.atendimentoStatus && atendimentoModoEditor) els.atendimentoStatus.textContent = "Alterações ainda não salvas";
+  if (!modal.open) modal.showModal();
+}
+
+function baixarCopiaProtegida() {
+  const dados = armazenamentoBloqueado
+    ? JSON.stringify({ app: "SR Advocacia", copiasLocais: [STORAGE_KEY, ...LEGACY_STORAGE_KEYS].map((key) => ({ key, value: localStorage.getItem(key) })).filter((item) => item.value !== null) }, null, 2)
+    : JSON.stringify({ app: "SR Advocacia", versao: APP_VERSION, exportadoEm: new Date().toISOString(), dados: { ...state, usuarioAtivoId: null, avancadas: { ...state.avancadas, syncToken: "" } } }, null, 2);
+  baixarBlob(new Blob([dados], { type: "application/json;charset=utf-8" }), `sr-advocacia-recuperacao-${Date.now()}.json`);
 }
 
 function migrarTextoParaPb(valor = "") {
@@ -5213,7 +5258,6 @@ function normalizarEstado(raw) {
   const usuarioSessao = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_KEY) : null;
   estado.usuarioAtivoId = estado.usuarios.some((usuario) => usuario.id === usuarioSessao) ? usuarioSessao : null;
   if (typeof sessionStorage !== "undefined" && estado.usuarioAtivoId) sessionStorage.setItem(SESSION_KEY, estado.usuarioAtivoId);
-  salvarEstadoNormalizado(estado);
   return estado;
 }
 
@@ -5638,12 +5682,20 @@ function processoPadrao(numero, clienteId, area, status, orgao, prazo, responsav
 
 function salvarEstado() {
   if (!syncAplicandoRemoto) state.atualizadoEm = agoraSyncIso();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
+  salvarEstadoNormalizado(state);
   if (syncPronto && !syncAplicandoRemoto) marcarSyncSujo();
 }
 
 function salvarEstadoNormalizado(estado) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...estado, usuarioAtivoId: null }));
+  if (armazenamentoBloqueado) throw new Error("Gravação bloqueada para preservar os dados originais.");
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...estado, usuarioAtivoId: null }));
+    erroPersistenciaLocal = "";
+  } catch (error) {
+    erroPersistenciaLocal = "Não foi possível salvar neste navegador. As alterações continuam abertas, mas ainda não estão protegidas. Baixe uma cópia antes de fechar o app. Não exclua anexos nem limpe os dados do navegador para liberar espaço.";
+    mostrarFalhaArmazenamento(erroPersistenciaLocal);
+    throw error;
+  }
 }
 
 function iniciarSincronizacao() {
@@ -5778,6 +5830,10 @@ function atualizarStatusSync(texto = "") {
 }
 
 async function sincronizarComServidor({ manual = false, forcePush = false, forcePull = false } = {}) {
+  if (armazenamentoBloqueado || erroPersistenciaLocal) {
+    if (manual) mostrarFalhaArmazenamento(erroPersistenciaLocal || "Leitura local bloqueada. Preserve a cópia original antes de recuperar os dados.");
+    return;
+  }
   if (!urlSyncAppsScript()) {
     atualizarStatusSync();
     if (manual) alert("Informe a URL do Google Apps Script em Configurações > Avançadas.");
@@ -5909,18 +5965,22 @@ function aplicarDadosSync(dados) {
   const usuarioSessao = state.usuarioAtivoId;
   const avancadasLocais = { ...(state.avancadas || {}) };
   syncAplicandoRemoto = true;
-  const normalizado = normalizarEstado(dados);
-  Object.keys(state).forEach((key) => delete state[key]);
-  Object.assign(state, normalizado, { usuarioAtivoId: usuarioSessao || normalizado.usuarioAtivoId });
-  state.avancadas = {
-    ...(state.avancadas || {}),
-    googleScriptUrl: avancadasLocais.googleScriptUrl || state.avancadas?.googleScriptUrl || "",
-    syncToken: avancadasLocais.syncToken || "",
-    observacoesTecnicas: state.avancadas?.observacoesTecnicas || avancadasLocais.observacoesTecnicas || ""
-  };
-  salvarConfigSyncLocal(state.avancadas);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, usuarioAtivoId: null }));
-  syncAplicandoRemoto = false;
+  try {
+    validarEstadoLocal(dados);
+    const normalizado = normalizarEstado(dados);
+    normalizado.usuarioAtivoId = usuarioSessao || normalizado.usuarioAtivoId;
+    normalizado.avancadas = {
+      ...normalizado.avancadas,
+      googleScriptUrl: avancadasLocais.googleScriptUrl || normalizado.avancadas?.googleScriptUrl || "",
+      syncToken: avancadasLocais.syncToken || "",
+      observacoesTecnicas: normalizado.avancadas?.observacoesTecnicas || avancadasLocais.observacoesTecnicas || ""
+    };
+    salvarEstadoNormalizado(normalizado);
+    Object.keys(state).forEach((key) => delete state[key]);
+    Object.assign(state, normalizado);
+  } finally {
+    syncAplicandoRemoto = false;
+  }
 }
 
 function mesclarEstadosSync(remotoRaw = {}, localRaw = {}) {

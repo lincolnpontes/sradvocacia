@@ -53,7 +53,7 @@ function ambiente(anexos = []) {
       caches: { keys() { throw new Error('Caches nao devem ser acessados.'); } }
     },
     localStorage: {
-      getItem(key) { return values.get(key) || null; },
+      getItem(key) { return values.get(key) ?? null; },
       removeItem(key) { values.delete(key); },
       setItem(key, value) { values.set(key, value); gravacoes.push({ key, value }); }
     },
@@ -70,6 +70,67 @@ function arquivo(nome, tipo, bytes) {
   const buffer = Buffer.from(bytes);
   return { id: nome, nome, tipo, tamanho: buffer.length, dataUrl: `data:${tipo};base64,${buffer.toString('base64')}`, adicionadoEm: '2026-10-10T12:00:00Z' };
 }
+
+for (const value of ['{invalid', '', 'null', '[]', '{}', '{"clientes":null}', '{"clientes":[null]}']) {
+  test(`estado local invalido permanece intacto e bloqueia gravacao: ${value}`, () => {
+    const env = ambiente();
+    const key = 'sr-advocacia-gestao-juridica-v134';
+    env.values.set(key, value);
+    env.contexto.carregarEstado();
+    assert.equal(vm.runInContext('armazenamentoBloqueado', env.contexto), true);
+    assert.equal(env.values.get(key), value);
+    assert.throws(() => env.contexto.salvarEstado(), /bloqueada/);
+    assert.equal(env.values.get(key), value);
+    assert.equal(env.gravacoes.length, 0);
+  });
+}
+
+test('estado de chave antiga continua sendo lido sem alteracao automatica', () => {
+  const env = ambiente();
+  const original = JSON.stringify({ clientes: [], processos: [], usuarios: [], atendimentos: [] });
+  env.values.set('sr-advocacia-gestao-juridica-v133', original);
+  assert.equal(JSON.stringify(env.contexto.carregarEstado()), original);
+  assert.equal(env.gravacoes.length, 0);
+  assert.equal(vm.runInContext('armazenamentoBloqueado', env.contexto), false);
+});
+
+test('quota nao anuncia rascunho salvo nem permite atualizar ou sincronizar', async () => {
+  const env = ambiente();
+  env.values.set('sr-advocacia-gestao-juridica-v134', 'copia anterior intacta');
+  env.contexto.localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+  env.contexto.dadosAtendimentoDoFormulario = () => ({ conteudoHtml: 'anotacoes novas', anexos: [] });
+  env.contexto.conteudoAtendimentoPreenchido = () => true;
+  vm.runInContext('atendimentoModoEditor = true; atendimentoAlterado = true; viewAtual = "atendimentos";', env.contexto);
+  assert.throws(() => env.contexto.salvarRascunhoAtendimento(), /QuotaExceededError/);
+  assert.equal(vm.runInContext('atendimentoAlterado', env.contexto), true);
+  assert.equal(env.elementos.get('#atendimentoStatus').textContent, 'Alterações ainda não salvas');
+  assert.equal(env.values.get('sr-advocacia-gestao-juridica-v134'), 'copia anterior intacta');
+  assert.equal(env.elementos.get('#modalFalhaLocal').open, true);
+  await env.contexto.forcarAtualizacao();
+  assert.equal(env.destino(), undefined);
+  let called = false;
+  env.contexto.chamarAppsScriptSync = () => { called = true; };
+  await env.contexto.sincronizarComServidor();
+  assert.equal(called, false);
+});
+
+test('falha ao persistir resposta remota preserva estado e libera trava de sincronizacao', () => {
+  const env = ambiente();
+  const before = vm.runInContext('JSON.stringify(state)', env.contexto);
+  env.contexto.normalizarEstado = () => ({ usuarios: [], clientes: [], processos: [], atendimentos: [], avancadas: {} });
+  env.contexto.localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+  assert.throws(() => env.contexto.aplicarDadosSync({ clientes: [] }), /QuotaExceededError/);
+  assert.equal(vm.runInContext('JSON.stringify(state)', env.contexto), before);
+  assert.equal(vm.runInContext('syncAplicandoRemoto', env.contexto), false);
+});
+
+test('backup de recuperacao conserva anexos e omite token de sincronizacao', async () => {
+  const env = ambiente([arquivo('teste.pdf', 'application/pdf', [1, 2, 3])]);
+  env.contexto.baixarCopiaProtegida();
+  const backup = JSON.parse(await env.criados[0].blob.text());
+  assert.equal(backup.dados.atendimentos[0].anexos.length, 1);
+  assert.equal(backup.dados.avancadas.syncToken, '');
+});
 
 for (const [nome, tipo, bytes] of [
   ['Contrato assinado.pdf', 'application/pdf', Buffer.from('%PDF-1.4\n% teste\n%%EOF')],
