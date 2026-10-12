@@ -54,7 +54,14 @@ let data = {
 };
 let revision = 1;
 let primeiroPull = true;
-if (modo === 'primeiro-login') {
+let offline = false;
+if (modo === 'quota-cheia') {
+  data.clientes = Array.from({ length: 17 }, (_, i) => ({ ...data.clientes[0], id: i === 0 ? 'qa-client' : `qa-client-${i}`, nome: `Cliente ficticio ${i + 1}` }));
+  const grande = (id, tamanho) => ({ id, nome: `${id}.bin`, tipo: 'application/octet-stream', tamanho, dataUrl: `data:application/octet-stream;base64,${Buffer.alloc(tamanho, 77).toString('base64')}`, adicionadoEm: agora });
+  data.atendimentos[0].anexos.push(grande('Anexo de teste maior', Math.floor(2.8 * 1024 * 1024)));
+  data.atendimentos.push({ ...data.atendimentos[0], id: 'qa-atendimento-2', numero: '0002', assunto: 'Segundo atendimento ficticio', anexos: [grande('Outro anexo de teste', Math.floor(2.5 * 1024 * 1024))] });
+}
+if (modo === 'primeiro-login' || modo === 'quota-cheia') {
   data.processos = [{
     id: 'qa-processo', numero: '0000000-00.2026.8.15.0000', clienteId: 'qa-client',
     responsavelId: 'qa-user', area: 'Civel', status: 'Ativo', orgao: 'Vara de teste - Joao Pessoa/PB',
@@ -62,12 +69,13 @@ if (modo === 'primeiro-login') {
     prazos: [], movimentacoes: [], recebimentos: [], descontos: [], atendimentos: []
   }];
 }
-const dadosLocais = modo === 'primeiro-login' ? { ...data, clientes: [], processos: [], atendimentos: [] } : data;
+const dadosLocais = modo === 'primeiro-login' ? { ...data, clientes: [], processos: [], atendimentos: [] }
+  : modo === 'quota-cheia' ? { ...data, clientes: data.clientes.slice(0, 7), processos: [], atendimentos: [] } : data;
 function record() {
   return { hasData: true, data, serverVersion: `qa-${revision}`, hash: `qa-hash-${revision}`, revision, updatedAtServer: agora };
 }
 const permitidos = new Map([
-  ['app.js', 'text/javascript'], ['style.css', 'text/css'], ['logo.jpg', 'image/jpeg'],
+  ['app.js', 'text/javascript'], ['armazenamento.js', 'text/javascript'], ['style.css', 'text/css'], ['logo.jpg', 'image/jpeg'],
   ['favicon-32.png', 'image/png'], ['apple-touch-icon.png', 'image/png'],
   ['icon-192.png', 'image/png'], ['icon-512.png', 'image/png'], ['manifest.webmanifest', 'application/manifest+json']
 ]);
@@ -75,6 +83,12 @@ http.createServer(async (req, res) => {
   const url = new URL(req.url, base);
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'self' blob:; base-uri 'none'");
+  if (url.pathname === '/qa-offline' && req.method === 'POST') {
+    offline = true;
+    res.writeHead(303, { Location: '/' });
+    res.end();
+    return;
+  }
   if (url.pathname === '/qa-sync') {
     let request;
     if (req.method === 'POST') {
@@ -82,6 +96,11 @@ http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       request = JSON.parse(body);
     } else request = Object.fromEntries(url.searchParams);
+    if (offline) {
+      res.writeHead(503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, requestId: request.requestId, error: 'Servidor ficticio indisponivel' }));
+      return;
+    }
     if (modo === 'primeiro-login' && primeiroPull && request.action === 'pull') {
       primeiroPull = false;
       await new Promise(resolve => setTimeout(resolve, 8000));
@@ -97,7 +116,23 @@ http.createServer(async (req, res) => {
         localStorage.setItem('sr-advocacia-gestao-juridica-v134', ${JSON.stringify(modo === 'corrompido' ? '{copia ficticia invalida' : JSON.stringify(dadosLocais))});
         localStorage.setItem('sr-advocacia-sync-meta-v1', JSON.stringify({ serverVersion: '${modo === 'primeiro-login' ? 'qa-0' : 'qa-1'}', serverHash: '${modo === 'primeiro-login' ? 'qa-hash-0' : 'qa-hash-1'}', dirty: false }));
       }
-      localStorage.setItem('sr-advocacia-sync-config-v1', JSON.stringify({ googleScriptUrl: '${base}/qa-sync', syncToken: 'somente-teste-local' }));
+      if (!localStorage.getItem('sr-advocacia-sync-config-v1')) localStorage.setItem('sr-advocacia-sync-config-v1', JSON.stringify({ googleScriptUrl: '${base}/qa-sync', syncToken: 'somente-teste-local' }));
+      ${modo === 'quota-cheia' ? `
+      if (!localStorage.getItem('outro-app-ficticio')) {
+        let filler = '';
+        try { for (;;) { filler += 'X'.repeat(128 * 1024); localStorage.setItem('outro-app-ficticio', filler); } } catch (error) { console.info('Limite real de localStorage atingido no teste: ' + error.name); }
+      }
+      const copiaOriginalQa = localStorage.getItem('sr-advocacia-gestao-juridica-v134');
+      window.addEventListener('load', () => {
+        const painel = document.createElement('aside');
+        painel.id = 'qaDiagnostico';
+        painel.innerHTML = '<p id="qaLegadoResultado"></p><form method="post" action="/qa-offline"><button>Simular servidor indisponivel</button></form>';
+        document.body.appendChild(painel);
+        setInterval(() => {
+          const preservado = localStorage.getItem('sr-advocacia-gestao-juridica-v134') === copiaOriginalQa;
+          document.querySelector('#qaLegadoResultado').textContent = 'Copia antiga de 7 clientes: ' + (preservado ? 'preservada' : 'ALTERADA') + '. Outro app: ' + localStorage.getItem('outro-app-ficticio').length + ' caracteres.';
+        }, 500);
+      });` : ''}
       ${modo === 'quota' ? `const gravar = Storage.prototype.setItem; Storage.prototype.setItem = function(key, value) { if (key === 'sr-advocacia-gestao-juridica-v134') throw new DOMException('Quota ficticia', 'QuotaExceededError'); return gravar.call(this, key, value); };` : ''}
     </script>`;
     const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8').replace('</head>', `${seed}</head>`);
