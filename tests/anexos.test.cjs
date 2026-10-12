@@ -4,82 +4,18 @@ const path = require('node:path');
 const vm = require('node:vm');
 const { test } = require('node:test');
 
-const source = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
-const inicializacao = 'const state = aplicarConfigSyncLocal(normalizarEstado(carregarEstado()));';
-assert.ok(source.includes(inicializacao));
-assert.ok(source.includes('\niniciar();'));
-// Carrega as funcoes reais sem inicializar a interface ou a sincronizacao.
-const isolatedSource = source.replace(inicializacao, 'const state = __testState;').replace('\niniciar();', '');
+const { source, ambiente, arquivo } = require('./app-ambiente.cjs');
 
-function ambiente(anexos = []) {
-  const elementos = new Map();
-  const criados = [];
-  const revogados = [];
-  const timers = [];
-  const alerts = [];
-  const abertos = [];
-  const gravacoes = [];
-  const values = new Map();
-  let destino;
-  function elemento(tag = 'div') {
-    return {
-      tagName: tag.toUpperCase(), dataset: {}, children: [], textContent: '', innerHTML: '',
-      classList: { toggle() {}, add() {}, remove() {} },
-      appendChild(child) { this.children.push(child); },
-      replaceChildren() { this.children = []; },
-      showModal() { this.open = true; },
-      remove() { this.removed = true; },
-      click() { this.clicked = true; }
-    };
-  }
-  const contexto = vm.createContext({
-    __testState: { atualizadoEm: '2026-10-10T12:00:00Z', atendimentos: [{ id: 'at-1', anexos }], avancadas: { syncToken: 'test-only' } },
-    Blob, TextEncoder, Uint8Array, atob, navigator: { pdfViewerEnabled: true },
-    URL: class extends URL {
-      static createObjectURL(blob) { const url = `blob:test-${criados.length}`; criados.push({ url, blob }); return url; }
-      static revokeObjectURL(url) { revogados.push(url); }
-    },
-    document: {
-      body: elemento('body'),
-      querySelector(selector) {
-        if (!elementos.has(selector)) elementos.set(selector, elemento());
-        return elementos.get(selector);
-      },
-      createElement(tag) { const el = elemento(tag); elementos.set(`created-${elementos.size}`, el); return el; }
-    },
-    window: {
-      open(...args) { abertos.push(args); return null; },
-      location: { href: 'https://example.test/sradvocacia/?admin=keep#atendimentos', replace(url) { destino = url; } },
-      caches: { keys() { throw new Error('Caches nao devem ser acessados.'); } }
-    },
-    localStorage: {
-      getItem(key) { return values.get(key) ?? null; },
-      removeItem(key) { values.delete(key); },
-      setItem(key, value) { values.set(key, value); gravacoes.push({ key, value }); }
-    },
-    setTimeout(fn, ms) { timers.push({ fn, ms }); },
-    alert(message) { alerts.push(message); }
-  });
-  vm.runInContext(isolatedSource, contexto);
-  contexto.__anexos = anexos;
-  vm.runInContext('documentosAtendimento = __anexos;', contexto);
-  return { contexto, elementos, criados, revogados, timers, alerts, abertos, gravacoes, values, destino: () => destino };
-}
-
-function arquivo(nome, tipo, bytes) {
-  const buffer = Buffer.from(bytes);
-  return { id: nome, nome, tipo, tamanho: buffer.length, dataUrl: `data:${tipo};base64,${buffer.toString('base64')}`, adicionadoEm: '2026-10-10T12:00:00Z' };
-}
 
 for (const value of ['{invalid', '', 'null', '[]', '{}', '{"clientes":null}', '{"clientes":[null]}']) {
-  test(`estado local invalido permanece intacto e bloqueia gravacao: ${value}`, () => {
+  test(`estado local invalido permanece intacto e bloqueia gravacao: ${value}`, async () => {
     const env = ambiente();
     const key = 'sr-advocacia-gestao-juridica-v134';
     env.values.set(key, value);
     env.contexto.carregarEstado();
     assert.equal(vm.runInContext('armazenamentoBloqueado', env.contexto), true);
     assert.equal(env.values.get(key), value);
-    assert.throws(() => env.contexto.salvarEstado(), /bloqueada/);
+    await assert.rejects(() => env.contexto.salvarEstado(), /bloqueada/);
     assert.equal(env.values.get(key), value);
     assert.equal(env.gravacoes.length, 0);
   });
@@ -101,7 +37,7 @@ test('quota nao anuncia rascunho salvo nem permite atualizar ou sincronizar', as
   env.contexto.dadosAtendimentoDoFormulario = () => ({ conteudoHtml: 'anotacoes novas', anexos: [] });
   env.contexto.conteudoAtendimentoPreenchido = () => true;
   vm.runInContext('atendimentoModoEditor = true; atendimentoAlterado = true; viewAtual = "atendimentos";', env.contexto);
-  assert.throws(() => env.contexto.salvarRascunhoAtendimento(), /QuotaExceededError/);
+  await assert.rejects(() => env.contexto.salvarRascunhoAtendimento(), /QuotaExceededError/);
   assert.equal(vm.runInContext('atendimentoAlterado', env.contexto), true);
   assert.equal(env.elementos.get('#atendimentoStatus').textContent, 'Alterações ainda não salvas');
   assert.equal(env.values.get('sr-advocacia-gestao-juridica-v134'), 'copia anterior intacta');
@@ -114,12 +50,12 @@ test('quota nao anuncia rascunho salvo nem permite atualizar ou sincronizar', as
   assert.equal(called, false);
 });
 
-test('falha ao persistir resposta remota preserva estado e libera trava de sincronizacao', () => {
+test('falha ao persistir resposta remota preserva estado e libera trava de sincronizacao', async () => {
   const env = ambiente();
   const before = vm.runInContext('JSON.stringify(state)', env.contexto);
   env.contexto.normalizarEstado = () => ({ usuarios: [], clientes: [], processos: [], atendimentos: [], avancadas: {} });
   env.contexto.localStorage.setItem = () => { throw new Error('QuotaExceededError'); };
-  assert.throws(() => env.contexto.aplicarDadosSync({ clientes: [] }), /QuotaExceededError/);
+  await assert.rejects(() => env.contexto.aplicarDadosSync({ clientes: [] }), /QuotaExceededError/);
   assert.equal(vm.runInContext('JSON.stringify(state)', env.contexto), before);
   assert.equal(vm.runInContext('syncAplicandoRemoto', env.contexto), false);
 });
@@ -289,7 +225,7 @@ test('refresh salva rascunho, preserva parametros e nunca limpa caches ou banco'
   assert.ok(salvo);
   const url = new URL(env.destino());
   assert.equal(url.searchParams.get('admin'), 'keep');
-  assert.match(url.searchParams.get('v'), /^1\.0\.45-/);
+  assert.match(url.searchParams.get('v'), /^1\.0\.46-/);
   assert.equal(url.hash, '#atendimentos');
   assert.equal(env.gravacoes.length, 0);
 });
@@ -312,12 +248,12 @@ test('erro de armazenamento cancela refresh em vez de perder edicao', async () =
 });
 
 test('versao muda sem criar chave de armazenamento nova', () => {
-  assert.match(source, /const APP_VERSION = "1\.0\.45"/);
+  assert.match(source, /const APP_VERSION = "1\.0\.46"/);
   assert.match(source, /const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134"/);
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /app\.js\?v=1\.0\.45/);
-  assert.match(html, /style\.css\?v=1\.0\.45/);
-  assert.doesNotMatch(html, /1\.0\.44/);
+  assert.match(html, /app\.js\?v=1\.0\.46/);
+  assert.match(html, /style\.css\?v=1\.0\.46/);
+  assert.doesNotMatch(html, /1\.0\.45/);
 });
 
 function prepararSync(env) {
@@ -376,6 +312,22 @@ test('snapshot confirmado sem novas edicoes fica sincronizado', async () => {
   assert.equal(sync.agendamentos.length, 0);
 });
 
+test('edicao durante gravacao da confirmacao de push continua pendente', async () => {
+  const env = ambiente([arquivo('original.txt', 'text/plain', 'original')]);
+  const sync = prepararSync(env);
+  let concluir;
+  env.contexto.chamarAppsScriptSync = async () => ({ ok: true, status: 'saved', record: { serverVersion: 'v2' } });
+  env.contexto.atualizarMetaSync = () => new Promise(resolve => { concluir = resolve; });
+  const envio = env.contexto.enviarEstadoServidor();
+  await new Promise(resolve => setImmediate(resolve));
+  env.contexto.__testState.atendimentos[0].anexos.push(arquivo('novo.txt', 'text/plain', 'novo'));
+  await env.contexto.salvarEstado();
+  concluir();
+  await envio;
+  assert.equal(sync.dirty(), true);
+  assert.equal(sync.agendamentos.at(-1), 'alteracao-durante-envio');
+});
+
 test('alteracao feita durante push permanece local e pendente para proximo envio', async () => {
   const env = ambiente([arquivo('antigo.txt', 'text/plain', 'abc')]);
   const sync = prepararSync(env);
@@ -387,7 +339,7 @@ test('alteracao feita durante push permanece local e pendente para proximo envio
   };
   const push = env.contexto.enviarEstadoServidor();
   env.contexto.__testState.atendimentos[0].anexos.push(arquivo('novo.txt', 'text/plain', 'novo'));
-  env.contexto.salvarEstado();
+  await env.contexto.salvarEstado();
   concluir({ ok: true, status: 'saved', record: { serverVersion: 'v2' } });
   await push;
   assert.equal(enviado.atendimentos[0].anexos.length, 1);
@@ -410,7 +362,7 @@ test('resposta merged nao apaga anexo salvo durante o envio', async () => {
   const atendimento = env.contexto.__testState.atendimentos[0];
   atendimento.anexos.push(arquivo('novo.txt', 'text/plain', 'novo'));
   atendimento.atualizadoEm = new Date(Date.now() + 5000).toISOString();
-  env.contexto.salvarEstado();
+  await env.contexto.salvarEstado();
   concluir({ ok: true, status: 'merged', record: { serverVersion: 'v2', data: remoto } });
   await push;
   assert.equal(env.contexto.__testState.atendimentos[0].anexos.length, 2);
@@ -441,7 +393,7 @@ test('retry de conflito usa os dados atuais e nao o snapshot antigo', async () =
   const atendimento = env.contexto.__testState.atendimentos[0];
   atendimento.anexos.push(arquivo('novo.txt', 'text/plain', 'novo'));
   atendimento.atualizadoEm = new Date(Date.now() + 5000).toISOString();
-  env.contexto.salvarEstado();
+  await env.contexto.salvarEstado();
   concluir({ ok: true, status: 'conflict', record: { serverVersion: 'v2', data: remoto } });
   await push;
   assert.equal(chamadas, 2);

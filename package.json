@@ -1,0 +1,12 @@
+{
+  "name": "sr-advocacia",
+  "version": "1.0.46",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/anexos.test.cjs tests/armazenamento.test.cjs tests/async.test.cjs"
+  },
+  "devDependencies": {
+    "acorn": "^8.19.0",
+    "fake-indexeddb": "^6.2.5"
+  }
+}
