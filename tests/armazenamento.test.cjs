@@ -33,6 +33,15 @@ async function migrar(f, data = dados(['antigo'])) {
   await f.store.confirmarMigracao([{ key: STATE, value: JSON.stringify(data) }, { key: META, value: '{"dirty":false}' }]);
 }
 
+test('IndexedDB migrado abre mesmo se o navegador bloquear a leitura de localStorage', async () => {
+  const f = fixture(); await migrar(f, dados(['preservado']));
+  const other = fixture(f.factory, f.values);
+  other.store.legacy.getItem = () => { throw new Error('SecurityError'); };
+  await other.store.inicializar();
+  assert.equal(JSON.parse(other.store.getItem(STATE)).clientes[0].id, 'preservado');
+  assert.equal(other.store.legadoAlterado, null);
+});
+
 test('migracao e gravacao acima de 5 MiB nao escrevem nem apagam localStorage', async () => {
   const antigo = JSON.stringify(dados(['antigo']));
   const f = fixture(undefined, new Map([[STATE, antigo], [OLD, antigo]]));

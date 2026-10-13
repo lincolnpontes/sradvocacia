@@ -1,12 +1,16 @@
 {
   "name": "sr-advocacia",
-  "version": "1.0.46",
+  "version": "1.0.47",
   "private": true,
   "scripts": {
-    "test": "node --test tests/anexos.test.cjs tests/armazenamento.test.cjs tests/async.test.cjs"
+    "test": "node --test tests/anexos.test.cjs tests/armazenamento.test.cjs tests/async.test.cjs tests/djen.test.cjs tests/tribunal-ui.test.cjs tests/revisao.test.cjs"
   },
   "devDependencies": {
     "acorn": "^8.19.0",
-    "fake-indexeddb": "^6.2.5"
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.1.2"
+  },
+  "dependencies": {
+    "dompurify": "3.4.16"
   }
 }

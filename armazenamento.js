@@ -35,15 +35,21 @@
         request.onsuccess = () => resolve(request.result);
       });
       this.db.onversionchange = () => this.db.close();
-      const legado = this.keys.map(key => ({ key, value: this.legacy.getItem(key) })).filter(item => item.value !== null);
-      this.copiaLegada = legado;
-      const primeiro = this.stateKeys.map(key => legado.find(item => item.key === key)).find(Boolean);
-      this.hashLegado = await this.hash(primeiro?.value || "");
       const armazenado = await this.transacao(["valores", "originais"], "readonly", (tx, result) => {
         tx.objectStore("valores").getAll().onsuccess = event => { result.valores = event.target.result; };
         tx.objectStore("originais").getAll().onsuccess = event => { result.originais = event.target.result; };
       });
       this.migrado = armazenado.valores.some(item => item.key === "_migracao-v1");
+      let legado;
+      try { legado = this.keys.map(key => ({ key, value: this.legacy.getItem(key) })).filter(item => item.value !== null); }
+      catch (error) {
+        if (!this.migrado) throw error;
+        // Uma restricao ao armazenamento antigo nao invalida uma migracao confirmada.
+        legado = [];
+      }
+      this.copiaLegada = legado;
+      const primeiro = this.stateKeys.map(key => legado.find(item => item.key === key)).find(Boolean);
+      this.hashLegado = await this.hash(primeiro?.value || "");
       this.originais = armazenado.originais;
       for (const item of this.migrado ? armazenado.valores : legado) {
         this.valores.set(item.key, item.value);
