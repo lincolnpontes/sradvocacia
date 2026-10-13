@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.46";
+const APP_VERSION = "1.0.47";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -328,6 +328,13 @@ async function iniciar() {
   aplicarSidebar();
   popularLogin();
   configurarEventos();
+  window.SrDjen?.iniciar({
+    usuario: () => obterUsuario(state.usuarioAtivoId),
+    processos: () => state.processos || [],
+    storage: () => armazenamentoLocal,
+    endpoint: urlSyncAppsScript,
+    enviar: chamarAppsScriptSync
+  });
   await iniciarSincronizacao();
   atualizarPerfil();
   atualizarAcoesTopo();
@@ -518,6 +525,7 @@ async function entrar(event) {
   atualizarPerfil();
   await aplicarPermissoes();
   await mostrarApp();
+  await renderizarTudo();
 }
 
 function vincularFormulario(elemento, acao) {
@@ -541,6 +549,8 @@ function vincularFormulario(elemento, acao) {
 }
 
 async function sair() {
+  await salvarRascunhoAtendimento(true);
+  if (atendimentoModoEditor) fecharEditorAtendimento();
   const usuario = obterUsuario(state.usuarioAtivoId);
   registrarAuditoria("Sessão encerrada", usuario?.nome || "Usuário", "usuario", usuario?.id || "");
   state.usuarioAtivoId = null;
@@ -551,6 +561,7 @@ async function sair() {
 }
 
 function mostrarLogin() {
+  window.SrDjen?.sessao();
   els.login.classList.remove("is-hidden");
   els.app.classList.add("is-locked");
 }
@@ -559,6 +570,7 @@ async function mostrarApp() {
   els.login.classList.add("is-hidden");
   els.app.classList.remove("is-locked");
   await aplicarPermissoes();
+  void window.SrDjen?.carregar(true);
 }
 
 async function acaoPrincipal() {
@@ -624,6 +636,7 @@ function aplicarZoomAtendimento() {
 
 function abrirModalProcesso() {
   els.formProcesso.reset();
+  delete els.formProcesso.dataset.processoPendente;
   els.formProcesso.elements.atendimentoOrigemId.value = "";
   document.querySelector("#modalProcesso h2").textContent = "Novo processo";
   popularSelectsProcesso();
@@ -778,9 +791,12 @@ async function salvarProcesso(event) {
     return;
   }
   const atendimentoOrigem = dados.atendimentoOrigemId ? state.atendimentos.find((item) => item.id === dados.atendimentoOrigemId) : null;
+  const idPendente = els.formProcesso.dataset.processoPendente || uid();
+  els.formProcesso.dataset.processoPendente = idPendente;
+  const anterior = obterProcesso(idPendente);
   const processo = {
-    id: uid(),
-    criadoEm: agoraSyncIso(),
+    id: idPendente,
+    criadoEm: anterior?.criadoEm || agoraSyncIso(),
     atualizadoEm: agoraSyncIso(),
     numero: dados.numero.trim(),
     clienteId: dados.clienteId,
@@ -792,7 +808,7 @@ async function salvarProcesso(event) {
     processoCriminal: dados.processoCriminal?.trim() || "",
     honorarios: Number(dados.honorarios || 0),
     recebido: Number(dados.recebido || 0),
-    recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "", atualizadoEm: agoraSyncIso() }] : [],
+    recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: anterior?.recebimentos[0]?.id || uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "", atualizadoEm: agoraSyncIso() }] : [],
     descontoHonorarios: 0,
     descontos: [],
     observacaoHonorarios: "",
@@ -800,7 +816,7 @@ async function salvarProcesso(event) {
     resumo: dados.resumo.trim(),
     prazos: [
       {
-        id: uid(),
+        id: anterior?.prazos[0]?.id || uid(),
         data: dados.prazo,
         tipo: "Prazo inicial",
         descricao: "Prazo cadastrado na abertura do processo.",
@@ -810,7 +826,7 @@ async function salvarProcesso(event) {
       }
     ],
     movimentacoes: [
-      { id: uid(), data: hojeIso(), descricao: atendimentoOrigem ? "Processo criado a partir de atendimento." : "Processo cadastrado no sistema.", atualizadoEm: agoraSyncIso() }
+      { id: anterior?.movimentacoes[0]?.id || uid(), data: hojeIso(), descricao: atendimentoOrigem ? "Processo criado a partir de atendimento." : "Processo cadastrado no sistema.", atualizadoEm: agoraSyncIso() }
     ]
   };
   registrarAuditoria("Processo cadastrado", `${processo.numero} · ${obterCliente(processo.clienteId)?.nome || "Cliente"}`, "processo", processo.id);
@@ -819,8 +835,16 @@ async function salvarProcesso(event) {
     atendimentoOrigem.processoId = processo.id;
     atendimentoOrigem.atualizadoEm = agoraSyncIso();
   }
-  state.processos.unshift(processo);
+  if (anterior) {
+    // Uma falha local pode deixar o cadastro em memoria; preserve seu historico.
+    for (const campo of ["recebimentos", "prazos", "movimentacoes"]) processo[campo].push(...anterior[campo].slice(1));
+    processo.descontos = anterior.descontos;
+    processo.atendimentos = anterior.atendimentos;
+    Object.assign(anterior, processo);
+    recalcularRecebido(anterior);
+  } else state.processos.unshift(processo);
   await salvarEstado();
+  delete els.formProcesso.dataset.processoPendente;
   if (els.modalCliente.open && els.formCliente.elements.id.value === processo.clienteId) {
     renderPainelCliente(obterCliente(processo.clienteId));
   }
@@ -856,6 +880,7 @@ async function salvarUsuario(event) {
 
   registrarAuditoria(atual ? "Usuário atualizado" : "Usuário cadastrado", usuario.nome, "usuario", usuario.id);
   if (!atual) state.usuarios.push(usuario);
+  els.formUsuario.elements.id.value = usuario.id;
   await salvarEstado();
   popularLogin();
   atualizarPerfil();
@@ -887,7 +912,11 @@ async function excluirUsuarioAberto() {
     });
     if (alterado) marcarEntidadeAtualizada(processo);
   });
-  if (state.usuarioAtivoId === id) state.usuarioAtivoId = substituto;
+  if (state.usuarioAtivoId === id) {
+    state.usuarioAtivoId = null;
+    sessionStorage.removeItem(SESSION_KEY);
+    mostrarLogin();
+  }
   await salvarEstado();
   popularLogin();
   atualizarPerfil();
@@ -970,10 +999,17 @@ async function salvarItemProcesso(event) {
   if (!processo) return;
 
   const dados = Object.fromEntries(new FormData(form));
+  const itemId = form.dataset.itemPendente || uid();
+  form.dataset.itemPendente = itemId;
+  const registrarItem = (lista, item, inicio = false) => {
+    const index = lista.findIndex(atual => atual.id === item.id);
+    if (index < 0) inicio ? lista.unshift(item) : lista.push(item);
+    else lista[index] = item;
+  };
   if (form.dataset.detailForm === "andamento") {
     const tipoSelecionado = dados.tipoMovimentacao === "Outro" ? dados.tipoOutro?.trim() : dados.tipoMovimentacao;
     const movimentacao = {
-      id: uid(),
+      id: itemId,
       data: dados.data || hojeIso(),
       tipo: tipoSelecionado || "Andamento",
       descricao: dados.descricao?.trim() || "",
@@ -981,13 +1017,18 @@ async function salvarItemProcesso(event) {
       atualizadoEm: agoraSyncIso()
     };
 
+    if (dados.gerarPrazo !== "sim" && form.dataset.prazoPendente) {
+      processo.prazos = processo.prazos.filter(item => item.id !== form.dataset.prazoPendente);
+      delete form.dataset.prazoPendente;
+      processo.prazo = proximoPrazoDoProcesso(processo);
+    }
     if (dados.gerarPrazo === "sim") {
       if (!dados.prazoData || !dados.prazoTipo?.trim()) {
         alert("Informe a data e o tipo do prazo para registrar a providência.");
         return;
       }
       const prazo = {
-        id: uid(),
+        id: form.dataset.prazoPendente || uid(),
         data: dados.prazoData,
         tipo: dados.prazoTipo.trim(),
         descricao: dados.prazoDescricao?.trim() || movimentacao.descricao || movimentacao.tipo,
@@ -995,12 +1036,13 @@ async function salvarItemProcesso(event) {
         concluido: false,
         atualizadoEm: agoraSyncIso()
       };
-      processo.prazos.push(prazo);
+      form.dataset.prazoPendente = prazo.id;
+      registrarItem(processo.prazos, prazo);
       processo.prazo = proximoPrazoDoProcesso(processo);
       movimentacao.prazoId = prazo.id;
     }
 
-    processo.movimentacoes.unshift(movimentacao);
+    registrarItem(processo.movimentacoes, movimentacao, true);
   }
 
   if (form.dataset.detailForm === "status") {
@@ -1008,8 +1050,8 @@ async function salvarItemProcesso(event) {
   }
 
   if (form.dataset.detailForm === "prazo") {
-    processo.prazos.push({
-      id: uid(),
+    registrarItem(processo.prazos, {
+      id: itemId,
       data: dados.data,
       tipo: dados.tipo.trim(),
       descricao: dados.descricao.trim(),
@@ -1021,7 +1063,7 @@ async function salvarItemProcesso(event) {
   }
 
   if (form.dataset.detailForm === "movimentacao") {
-    processo.movimentacoes.unshift({ id: uid(), data: dados.data, descricao: dados.descricao.trim(), atualizadoEm: agoraSyncIso() });
+    registrarItem(processo.movimentacoes, { id: itemId, data: dados.data, descricao: dados.descricao.trim(), atualizadoEm: agoraSyncIso() }, true);
   }
 
   const acaoAuditoria = {
@@ -1033,6 +1075,8 @@ async function salvarItemProcesso(event) {
   registrarAuditoria(acaoAuditoria, processo.numero || processo.id, "processo", processo.id);
   marcarEntidadeAtualizada(processo);
   await salvarEstado();
+  delete form.dataset.itemPendente;
+  delete form.dataset.prazoPendente;
   form.reset();
   await renderizarTudo();
   abrirDetalheProcesso(processo.id);
@@ -1182,6 +1226,8 @@ async function renderizarTudo() {
   renderAgenda();
   renderFinanceiro();
   renderConfiguracoes();
+  window.SrDjen?.sessao();
+  void window.SrDjen?.carregar();
 }
 
 function renderMetricas() {
@@ -1215,6 +1261,7 @@ function renderProcessosDestaque() {
           <div>
             <div class="case-title">${escapeHtml(cliente?.nome || "Cliente não informado")}</div>
             <div class="case-meta">Processo ${escapeHtml(processo.numero)} · ${escapeHtml(processo.orgao)}</div>
+            <span data-djen-badge="${escapeHtml(processo.numero)}">${window.SrDjen?.badge(processo.numero) || ""}</span>
           </div>
           ${badgePrazo(processo)}
         </div>
@@ -1232,7 +1279,7 @@ function renderTabelaProcessos() {
     const responsavel = obterUsuario(processo.responsavelId);
     return `
       <tr class="clickable" data-open-process="${processo.id}">
-        <td><strong>${escapeHtml(processo.numero)}</strong><br><span class="case-meta">${escapeHtml(processo.orgao)}</span></td>
+        <td><strong>${escapeHtml(processo.numero)}</strong><br><span class="case-meta">${escapeHtml(processo.orgao)}</span><span data-djen-badge="${escapeHtml(processo.numero)}">${window.SrDjen?.badge(processo.numero) || ""}</span></td>
         <td>${escapeHtml(cliente?.nome || "")}<br><span class="case-meta">${escapeHtml(cliente?.documento || cliente?.cpf || "")}</span></td>
         <td>${escapeHtml(processo.area)}</td>
         <td>${badgeStatus(processo.status)}</td>
@@ -1342,7 +1389,7 @@ function renderPainelCliente(cliente) {
           <button class="client-overview-item" type="button" data-open-client-process="${processo.id}">
             <strong>${escapeHtml(processo.numero || "Processo sem número")}</strong>
             <span>${escapeHtml(processo.area)} · ${escapeHtml(processo.status)}</span>
-            <small>Prazo: ${dataCurta(processo.prazo)} · ${moeda(valorHonorariosLiquido(processo))}</small>
+            <small>Prazo: ${dataCurta(processo.prazo)}${temAcesso("financeiro") ? ` · ${moeda(valorHonorariosLiquido(processo))}` : ""}</small>
           </button>
         `).join("") : `<div class="client-overview-item"><span>Nenhum processo cadastrado para este cliente.</span></div>`}
       </section>
@@ -1886,7 +1933,7 @@ function assinaturaAtendimento(atendimento = {}) {
 
 function normalizarHtmlComparacao(html = "") {
   const div = document.createElement("div");
-  div.innerHTML = html;
+  div.innerHTML = htmlSeguroAtendimento(html);
   return div.innerHTML.replace(/\sdata-indent-level="[^"]*"/g, "").replace(/\s+/g, " ").trim();
 }
 
@@ -1929,7 +1976,7 @@ function preencherFormularioAtendimento(atendimento) {
   els.atendimentoAgendar.checked = atendimento.agendadoEm ? true : (atendimento.agendar || "nao") === "sim";
   els.atendimentoAgendadoEm.value = atendimento.agendadoEm || "";
   els.formAtendimento.assunto.value = atendimento.assunto || "";
-  els.atendimentoEditor.innerHTML = atendimento.conteudoHtml || modeloAtendimento();
+  els.atendimentoEditor.innerHTML = htmlSeguroAtendimento(atendimento.conteudoHtml || modeloAtendimento());
   normalizarImagensBlocoEditor();
   documentosAtendimento = (atendimento.anexos || []).map((anexo) => ({ ...anexo }));
   renderDocumentosAtendimento();
@@ -2178,7 +2225,7 @@ function restaurarVersaoAtendimento(event) {
   }
 
   els.formAtendimento.assunto.value = versao.assunto || atual.assunto;
-  els.atendimentoEditor.innerHTML = versao.conteudoHtml || "";
+  els.atendimentoEditor.innerHTML = htmlSeguroAtendimento(versao.conteudoHtml || "");
   normalizarImagensBlocoEditor();
   limparHistoricoImagemAtendimento();
   atendimentoAlterado = true;
@@ -3683,7 +3730,7 @@ function refazerAlteracaoImagem() {
 function restaurarHistoricoImagem(html, mensagem) {
   fecharOpcoesImagemAtendimento();
   imagemAtivaAtendimento = null;
-  els.atendimentoEditor.innerHTML = html;
+  els.atendimentoEditor.innerHTML = htmlSeguroAtendimento(html);
   normalizarImagensBlocoEditor();
   atendimentoAlterado = true;
   els.atendimentoStatus.textContent = mensagem;
@@ -3762,7 +3809,7 @@ function modeloAtendimento() {
 
 function conteudoAtendimentoPreenchido(html = "") {
   const div = document.createElement("div");
-  div.innerHTML = html;
+  div.innerHTML = htmlSeguroAtendimento(html);
   return !!div.textContent.replace(/\u00a0/g, " ").trim();
 }
 
@@ -3784,7 +3831,7 @@ function abrirModalProcessoPorAtendimento(atendimento) {
 
 function textoPlanoAtendimento(html = "") {
   const div = document.createElement("div");
-  div.innerHTML = html;
+  div.innerHTML = htmlSeguroAtendimento(html);
   return div.textContent.replace(/\s+/g, " ").trim();
 }
 
@@ -4323,14 +4370,15 @@ function abrirDetalheProcesso(id) {
         ${badgeStatus(processo.status)}
       </section>
 
-      <section class="detail-finance">
+      ${temAcesso("financeiro") ? `<section class="detail-finance">
         <span><strong>${moeda(valorHonorariosLiquido(processo))}</strong><small>Honorários com desconto${totalDescontos(processo) ? ` · bruto ${moeda(processo.honorarios)}` : ""}</small></span>
         <span><strong>${moeda(processo.recebido)}</strong><small>Recebido</small></span>
         <span><strong>${moeda(saldoAtual)}</strong><small>Pendente</small></span>
         <button class="ghost-button" type="button" data-open-contract="${processo.id}">Contrato/desconto</button>
         <button class="ghost-button" type="button" data-open-receipt="${processo.id}">Gerenciar recebimento</button>
-      </section>
+      </section>` : ""}
 
+      ${window.SrDjen?.painel(processo) || ""}
       <div class="detail-board">
         <section class="detail-panel detail-main">
           <div class="detail-panel-title">
@@ -4426,7 +4474,7 @@ function abrirDetalheProcesso(id) {
               <article>
                 <strong>${escapeHtml(atendimento.assunto || "Atendimento")}</strong>
                 <span>${dataHoraCurta(atendimento.data)} · ${escapeHtml(obterUsuario(atendimento.responsavelId)?.nome || "")}</span>
-                <div>${atendimento.conteudoHtml || ""}</div>
+                <div>${htmlSeguroAtendimento(atendimento.conteudoHtml || "")}</div>
               </article>
             `).join("") || "<p>Nenhum atendimento vinculado a este processo.</p>"}
           </div>
@@ -4498,6 +4546,7 @@ function abrirContratoPorBotao(event) {
 }
 
 function abrirModalContrato(id = "") {
+  if (!temAcesso("financeiro")) return;
   const processos = filtrarProcessosFinanceiro();
   preencherSelect(els.contratoProcesso, processos.map((processo) => {
     const cliente = obterCliente(processo.clienteId);
@@ -4521,6 +4570,7 @@ function preencherContratoHonorarios(id) {
 
 async function salvarContratoHonorarios(event) {
   event.preventDefault();
+  if (!temAcesso("financeiro")) return;
   const dados = Object.fromEntries(new FormData(els.formContrato));
   const processo = obterProcesso(dados.processoId);
   if (!processo) return;
@@ -4540,11 +4590,13 @@ async function salvarContratoHonorarios(event) {
 }
 
 function abrirModalRecebimento(id) {
+  if (!temAcesso("financeiro")) return;
   const processo = obterProcesso(id);
   if (!processo) return;
   const cliente = obterCliente(processo.clienteId);
   const saldo = saldoHonorarios(processo);
   els.formRecebimento.reset();
+  delete els.formRecebimento.dataset.recebimentoPendente;
   els.formRecebimento.processoId.value = processo.id;
   els.formRecebimento.data.value = hojeIso();
   els.formRecebimento.valor.value = "";
@@ -4612,28 +4664,35 @@ function renderHistoricoRecebimentos(processo) {
 
 async function salvarRecebimento(event) {
   event.preventDefault();
+  if (!temAcesso("financeiro")) return;
   const dados = Object.fromEntries(new FormData(els.formRecebimento));
   const processo = obterProcesso(dados.processoId);
   if (!processo) return;
   const valor = Number(String(dados.valor || "0").replace(",", "."));
-  if (valor <= 0) {
+  if (!Number.isFinite(valor) || valor <= 0) {
     alert("Informe o valor recebido.");
     return;
   }
   processo.recebimentos = processo.recebimentos || [];
-  processo.recebimentos.push({
-    id: uid(),
+  const id = els.formRecebimento.dataset.recebimentoPendente || uid();
+  els.formRecebimento.dataset.recebimentoPendente = id;
+  const recebimento = {
+    id,
     valor,
     data: dados.data || hojeIso(),
     forma: dados.forma,
     notaFiscal: dados.notaFiscal,
     observacoes: dados.observacoes.trim(),
     atualizadoEm: agoraSyncIso()
-  });
+  };
+  const index = processo.recebimentos.findIndex(item => item.id === id);
+  if (index < 0) processo.recebimentos.push(recebimento);
+  else processo.recebimentos[index] = recebimento;
   registrarAuditoria("Recebimento registrado", `${processo.numero} · ${moeda(valor)}`, "processo", processo.id);
   recalcularRecebido(processo);
   marcarEntidadeAtualizada(processo);
   await salvarEstado();
+  delete els.formRecebimento.dataset.recebimentoPendente;
   els.modalRecebimento.close();
   await renderizarTudo();
   if (processoAbertoId === processo.id) abrirDetalheProcesso(processo.id);
@@ -4647,6 +4706,7 @@ function preencherSaldoRecebimento() {
 }
 
 async function desfazerUltimoRecebimento() {
+  if (!temAcesso("financeiro")) return;
   const processo = obterProcesso(els.formRecebimento.processoId.value);
   if (!processo || !(processo.recebimentos || []).length) return;
   if (!confirm("Desfazer o último recebimento deste processo?")) return;
@@ -5175,22 +5235,22 @@ function aplicarSidebar() {
 
 async function aplicarPermissoes() {
   const usuario = usuarioAtual();
-  const permissoes = usuario?.permissoes || permissoesPadrao();
+  const permissoes = usuario?.permissoes || [];
   document.querySelectorAll("[data-view]").forEach((button) => {
     button.classList.toggle("is-hidden", !permissoes.includes(button.dataset.view));
   });
   document.querySelectorAll("[data-view-shortcut]").forEach((button) => {
     button.classList.toggle("is-hidden", !permissoes.includes(button.dataset.viewShortcut));
   });
-  if (!permissoes.includes(viewAtual)) await trocarView(permissoes[0] || "dashboard");
+  if (usuario && permissoes.length && !permissoes.includes(viewAtual)) await trocarView(permissoes[0]);
 }
 
 function temAcesso(view) {
-  return (usuarioAtual()?.permissoes || permissoesPadrao()).includes(view);
+  return (usuarioAtual()?.permissoes || []).includes(view);
 }
 
 function usuarioAtual() {
-  return obterUsuario(state.usuarioAtivoId) || state.usuarios[0];
+  return obterUsuario(state.usuarioAtivoId) || null;
 }
 
 function carregarEstado() {
@@ -5239,17 +5299,8 @@ function baixarCopiaProtegida() {
 }
 
 function migrarTextoParaPb(valor = "") {
-  return String(valor)
-    .replaceAll("Fortaleza/CE", "João Pessoa/PB")
-    .replaceAll("Maracanaú/CE", "Cabedelo/PB")
-    .replaceAll("Ceará", "Paraíba")
-    .replaceAll("Fortaleza", "João Pessoa")
-    .replaceAll("Fórum Clóvis Beviláqua", "Fórum Cível Des. Mário Moacyr Porto")
-    .replaceAll("TRT 7ª Região", "TRT 13ª Região")
-    .replaceAll("8.06", "8.15")
-    .replaceAll("5.07", "5.13")
-    .replaceAll("(85)", "(83)")
-    .replaceAll("OAB/CE", "OAB/PB");
+  // Os exemplos ja usam PB. Dados reais nunca devem mudar de jurisdicao.
+  return String(valor);
 }
 
 function normalizarEstado(raw) {
@@ -5555,7 +5606,7 @@ function normalizarProcesso(processo, estado) {
   }
   const responsavelId = processo.responsavelId || estado.usuarios.find((u) => u.nome === processo.responsavel)?.id || estado.usuarios[0]?.id || "";
   const orgao = migrarTextoParaPb(processo.orgao || [processo.vara, processo.forum].filter(Boolean).join(" · ") || estado.configs.orgaos[0]);
-  const prazos = (processo.prazos?.length ? processo.prazos : [{ id: uid(), data: processo.prazo || hojeIso(), tipo: "Prazo", descricao: "Prazo principal", concluido: false }]).map((prazo) => ({
+  const prazos = (Array.isArray(processo.prazos) ? processo.prazos : processo.prazo ? [{ id: uid(), data: processo.prazo, tipo: "Prazo", descricao: "Prazo principal", concluido: false }] : []).map((prazo) => ({
     id: prazo.id || uid(),
     data: prazo.data || hojeIso(),
     tipo: prazo.tipo || "Prazo",
@@ -5606,7 +5657,7 @@ function normalizarProcesso(processo, estado) {
     resumo: migrarTextoParaPb(processo.resumo || ""),
     prazos,
     atendimentos: processo.atendimentos || [],
-    movimentacoes: (processo.movimentacoes?.length ? processo.movimentacoes : [{ id: uid(), data: hojeIso(), tipo: "Histórico", descricao: "Registro importado da versão anterior." }]).map((mov) => ({
+    movimentacoes: (Array.isArray(processo.movimentacoes) ? processo.movimentacoes : []).map((mov) => ({
       id: mov.id || uid(),
       data: mov.data || hojeIso(),
       tipo: migrarTextoParaPb(mov.tipo || "Andamento"),
@@ -6584,7 +6635,7 @@ function htmlAtendimentoExportacao({ tituloDocumento = "" } = {}) {
   const cliente = obterCliente(dados.clienteId);
   const responsavel = obterUsuario(dados.responsavelId);
   const linha = (rotulo, valor) => `<div><strong>${rotulo}</strong><span>${escapeHtml(valor || "-")}</span></div>`;
-  const conteudo = dados.conteudoHtml?.trim() || "<p></p>";
+  const conteudo = htmlSeguroAtendimento(dados.conteudoHtml?.trim() || "<p></p>");
   const titulo = tituloDocumento || dados.assunto || "Atendimento";
   return `<!doctype html>
 <html lang="pt-BR">
@@ -6838,7 +6889,7 @@ function compararDatas(a, b) {
 }
 
 function hojeIso() {
-  return new Date().toISOString().slice(0, 10);
+  return isoLocalAgenda(new Date());
 }
 
 function agoraLocalInput() {
@@ -6856,7 +6907,7 @@ function textoParaHtml(texto = "") {
 function somarDiasIso(data, dias) {
   const base = new Date(`${String(data).slice(0, 10)}T00:00:00`);
   base.setDate(base.getDate() + dias);
-  return base.toISOString().slice(0, 10);
+  return isoLocalAgenda(base);
 }
 
 function dataLocalAgenda(data) {

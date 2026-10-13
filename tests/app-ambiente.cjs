@@ -49,7 +49,7 @@ function ambiente(anexos = []) {
   };
   const contexto = vm.createContext({
     __testState: { atualizadoEm: '2026-10-10T12:00:00Z', usuarios: [], clientes: [], processos: [], atendimentos: [{ id: 'at-1', anexos }], avancadas: { syncToken: 'test-only' } },
-    __testStorage: storage, ArmazenamentoSrAdvocacia,
+    __testStorage: storage, ArmazenamentoSrAdvocacia, htmlSeguroAtendimento: html => String(html),
     Blob, TextEncoder, Uint8Array, atob, navigator: { pdfViewerEnabled: true },
     URL: class extends URL {
       static createObjectURL(blob) { const url = `blob:test-${criados.length}`; criados.push({ url, blob }); return url; }

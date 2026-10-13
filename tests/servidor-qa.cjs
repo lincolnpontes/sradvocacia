@@ -55,15 +55,16 @@ let data = {
 let revision = 1;
 let primeiroPull = true;
 let offline = false;
+let djenLida = false;
 if (modo === 'quota-cheia') {
   data.clientes = Array.from({ length: 17 }, (_, i) => ({ ...data.clientes[0], id: i === 0 ? 'qa-client' : `qa-client-${i}`, nome: `Cliente ficticio ${i + 1}` }));
   const grande = (id, tamanho) => ({ id, nome: `${id}.bin`, tipo: 'application/octet-stream', tamanho, dataUrl: `data:application/octet-stream;base64,${Buffer.alloc(tamanho, 77).toString('base64')}`, adicionadoEm: agora });
   data.atendimentos[0].anexos.push(grande('Anexo de teste maior', Math.floor(2.8 * 1024 * 1024)));
   data.atendimentos.push({ ...data.atendimentos[0], id: 'qa-atendimento-2', numero: '0002', assunto: 'Segundo atendimento ficticio', anexos: [grande('Outro anexo de teste', Math.floor(2.5 * 1024 * 1024))] });
 }
-if (modo === 'primeiro-login' || modo === 'quota-cheia') {
+if (modo === 'primeiro-login' || modo === 'quota-cheia' || modo === 'djen') {
   data.processos = [{
-    id: 'qa-processo', numero: '0000000-00.2026.8.15.0000', clienteId: 'qa-client',
+    id: 'qa-processo', numero: '0000001-00.2026.8.15.0000', clienteId: 'qa-client',
     responsavelId: 'qa-user', area: 'Civel', status: 'Ativo', orgao: 'Vara de teste - Joao Pessoa/PB',
     criadoEm: agora, atualizadoEm: agora, prazo: '2026-12-01', honorarios: 0, recebido: 0,
     prazos: [], movimentacoes: [], recebimentos: [], descontos: [], atendimentos: []
@@ -75,6 +76,7 @@ function record() {
   return { hasData: true, data, serverVersion: `qa-${revision}`, hash: `qa-hash-${revision}`, revision, updatedAtServer: agora };
 }
 const permitidos = new Map([
+  ['tribunal.js', 'text/javascript'], ['tribunal.css', 'text/css'], ['conteudo-seguro.js', 'text/javascript'], ['vendor/purify.min.js', 'text/javascript'],
   ['app.js', 'text/javascript'], ['armazenamento.js', 'text/javascript'], ['style.css', 'text/css'], ['logo.jpg', 'image/jpeg'],
   ['favicon-32.png', 'image/png'], ['apple-touch-icon.png', 'image/png'],
   ['icon-192.png', 'image/png'], ['icon-512.png', 'image/png'], ['manifest.webmanifest', 'application/manifest+json']
@@ -82,6 +84,11 @@ const permitidos = new Map([
 http.createServer(async (req, res) => {
   const url = new URL(req.url, base);
   res.setHeader('Cache-Control', 'no-store');
+  if (url.pathname === '/qa-controles') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.end('<h1>Teste local DJEN</h1><form method="post" action="/qa-offline"><button>Simular falha do servidor</button></form>');
+    return;
+  }
   res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'; object-src 'self' blob:; base-uri 'none'");
   if (url.pathname === '/qa-offline' && req.method === 'POST') {
     offline = true;
@@ -96,7 +103,7 @@ http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       request = JSON.parse(body);
     } else request = Object.fromEntries(url.searchParams);
-    if (offline) {
+    if (offline && !String(request.action).startsWith('djen')) {
       res.writeHead(503, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: false, requestId: request.requestId, error: 'Servidor ficticio indisponivel' }));
       return;
@@ -104,6 +111,19 @@ http.createServer(async (req, res) => {
     if (modo === 'primeiro-login' && primeiroPull && request.action === 'pull') {
       primeiroPull = false;
       await new Promise(resolve => setTimeout(resolve, 8000));
+    }
+    if (String(request.action).startsWith('djen')) {
+      const number = '00000010020268150000';
+      const consult = { numero: number, fonte: 'DJEN / CNJ', tentativaEm: new Date().toISOString(), completaEm: new Date().toISOString(), parcial: false,
+        erro: offline ? 'DJEN indisponivel (HTTP 503).' : '', publicacoes: [
+          { id: '1', numero: number, data: '2026-10-12', tipo: 'Intimação', documento: 'Despacho', tribunal: 'TJPB', orgao: 'Vara de teste - João Pessoa/PB', texto: '<p>Publicação fictícia para testar a integração.</p><p>Este ambiente não contém processos reais.</p>', hash: 'CertidaoFicticia', versao: 'v1', lida: request.action === 'djenRead' },
+          { id: '2', numero: number, data: '2026-10-09', tipo: 'Publicação', documento: 'Decisão', tribunal: 'TJPB', orgao: 'Vara de teste - João Pessoa/PB', texto: '<p>Histórico fictício preservado mesmo com falha de conexão.</p>', hash: 'CertidaoFicticia2', versao: 'v2', lida: true }
+        ] };
+      if (request.action === 'djenRead') djenLida = true;
+      consult.publicacoes[0].lida = djenLida;
+      res.setHeader('Content-Type', 'application/json');
+      res.end(JSON.stringify({ ok: true, requestId: request.requestId, djen: { consultas: { [number]: consult }, monitoramentoAtivo: true } }));
+      return;
     }
     if (request.action === 'push') { data = request.payload.data; revision += 1; }
     res.setHeader('Content-Type', 'application/json');

@@ -225,7 +225,7 @@ test('refresh salva rascunho, preserva parametros e nunca limpa caches ou banco'
   assert.ok(salvo);
   const url = new URL(env.destino());
   assert.equal(url.searchParams.get('admin'), 'keep');
-  assert.match(url.searchParams.get('v'), /^1\.0\.46-/);
+  assert.match(url.searchParams.get('v'), /^1\.0\.47-/);
   assert.equal(url.hash, '#atendimentos');
   assert.equal(env.gravacoes.length, 0);
 });
@@ -248,11 +248,11 @@ test('erro de armazenamento cancela refresh em vez de perder edicao', async () =
 });
 
 test('versao muda sem criar chave de armazenamento nova', () => {
-  assert.match(source, /const APP_VERSION = "1\.0\.46"/);
+  assert.match(source, /const APP_VERSION = "1\.0\.47"/);
   assert.match(source, /const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134"/);
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
-  assert.match(html, /app\.js\?v=1\.0\.46/);
-  assert.match(html, /style\.css\?v=1\.0\.46/);
+  assert.match(html, /app\.js\?v=1\.0\.47/);
+  assert.match(html, /style\.css\?v=1\.0\.47/);
   assert.doesNotMatch(html, /1\.0\.45/);
 });
 
