@@ -130,7 +130,7 @@
         ${(entry?.erro || entry?.parcial) && entry?.completaEm ? `<span>Última consulta completa: ${esc(formatarHora(entry.completaEm))}</span>` : ''}</div>
       ${erro || entry?.erro ? `<p class="djen-error" role="status">${esc(erro || entry.erro)} O histórico salvo continua disponível.</p>` : ''}
       ${entry?.parcial ? `<p class="djen-note">Consulta parcial. ${entry.limiteAtingido ? 'A API limita esta pesquisa a 10.000 resultados.' : 'Consulte novamente para continuar o histórico.'}</p>` : ''}
-      ${dados.monitoramentoAtivo === false ? '<p class="djen-note">Consulta automática ainda não ativada.</p>' : ''}
+      ${dados.monitoramentoAtivo === false ? '<p class="djen-note">Consulta automática desativada.</p>' : ''}
       <p class="djen-note">Publicações do diário, conforme disponibilizadas pelo tribunal. Confira o teor oficial para providências e prazos.</p>
       <div class="djen-history">${(entry?.publicacoes || []).map(item => publicacao(item, process.id)).join('') || `<p class="djen-empty">${entry?.completaEm && !entry.parcial && !entry.erro ? 'Nenhuma publicação foi retornada pelo DJEN para este número. Isso não comprova ausência de movimentações nos autos.' : 'Nenhuma publicação guardada para este processo.'}</p>`}</div>
     </section>`;

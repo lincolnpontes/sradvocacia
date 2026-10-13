@@ -129,11 +129,19 @@ test('historico de numero anterior nao e associado ao numero editado do processo
   assert.equal(Object.keys(e.ctx.srDjenHandle_('djenList', auth).djen.consultas).length, 0);
   assert.equal(e.store.consultas[number].publicacoes.length, 1);
 });
-test('monitoramento ignora encerrados, limita o lote e nao grava o banco principal', () => {
-  const e = ambiente(); e.original.data.processos[0].status = 'Encerrado';
-  e.ctx.monitorarPublicacoesDjen(); assert.equal(e.requests.length, 0);
-  e.original.data.processos[0].status = 'Ativo'; e.respond(body([item()])); e.ctx.monitorarPublicacoesDjen();
-  assert.equal(e.requests.length, 1); assert.equal(e.store.consultas[number].publicacoes.length, 1);
+test('publicacao manual nao depende de acionadores nem instala monitoramento', () => {
+  const e = ambiente(); delete e.ctx.ScriptApp;
+  assert.equal(e.ctx.instalarMonitoramentoDjen, undefined);
+  assert.equal(e.ctx.monitorarPublicacoesDjen, undefined);
+  assert.equal(e.ctx.srDjenHandle_('djenList', auth).djen.monitoramentoAtivo, false);
+  e.respond(body([item()])); e.ctx.srDjenHandle_('djenConsult', auth);
+  assert.equal(e.store.consultas[number].publicacoes.length, 1);
+  assert.equal(e.triggers.length, 0);
+});
+test('teste de conexao usa numero ficticio e nao grava arquivos', () => {
+  const e = ambiente(); e.respond(body([])); e.ctx.testarConexaoDjen();
+  assert.match(e.requests[0].url, /numeroProcesso=00000000000000000000/);
+  assert.equal(e.writes, 0); assert.equal(e.triggers.length, 0);
 });
 test('cliente rejeita cache com numero de processo divergente', () => {
   assert.throws(() => validarResposta({ consultas: { [number]: { numero: 'outro', publicacoes: [] } } }));

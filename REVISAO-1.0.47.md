@@ -40,14 +40,15 @@ Fonte oficial: https://comunicaapi.pje.jus.br/swagger/djen.yml
 - Paginacao em lotes, limite de 10.000 resultados sinalizado, protecao contra
   paginas repetidas, resultados de outro processo e respostas invalidas.
 - Respeito ao limite de consultas, espera em HTTP 429 e exclusao mutua entre
-  consultas manuais e automaticas. Falhas nao apagam o historico.
+  consultas simultaneas. Falhas nao apagam o historico.
 - Leitura por usuario; retificacao de uma publicacao volta a gerar aviso.
 - Alertas dentro do app e identificadores nos processos, sem nova aba.
-- Monitoramento no Apps Script: acionador horario, ate 12 processos ativos por
-  execucao, intervalo minimo de 6h por processo. Filas maiores podem demorar
-  mais. Depende da autorizacao Google e da disponibilidade do tribunal.
-- Nao envia notificacoes push, e-mail ou WhatsApp com o app fechado. O servidor
-  coleta publicacoes; o app mostra os avisos quando aberto/conectado.
+- Publicacao manual, conforme a restricao posterior do proprietario sobre
+  autorizacao temporaria: nenhum acionador automatico e criado. O modulo nao
+  depende da permissao de gerenciamento de acionadores. Consulte pelo botao
+  do processo; o resultado fica disponivel aos demais aparelhos sincronizados.
+- Nao envia notificacoes push, e-mail ou WhatsApp com o app fechado. O app
+  mostra os avisos de publicacoes guardadas quando aberto/conectado.
 - DJEN nao representa os autos completos, documentos sigilosos ou todas as
   movimentacoes. Ausencia de resultados nao comprova ausencia de andamento.
   Providencias e prazos continuam sujeitos a conferencia profissional.
@@ -73,7 +74,7 @@ Fonte oficial: https://comunicaapi.pje.jus.br/swagger/djen.yml
 
 ## Verificacao E Recuperacao
 
-- Testes automatizados com dados ficticios cobrem anexos, persistencia,
+- 122 testes automatizados com dados ficticios cobrem anexos, persistencia,
   formularios, sincronizacao/backend, seguranca de HTML e DJEN.
 - Ensaio privado com copia do banco: 21 clientes, 24 processos, 4 atendimentos,
   6 usuarios e 9 anexos preservados; nenhuma chamada externa nesse ensaio.
@@ -81,17 +82,33 @@ Fonte oficial: https://comunicaapi.pje.jus.br/swagger/djen.yml
   Script e frontend anterior criadas antes da alteracao. Nao fazem parte deste
   repositorio publico.
 - Fonte e modulo do Apps Script preparados para atualizar a implantacao
-  existente, sem trocar sua URL. A ativacao depende da autorizacao Google;
-  a presenca do codigo no editor nao comprova implantacao nem acionador ativo.
+  existente, sem trocar sua URL. O uso do banco requer a autorizacao de Drive
+  existente; consultar o DJEN pelo servidor requer requisicoes externas.
+  Revogar todo o acesso ao projeto interrompe essas funcoes. Autorizacao
+  temporaria de testes nao implica consentimento para monitoramento permanente.
 - Nao limpar armazenamento, nao restaurar uma copia antiga por cima do banco
   atual e nao executar limpeza geral para instalar esta versao.
+
+## Validacao Externa Em 13/10/2026
+
+- O Apps Script leu os 24 processos e o arquivo separado do DJEN com sucesso.
+- O teste pontual do DJEN, sem dados reais, recebeu HTTP 403 e HTML quando
+  executado na infraestrutura do Google. A mesma consulta publica retornou
+  HTTP 200 e JSON a partir do ambiente local. A causa exata da recusa no
+  Google nao foi confirmada; nao houve tentativa de contornar o bloqueio.
+- Portanto, a importacao pelo servidor nao esta operacional no momento desta
+  validacao. A interface e as rotas tratam a falha e preservam o historico;
+  nao deve ser apresentada como monitoramento funcional ou em tempo real.
+- Antes de anunciar a importacao como disponivel, e necessario obter uma
+  resposta autorizada e valida do DJEN a partir do Apps Script.
 
 ## Instalacao Do Modulo Apps Script
 
 O arquivo `apps-script/Djen.gs` nao contem credenciais ou IDs privados.
 Adicionar ao mesmo projeto e rotear `djenList`, `djenConsult` e `djenRead` para
 `srDjenHandle_(action, payload)` somente depois da verificacao de token existente.
-Autorizar as permissoes de Drive, requisicoes externas e acionadores.
-Executar `instalarMonitoramentoDjen` e `verificarInstalacaoDjen`, validar uma
-consulta e atualizar a **implantacao existente** com uma nova versao.
+Autorizar apenas as permissoes necessarias para Drive e requisicoes externas.
+Executar `verificarInstalacaoDjen` e `testarConexaoDjen`, validar uma consulta
+e atualizar a **implantacao existente** com uma nova versao. Nao instalar
+acionadores. `testarConexaoDjen` usa um numero ficticio e nao grava o banco.
 Nunca substituir o banco por um arquivo de demonstracao.

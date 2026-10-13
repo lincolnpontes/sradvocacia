@@ -4,26 +4,27 @@ const SR_DJEN = Object.freeze({
   FILE_PROPERTY: 'SR_ADVOCACIA_DJEN_FILE',
   COOLDOWN_PROPERTY: 'SR_ADVOCACIA_DJEN_RETRY_AT',
   LEASE_PROPERTY: 'SR_ADVOCACIA_DJEN_LEASE',
-  HOURS: 6,
   PAGE_SIZE: 100,
   MAX_RESULTS: 10000
 });
-
-function instalarMonitoramentoDjen() {
-  srReadRecord_();
-  srWithLock_(() => srDjenFile_(true));
-  const exists = ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'monitorarPublicacoesDjen');
-  if (!exists) ScriptApp.newTrigger('monitorarPublicacoesDjen').timeBased().everyHours(1).create();
-  Logger.log('DJEN instalado. Verificacao horaria em lotes; cada processo e consultado a cada 6 horas. Banco principal preservado.');
-}
 
 function verificarInstalacaoDjen() {
   const record = srReadRecord_();
   const store = srDjenRead_();
   Logger.log(JSON.stringify({ instalado: !!srDjenFile_(false),
-    acionadores: ScriptApp.getProjectTriggers().filter(t => t.getHandlerFunction() === 'monitorarPublicacoesDjen').length,
+    monitoramentoAutomatico: false,
     processos: record.data.processos.length, consultas: Object.keys(store.consultas).length,
     publicacoes: Object.keys(store.consultas).reduce((n, key) => n + store.consultas[key].publicacoes.length, 0) }));
+}
+
+function testarConexaoDjen() {
+  const response = UrlFetchApp.fetch(SR_DJEN.API + '?numeroProcesso=00000000000000000000&meio=D&itensPorPagina=5&pagina=1',
+    { method: 'get', muteHttpExceptions: true, followRedirects: false, headers: { Accept: 'application/json' } });
+  Logger.log(JSON.stringify({ http: response.getResponseCode(), tipo: response.getAllHeaders()['Content-Type'] || '', testeSemDadosReais: true }));
+  if (response.getResponseCode() !== 200) throw new Error('DJEN indisponivel (HTTP ' + response.getResponseCode() + ').');
+  const body = JSON.parse(response.getContentText('UTF-8'));
+  if (response.getResponseCode() !== 200 || body.status !== 'success' || !Array.isArray(body.items)) throw new Error('Conexao ao DJEN nao confirmada.');
+  Logger.log(JSON.stringify({ http: response.getResponseCode(), api: body.status, resultados: body.count, testeSemDadosReais: true, bancoPrincipalAlterado: false }));
 }
 
 function srDjenHandle_(action, payload) {
@@ -75,7 +76,7 @@ function srDjenView_(store, processes, userId) {
     }) });
   });
   return { djen: { fonte: 'DJEN / CNJ', consultas, servidorEm: srNow_(),
-    monitoramentoAtivo: ScriptApp.getProjectTriggers().some(t => t.getHandlerFunction() === 'monitorarPublicacoesDjen') } };
+    monitoramentoAtivo: false } };
 }
 
 function srDjenFile_(create) {
@@ -228,23 +229,4 @@ function srDjenItem_(raw, number, now) {
   item.versao = srHash_({ id, data: date, tribunal: item.tribunal, orgao: item.orgao, tipo: item.tipo,
     documento: item.documento, texto: item.texto, hash: item.hash, ativo: item.ativo });
   return item;
-}
-
-function monitorarPublicacoesDjen() {
-  const started = Date.now();
-  const record = srReadRecord_();
-  const store = srDjenRead_();
-  const numbers = Array.from(new Set(record.data.processos.filter(p => p.status !== 'Encerrado' && !p.arquivado)
-    .map(p => srDjenNumber_(p.numero)).filter(Boolean)));
-  const last = number => Date.parse(store.consultas[number] && store.consultas[number].tentativaEm || '1970-01-01');
-  const pending = numbers.filter(number => started - last(number) > SR_DJEN.HOURS * 3600000)
-    .sort((a, b) => last(a) - last(b)).slice(0, 12);
-  let done = 0;
-  for (const number of pending) {
-    if (Date.now() - started > 210000) break;
-    try { srDjenConsult_(number, 2); done += 1; }
-    catch (_) { break; }
-    if (Number(PropertiesService.getScriptProperties().getProperty(SR_DJEN.COOLDOWN_PROPERTY) || 0) > Date.now()) break;
-  }
-  Logger.log(JSON.stringify({ consultados: done, pendentesNoLote: pending.length - done, bancoPrincipalAlterado: false }));
 }
