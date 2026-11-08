@@ -3,10 +3,17 @@
   "short_name": "SR Advocacia",
   "start_url": "./index.html",
   "scope": "./",
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "id": "https://lincolnpontes.github.io/sradvocacia/index.html",
+      "url": "./manifest.webmanifest"
+    }
+  ],
   "display": "standalone",
   "background_color": "#f6efe2",
   "theme_color": "#2f3032",
-  "description": "Painel jurídico para processos, clientes, agenda, configurações e honorários.",
+  "description": "Gestão de processos, clientes, documentos, agenda e honorários do escritório.",
   "icons": [
     {
       "src": "icon-192.png",
