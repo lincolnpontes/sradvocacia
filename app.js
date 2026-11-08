@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.47";
+const APP_VERSION = "1.0.48";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -59,6 +59,8 @@ let dispositivoSyncId = "";
 const state = {};
 let viewAtual = "dashboard";
 let mesAgenda = new Date();
+let diaResumoAgenda = "";
+let timerViradaAgenda;
 let processoAbertoId = null;
 let configAberta = null;
 let atendimentoAbertoId = "";
@@ -200,7 +202,6 @@ const els = {
   btnDesfazerAtendimento: document.querySelector("#btnDesfazerAtendimento"),
   btnRefazerAtendimento: document.querySelector("#btnRefazerAtendimento"),
   btnAlignmentTool: document.querySelector("#btnAlignmentTool"),
-  btnAtendimentoProcessoRodape: document.querySelector("#btnAtendimentoProcessoRodape"),
   btnExpandirAtendimento: document.querySelector("#btnExpandirAtendimento"),
   btnZoomMenos: document.querySelector("#btnZoomMenos"),
   btnZoomMais: document.querySelector("#btnZoomMais"),
@@ -346,6 +347,7 @@ async function iniciar() {
 }
 
 function configurarEventos() {
+  document.querySelectorAll("input[data-moeda]").forEach(vincularCampoMonetario);
   vincularFormulario(els.formLogin, entrar);
   bloquearZoom();
   document.addEventListener("keydown", atalhosGlobaisImagemAtendimento);
@@ -465,14 +467,13 @@ function configurarEventos() {
   els.editorFontSize.addEventListener("change", aplicarTamanhoFonteSelecionado);
   document.addEventListener("selectionchange", atualizarSelecaoEditor);
   els.btnFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
-  els.btnToolbarSalvarAtendimento.addEventListener("click", async () => (await salvarAtendimentoAtual()));
+  els.btnToolbarSalvarAtendimento.addEventListener("click", () => els.formAtendimento.requestSubmit());
   els.btnToolbarFecharAtendimento.addEventListener("click", solicitarFechamentoAtendimento);
   els.btnExportarAtendimento.addEventListener("click", alternarMenuExportarAtendimento);
   els.menuExportarAtendimento.addEventListener("click", exportarAtendimentoPeloMenu);
   els.btnImprimirAtendimento.addEventListener("click", () => imprimirAtendimentoAtual());
   els.btnDesfazerAtendimento.addEventListener("click", executarDesfazerAtendimento);
   els.btnRefazerAtendimento.addEventListener("click", executarRefazerAtendimento);
-  els.btnAtendimentoProcessoRodape.addEventListener("click", transformarAtendimentoEmProcesso);
   els.btnZoomMenos.addEventListener("click", () => alterarZoomAtendimento(-5));
   els.btnZoomMais.addEventListener("click", () => alterarZoomAtendimento(5));
   els.atendimentoZoomRange.addEventListener("input", (event) => definirZoomAtendimento(Number(event.target.value)));
@@ -499,7 +500,6 @@ function configurarEventos() {
   document.querySelector("#btnAbrirAvancadas").addEventListener("click", solicitarAcessoAvancado);
   els.btnExpandirAtendimento.addEventListener("click", alternarFocoAtendimento);
   document.querySelector("#btnToggleArquivados").addEventListener("click", alternarArquivadosAtendimento);
-  document.querySelector("#btnAtendimentoProcesso").addEventListener("click", transformarAtendimentoEmProcesso);
   els.rascunhoAtendimento.addEventListener("click", abrirAtendimentoDaLista);
   window.addEventListener("resize", agendarPaginacaoAtendimento);
   els.listaAtendimentos.addEventListener("click", abrirAtendimentoDaLista);
@@ -791,6 +791,12 @@ async function salvarProcesso(event) {
     return;
   }
   const atendimentoOrigem = dados.atendimentoOrigemId ? state.atendimentos.find((item) => item.id === dados.atendimentoOrigemId) : null;
+  const honorarios = lerValorMonetario(dados.honorarios);
+  const recebido = lerValorMonetario(dados.recebido);
+  if (!Number.isFinite(honorarios) || !Number.isFinite(recebido)) {
+    alert("Confira os valores de honorários e recebimento antes de salvar.");
+    return;
+  }
   const idPendente = els.formProcesso.dataset.processoPendente || uid();
   els.formProcesso.dataset.processoPendente = idPendente;
   const anterior = obterProcesso(idPendente);
@@ -806,9 +812,9 @@ async function salvarProcesso(event) {
     prazo: dados.prazo,
     responsavelId: dados.responsavelId,
     processoCriminal: dados.processoCriminal?.trim() || "",
-    honorarios: Number(dados.honorarios || 0),
-    recebido: Number(dados.recebido || 0),
-    recebimentos: Number(dados.recebido || 0) > 0 ? [{ id: anterior?.recebimentos[0]?.id || uid(), valor: Number(dados.recebido || 0), data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "", atualizadoEm: agoraSyncIso() }] : [],
+    honorarios,
+    recebido,
+    recebimentos: recebido > 0 ? [{ id: anterior?.recebimentos[0]?.id || uid(), valor: recebido, data: hojeIso(), forma: "Registro inicial", notaFiscal: "nao", observacoes: "", atualizadoEm: agoraSyncIso() }] : [],
     descontoHonorarios: 0,
     descontos: [],
     observacaoHonorarios: "",
@@ -1437,6 +1443,7 @@ function renderAtendimentos() {
         <small>Responsável: ${escapeHtml(responsavel?.nome || "")}${agenda}</small>
         <small class="attendance-dates">Último salvamento: ${dataHoraCurta(ultimoSalvamento)}</small>
         <div class="attendance-actions">
+          ${!atendimento.arquivado && temAcesso("processos") ? `<button class="ghost-button table-action" type="button" data-convert-attendance="${escapeHtml(referencia)}">Transformar em processo</button>` : ""}
           <button class="ghost-button table-action" type="button" data-toggle-archive-attendance="${escapeHtml(referencia)}">
             ${atendimento.arquivado ? "Desarquivar" : "Arquivar"}
           </button>
@@ -1572,7 +1579,7 @@ async function salvarRascunhoAtendimento(forcar = false) {
 
 async function salvarAtendimento(event) {
   event.preventDefault();
-  await salvarAtendimentoAtual();
+  await salvarAtendimentoAtual({ fechar: true });
 }
 
 async function salvarAtendimentoAtual({ fechar = false } = {}) {
@@ -1588,12 +1595,12 @@ async function salvarAtendimentoAtual({ fechar = false } = {}) {
     alert("Digite as anotações do atendimento antes de salvar.");
     return null;
   }
-  const idReferencia = dados.id || atendimentoAbertoId || state.rascunhoAtendimento?.id || "";
+  const idReferencia = dados.id || atendimentoAbertoId;
   let atendimento = idReferencia ? state.atendimentos.find((item) => item.id === idReferencia) : null;
   const novoAtendimento = !atendimento;
   if (!dados.id && atendimento) dados.id = atendimento.id;
   if (!atendimento) {
-    atendimento = { id: uid(), numero: proximoNumeroAtendimento(), criadoEm: agoraSyncIso(), versoes: [] };
+    atendimento = { id: uid(), numero: proximoNumeroAtendimento(), criadoEm: agoraSyncIso(), processoId: "", versoes: [] };
     dados.id = atendimento.id;
     state.atendimentos.unshift(atendimento);
   } else {
@@ -1612,7 +1619,7 @@ async function salvarAtendimentoAtual({ fechar = false } = {}) {
   registrarAuditoria(novoAtendimento ? "Atendimento cadastrado" : "Atendimento atualizado", `${rotuloAtendimento(atendimento)} · ${atendimento.assunto}`, "atendimento", atendimento.id);
   atendimentoAbertoId = atendimento.id;
   els.formAtendimento.elements.id.value = atendimento.id;
-  state.rascunhoAtendimento = null;
+  if (!state.rascunhoAtendimento?.id || state.rascunhoAtendimento.id === atendimento.id) state.rascunhoAtendimento = null;
   await salvarEstado();
   if (atendimentoSessaoEditor !== sessaoEditor) return atendimento;
   atendimentoAlterado = atendimentoRevisaoEditor !== revisaoEditor;
@@ -1938,6 +1945,14 @@ function normalizarHtmlComparacao(html = "") {
 }
 
 async function abrirAtendimentoDaLista(event) {
+  const converter = event.target.closest("[data-convert-attendance]");
+  if (converter) {
+    event.preventDefault();
+    if (atendimentoModoEditor || !temAcesso("processos")) return;
+    const salvo = resolverAtendimentoReferencia(converter.dataset.convertAttendance);
+    if (salvo && !salvo.arquivado && !salvo.processoId) abrirModalProcessoPorAtendimento(salvo);
+    return;
+  }
   const excluir = event.target.closest("[data-delete-attendance]");
   if (excluir) {
     event.preventDefault();
@@ -3787,22 +3802,6 @@ async function alternarArquivoAtendimento(referencia) {
   renderAtendimentos();
 }
 
-async function transformarAtendimentoEmProcesso() {
-  const dados = dadosAtendimentoDoFormulario();
-  let atendimento = dados.id ? state.atendimentos.find((item) => item.id === dados.id) : null;
-  if (!atendimento || atendimentoAlterado) {
-    atendimento = (await salvarAtendimentoAtual());
-    if (!atendimento) return;
-    atendimento = state.atendimentos.find((item) => item.id === atendimentoAbertoId);
-  }
-  if (!atendimento) return;
-  if (atendimento.processoId && obterProcesso(atendimento.processoId)) {
-    abrirDetalheProcesso(atendimento.processoId);
-    return;
-  }
-  abrirModalProcessoPorAtendimento(atendimento);
-}
-
 function modeloAtendimento() {
   return "";
 }
@@ -3835,11 +3834,31 @@ function textoPlanoAtendimento(html = "") {
   return div.textContent.replace(/\s+/g, " ").trim();
 }
 
+function selecionarEventosProximos(eventos, hoje = hojeIso()) {
+  const limite = somarDiasIso(hoje, -3);
+  const pendentes = eventos.filter(evento => !evento.concluido && evento.data >= limite);
+  return pendentes.sort((a, b) => {
+    const passadoA = a.data < hoje;
+    const passadoB = b.data < hoje;
+    if (passadoA !== passadoB) return passadoA ? 1 : -1;
+    return passadoA ? b.data.localeCompare(a.data) : a.data.localeCompare(b.data);
+  }).slice(0, 8);
+}
+
 function renderAgenda() {
+  const hoje = hojeIso();
+  if (diaResumoAgenda !== hoje) {
+    diaResumoAgenda = hoje;
+    clearTimeout(timerViradaAgenda);
+    const meiaNoite = new Date();
+    meiaNoite.setHours(24, 0, 0, 0);
+    timerViradaAgenda = setTimeout(() => { if (usuarioAtual()) renderAgenda(); }, meiaNoite.getTime() - Date.now() + 100);
+  }
   const eventos = eventosAgenda().sort((a, b) => new Date(a.data) - new Date(b.data));
-  const proximos = eventos.filter((evento) => !evento.concluido).slice(0, 8);
-  document.querySelector("#agendaResumo").innerHTML = vazioOu(proximos.slice(0, 6), cardEvento);
-  document.querySelector("#agendaLista").innerHTML = vazioOu(proximos, cardEvento);
+  const proximos = selecionarEventosProximos(eventos, hoje);
+  const vazio = '<div class="empty-state"><strong>Nenhum compromisso próximo</strong></div>';
+  document.querySelector("#agendaResumo").innerHTML = proximos.slice(0, 6).map(cardEvento).join("") || vazio;
+  document.querySelector("#agendaLista").innerHTML = proximos.map(cardEvento).join("") || vazio;
   state.agendaModo = state.agendaModo || "mes";
   state.agendaDiaSelecionado = state.agendaDiaSelecionado || hojeIso();
   renderModoAgenda();
@@ -4563,8 +4582,8 @@ function abrirModalContrato(id = "") {
 function preencherContratoHonorarios(id) {
   const processo = obterProcesso(id);
   if (!processo) return;
-  els.formContrato.honorarios.value = Number(processo.honorarios || 0);
-  els.formContrato.descontoHonorarios.value = Number(processo.descontoHonorarios || totalDescontosLegado(processo) || 0);
+  els.formContrato.honorarios.value = formatarValorMonetario(processo.honorarios || 0);
+  els.formContrato.descontoHonorarios.value = formatarValorMonetario(processo.descontoHonorarios || totalDescontosLegado(processo) || 0);
   els.formContrato.observacaoHonorarios.value = processo.observacaoHonorarios || "";
 }
 
@@ -4574,8 +4593,14 @@ async function salvarContratoHonorarios(event) {
   const dados = Object.fromEntries(new FormData(els.formContrato));
   const processo = obterProcesso(dados.processoId);
   if (!processo) return;
-  processo.honorarios = Number(String(dados.honorarios || "0").replace(",", "."));
-  processo.descontoHonorarios = Number(String(dados.descontoHonorarios || "0").replace(",", "."));
+  const honorarios = lerValorMonetario(dados.honorarios);
+  const desconto = lerValorMonetario(dados.descontoHonorarios);
+  if (!Number.isFinite(honorarios) || !Number.isFinite(desconto)) {
+    alert("Confira os valores do contrato e do desconto antes de salvar.");
+    return;
+  }
+  processo.honorarios = honorarios;
+  processo.descontoHonorarios = desconto;
   processo.observacaoHonorarios = dados.observacaoHonorarios.trim();
   processo.descontos = [];
   registrarAuditoria("Contrato de honorários atualizado", `${processo.numero} · ${moeda(valorHonorariosLiquido(processo))}`, "processo", processo.id);
@@ -4668,7 +4693,7 @@ async function salvarRecebimento(event) {
   const dados = Object.fromEntries(new FormData(els.formRecebimento));
   const processo = obterProcesso(dados.processoId);
   if (!processo) return;
-  const valor = Number(String(dados.valor || "0").replace(",", "."));
+  const valor = lerValorMonetario(dados.valor);
   if (!Number.isFinite(valor) || valor <= 0) {
     alert("Informe o valor recebido.");
     return;
@@ -4702,7 +4727,7 @@ function preencherSaldoRecebimento() {
   const processo = obterProcesso(els.formRecebimento.processoId.value);
   if (!processo) return;
   const saldo = saldoHonorarios(processo);
-  els.formRecebimento.valor.value = saldo > 0 ? saldo.toFixed(2) : "";
+  els.formRecebimento.valor.value = saldo > 0 ? formatarValorMonetario(saldo) : "";
 }
 
 async function desfazerUltimoRecebimento() {
@@ -6952,6 +6977,56 @@ function dataHoraCurta(data) {
     hour: "2-digit",
     minute: "2-digit"
   }).format(alvo);
+}
+
+function lerValorMonetario(texto) {
+  let bruto = String(texto ?? "").trim();
+  if (!bruto) return 0;
+  bruto = bruto.replace(/^R\$\s*/i, "");
+  if (/^\d{1,3}(?:\.\d{3})+(?:,\d{0,2})?$/.test(bruto)) bruto = bruto.replace(/\./g, "");
+  if (!/^(?:\d+(?:[.,]\d{0,2})?|[.,]\d{1,2})$/.test(bruto)) return NaN;
+  const [inteiro, fracao = ""] = bruto.replace(".", ",").split(",");
+  const centavos = Number((inteiro || "0") + fracao.padEnd(2, "0"));
+  const valor = centavos / 100;
+  return Number.isSafeInteger(centavos) && Math.round(valor * 100) === centavos ? valor : NaN;
+}
+
+function formatarValorMonetario(valor) {
+  return Number(valor).toFixed(2).replace(".", ",");
+}
+
+function vincularCampoMonetario(campo) {
+  const caixa = document.createElement("span");
+  caixa.className = "money-field";
+  const previa = document.createElement("span");
+  previa.className = "money-completion";
+  previa.setAttribute("aria-hidden", "true");
+  const prefixo = document.createElement("i");
+  const sufixo = document.createElement("b");
+  previa.append(prefixo, sufixo);
+  campo.before(caixa);
+  caixa.append(campo, previa);
+  const validar = () => {
+    campo.setCustomValidity(Number.isFinite(lerValorMonetario(campo.value)) ? "" : "Use um valor igual ou maior que zero, com até duas casas decimais. Ex.: 1650,50.");
+  };
+  // Os zeros sugeridos não participam da seleção, da colagem nem do histórico do teclado.
+  function atualizarPrevia() {
+    validar();
+    const texto = campo.value;
+    prefixo.textContent = texto;
+    const decimal = texto.match(/[.,](\d{0,2})$/);
+    sufixo.textContent = texto && campo.validity.valid && !campo.scrollLeft
+      ? (decimal ? "0".repeat(2 - decimal[1].length) : ",00") : "";
+  }
+  campo.addEventListener("input", atualizarPrevia);
+  campo.addEventListener("focus", atualizarPrevia);
+  campo.addEventListener("scroll", () => { if (campo === document.activeElement) atualizarPrevia(); });
+  campo.addEventListener("blur", () => {
+    sufixo.textContent = "";
+    validar();
+    if (campo.value && campo.validity.valid) campo.value = formatarValorMonetario(lerValorMonetario(campo.value));
+  });
+  campo.form.addEventListener("reset", () => { sufixo.textContent = ""; campo.setCustomValidity(""); });
 }
 
 function moeda(valor) {
