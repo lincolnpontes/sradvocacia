@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.48";
+const APP_VERSION = "1.0.49";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -37,6 +37,7 @@ const ABAS = [
   { id: "atendimentos", label: "Atendimentos" },
   { id: "processos", label: "Processos" },
   { id: "clientes", label: "Clientes" },
+  { id: "documentos", label: "Documentos" },
   { id: "agenda", label: "Agenda" },
   { id: "financeiro", label: "Honorários" },
   { id: "configuracoes", label: "Configurações" }
@@ -329,6 +330,28 @@ async function iniciar() {
   aplicarSidebar();
   popularLogin();
   configurarEventos();
+  if (window.SrDocumentos && window.SrRepositorioDocumentos) {
+    const repositorio = window.SrRepositorioDocumentos.criar({
+      indexedDB: window.indexedDB,
+      contexto: () => ({ escritorio: urlSyncAppsScript() || "local", usuarioId: usuarioAtual()?.id, permitido: temAcesso("documentos") })
+    });
+    window.SrDocumentos.iniciar({
+      usuario: () => {
+        const u = usuarioAtual();
+        return u && { id: u.id, nome: u.nome, cargo: u.cargo, oab: u.oab, oabUf: u.oabUf, oabNumero: u.oabNumero };
+      },
+      clientes: () => temAcesso("documentos") && temAcesso("clientes") ? state.clientes.map(c => ({
+        id: c.id, nome: c.nome, tipoDocumento: c.tipoDocumento, documento: c.documento, cpf: c.cpf,
+        nomeFantasia: c.nomeFantasia, representante: c.representante, representanteCpf: c.representanteCpf,
+        representanteCargo: c.representanteCargo, domicilio: c.domicilio, estadoCivil: c.estadoCivil, profissao: c.profissao,
+        // O cadastro legado preenche esse valor mesmo quando a nacionalidade não foi informada.
+        nacionalidade: c.nacionalidade === "Brasileiro(a)" ? "" : c.nacionalidade
+      })) : [],
+      temAcesso: () => temAcesso("documentos"),
+      escritorio: () => urlSyncAppsScript() || "local",
+      ...repositorio
+    });
+  }
   window.SrDjen?.iniciar({
     usuario: () => obterUsuario(state.usuarioAtivoId),
     processos: () => state.processos || [],
@@ -549,6 +572,7 @@ function vincularFormulario(elemento, acao) {
 }
 
 async function sair() {
+  if (await window.SrDocumentos?.prepararSaida() === false) return;
   await salvarRascunhoAtendimento(true);
   if (atendimentoModoEditor) fecharEditorAtendimento();
   const usuario = obterUsuario(state.usuarioAtivoId);
@@ -561,6 +585,7 @@ async function sair() {
 }
 
 function mostrarLogin() {
+  window.SrDocumentos?.sair();
   window.SrDjen?.sessao();
   els.login.classList.remove("is-hidden");
   els.app.classList.add("is-locked");
@@ -1179,12 +1204,14 @@ async function alternarSidebar() {
 
 async function trocarView(view) {
   if (!temAcesso(view)) return;
+  if (viewAtual === "documentos" && view !== viewAtual && temAcesso("documentos") && await window.SrDocumentos?.prepararSaida() === false) return;
   await salvarRascunhoAtendimento(true);
   viewAtual = view;
   const labels = {
     dashboard: "Painel",
     processos: "Processos",
     clientes: "Clientes",
+    documentos: "Documentos",
     atendimentos: "Atendimentos",
     agenda: "Agenda",
     financeiro: "Honorários",
@@ -1199,6 +1226,8 @@ async function trocarView(view) {
   });
   document.querySelectorAll(".nav-item").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.view === view);
+    if (button.dataset.view === view) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
   await renderizarTudo();
 }
@@ -1232,6 +1261,8 @@ async function renderizarTudo() {
   renderAgenda();
   renderFinanceiro();
   renderConfiguracoes();
+  if (!temAcesso("documentos")) window.SrDocumentos?.sair();
+  else if (viewAtual === "documentos") await window.SrDocumentos?.renderizar();
   window.SrDjen?.sessao();
   void window.SrDjen?.carregar();
 }
@@ -5231,6 +5262,7 @@ async function escolherTema(event) {
 }
 
 async function forcarAtualizacao() {
+  if (await window.SrDocumentos?.prepararSaida() === false) return;
   if (erroPersistenciaLocal) {
     mostrarFalhaArmazenamento(erroPersistenciaLocal);
     return;
@@ -5397,7 +5429,7 @@ function normalizarEstado(raw) {
       oabUf: oab.uf,
       oabNumero: oab.numero,
       oab: formatarOabUsuario(oab.uf, oab.numero),
-      permissoes: usuario.permissoes?.length ? usuario.permissoes : permissoesPadrao()
+      permissoes: usuario.permissoes?.length ? usuario.permissoes : permissoesPadrao().filter(aba => aba !== "documentos")
     };
   });
   estado.clientes = (estado.clientes || []).map((cliente) => ({

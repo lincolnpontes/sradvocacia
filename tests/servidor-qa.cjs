@@ -41,7 +41,7 @@ let data = {
   atualizadoEm: agora, tema: 'classico',
   avancadas: { googleScriptUrl: `${base}/qa-sync`, syncToken: '' },
   configs: { areas: ['Civel'], status: ['Ativo'], orgaos: ['Vara de teste - Joao Pessoa/PB'], movimentacoes: ['Contato com cliente'] },
-  usuarios: [{ id: 'qa-user', nome: 'Usuario de teste', senha: 'teste', cargo: 'Advogada', permissoes: ['dashboard', 'atendimentos', 'processos', 'clientes', 'agenda', 'financeiro', 'configuracoes'] }],
+  usuarios: [{ id: 'qa-user', nome: 'Usuario de teste', senha: 'teste', cargo: 'Advogada', permissoes: ['dashboard', 'atendimentos', 'processos', 'clientes', 'documentos', 'agenda', 'financeiro', 'configuracoes'] }],
   clientes: [{ id: 'qa-client', nome: 'Cliente ficticio', tipoDocumento: 'CPF', documento: '000.000.000-00', criadoEm: agora }],
   atendimentos: [{
     id: 'qa-atendimento', numero: '0001', clienteId: 'qa-client', responsavelId: 'qa-user', area: 'Civel',
@@ -76,6 +76,8 @@ function record() {
   return { hasData: true, data, serverVersion: `qa-${revision}`, hash: `qa-hash-${revision}`, revision, updatedAtServer: agora };
 }
 const permitidos = new Map([
+  ['documentos.js', 'text/javascript'], ['documentos-modelos.js', 'text/javascript'], ['documentos-local.js', 'text/javascript'],
+  ['documentos.css', 'text/css'], ['instalacao.js', 'text/javascript'],
   ['tribunal.js', 'text/javascript'], ['tribunal.css', 'text/css'], ['conteudo-seguro.js', 'text/javascript'], ['vendor/purify.min.js', 'text/javascript'],
   ['app.js', 'text/javascript'], ['armazenamento.js', 'text/javascript'], ['style.css', 'text/css'], ['logo.jpg', 'image/jpeg'],
   ['favicon-32.png', 'image/png'], ['apple-touch-icon.png', 'image/png'],

@@ -1,0 +1,142 @@
+#view-documentos .docs-layout {
+  display: grid;
+  grid-template-columns: minmax(13rem, 17rem) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+  color: var(--ink);
+}
+
+#view-documentos .docs-biblioteca,
+#view-documentos .docs-editor {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+#view-documentos .docs-biblioteca {
+  overflow-x: clip;
+  overflow-clip-margin: 4px;
+  padding-inline-end: 20px;
+  border-inline-end: 1px solid var(--line);
+}
+
+#view-documentos .docs-arquivo {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+#view-documentos h2 {
+  margin: 0 0 8px;
+  color: var(--wine-deep);
+}
+
+#view-documentos label {
+  display: block;
+  margin: 14px 0 5px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+#view-documentos :is(input, select, textarea) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  background: var(--surface);
+  font-size: 1rem;
+}
+
+#view-documentos button {
+  min-height: 44px;
+  height: auto;
+  max-width: 100%;
+  padding-block: 8px;
+  overflow-wrap: anywhere;
+}
+
+#view-documentos :is(button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 2px;
+}
+
+#view-documentos button:disabled {
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.6;
+}
+
+#view-documentos [hidden] { display: none !important; }
+#docs-gerar { width: 100%; margin-top: 14px; }
+#view-documentos .docs-editor { width: min(100%, 82ch); }
+#docs-titulo { font-weight: 600; }
+#view-documentos #docs-texto {
+  min-height: 16rem;
+  height: clamp(18rem, 46vh, 40rem);
+  padding: 14px 16px;
+  font: 1.06rem/1.65 Georgia, "Times New Roman", serif;
+  resize: vertical;
+  tab-size: 4;
+}
+
+#view-documentos p {
+  margin: 8px 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+#view-documentos p:empty { margin: 0; }
+#view-documentos :is(#docs-pendencias, #docs-status, #docs-aviso) {
+  color: var(--wine-deep);
+  font-weight: 600;
+}
+#view-documentos #docs-pendencias:not(:empty) {
+  border-inline-start: 3px solid var(--gold);
+  padding-inline-start: 10px;
+}
+#view-documentos .docs-lacunas {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 12px;
+}
+#view-documentos .docs-conferencia {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+}
+#view-documentos #docs-revisado {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  min-height: 0;
+  margin: 0;
+  accent-color: var(--wine);
+}
+
+#view-documentos .docs-acoes {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 16px 0 8px;
+}
+
+@media (max-width: 860px) {
+  #view-documentos .docs-layout { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  #view-documentos .docs-biblioteca {
+    padding: 0 0 16px;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  #view-documentos .docs-arquivo { margin-top: 16px; padding-top: 14px; }
+  #view-documentos .docs-acoes button { flex: 1 1 10rem; }
+}
+
+/* Ctrl+P na tela inteira não deve incluir o cadastro, os controles ou a minuta não revisada. */
+@media print {
+  body:has(#view-documentos.is-visible) > :not(.print-frame) { display: none !important; }
+  body:has(#view-documentos.is-visible)::before {
+    content: "Use Imprimir / PDF no editor da minuta revisada.";
+  }
+}
