@@ -5,6 +5,89 @@ const fs = require('node:fs');
 const { JSDOM } = require('jsdom');
 const { ambiente } = require('./app-ambiente.cjs');
 
+test('agenda prioriza hoje e o futuro; passado limitado a tres dias, mais recente primeiro', () => {
+  const { selecionarEventosProximos } = ambiente().contexto;
+  const eventos = ['2026-10-27', '2026-10-28', '2026-10-29', '2026-10-30', '2026-10-31', '2026-11-01', '2026-12-01']
+    .map(data => ({ data }));
+  eventos.push({ data: '2026-11-01', concluido: true });
+  const originais = JSON.stringify(eventos);
+  assert.deepEqual(Array.from(selecionarEventosProximos(eventos, '2026-11-01'), e => e.data),
+    ['2026-11-01', '2026-12-01', '2026-10-31', '2026-10-30', '2026-10-29']);
+  assert.equal(JSON.stringify(eventos), originais);
+  const ocupada = [...eventos, ...Array.from({ length: 9 }, () => ({ data: '2026-11-03' }))];
+  const proximos = selecionarEventosProximos(ocupada, '2026-11-01');
+  assert.equal(proximos.length, 8);
+  assert.ok(proximos.every(evento => evento.data >= '2026-11-01'));
+  assert.equal(selecionarEventosProximos(eventos, '2027-02-01').length, 0);
+});
+
+test('valores aceitam centavos pt-BR sem arredondar entradas invalidas para zero', () => {
+  const { lerValorMonetario, formatarValorMonetario } = ambiente().contexto;
+  for (const [entrada, esperado] of [['1600', '1600,00'], ['1650,5', '1650,50'], ['1650.50', '1650,50'],
+    ['R$ 1.650,05', '1650,05'], ['1.650', '1650,00'], [',05', '0,05'], ['', '0,00']]) {
+    assert.equal(formatarValorMonetario(lerValorMonetario(entrada)), esperado);
+  }
+  for (const invalido of ['-0,01', '1e3', 'abc', '1,2,3', '12,345', '1.50,50', '999999999999999999']) {
+    assert.ok(Number.isNaN(lerValorMonetario(invalido)), invalido);
+  }
+});
+
+test('os cinco campos monetarios permitem teclado decimal, digitacao continua, correcao e colagem', () => {
+  const html = fs.readFileSync(require.resolve('../index.html'), 'utf8');
+  const dom = new JSDOM(html);
+  try {
+    const campos = Array.from(dom.window.document.querySelectorAll('[data-moeda]'));
+    assert.deepEqual(campos.map(c => [c.form.id, c.name]), [['formProcesso', 'honorarios'], ['formProcesso', 'recebido'],
+      ['formContrato', 'honorarios'], ['formContrato', 'descontoHonorarios'], ['formRecebimento', 'valor']]);
+    for (const campo of campos) {
+      assert.equal(campo.type, 'text'); assert.equal(campo.inputMode, 'decimal');
+      const ctx = ambiente().contexto;
+      ctx.document = dom.window.document;
+      ctx.vincularCampoMonetario(campo);
+      const exibido = () => campo.value + campo.parentElement.querySelector('.money-completion b').textContent;
+      const inserir = texto => {
+        campo.dispatchEvent(new dom.window.InputEvent('beforeinput', { data: texto, inputType: 'insertText' }));
+        campo.setRangeText(texto, campo.selectionStart, campo.selectionEnd, 'end');
+        campo.dispatchEvent(new dom.window.InputEvent('input', { data: texto, inputType: 'insertText' }));
+      };
+      for (const letra of '1650') inserir(letra);
+      assert.equal(exibido(), '1650,00');
+      inserir(','); inserir('5');
+      assert.equal(exibido(), '1650,50');
+      inserir('9');
+      assert.equal(campo.value, '1650,59');
+      campo.select(); inserir('R$ 1.750,05');
+      campo.dispatchEvent(new dom.window.Event('blur'));
+      assert.equal(campo.value, '1750,05'); assert.ok(campo.checkValidity());
+      campo.select(); inserir('-15'); assert.ok(!campo.checkValidity());
+      campo.form.reset(); assert.ok(!campo.validity.customError);
+    }
+  } finally { dom.window.close(); }
+});
+
+test('salvar atendimento grava sem processo e converter exige escolha posterior com permissao', async () => {
+  const e = ambiente(), ctx = e.contexto, state = ctx.__testState;
+  Object.assign(state, { atendimentos: [], processos: [], usuarioAtivoId: 'u', usuarios: [{ id: 'u', permissoes: ['atendimentos'] }] });
+  ctx.dadosAtendimentoDoFormulario = () => ({ id: '', clienteId: 'c', area: 'Civel', responsavelId: 'u', assunto: 'Consulta',
+    data: '2026-11-08T10:00', conteudoHtml: '<p>Notas</p>', anexos: [] });
+  ctx.conteudoAtendimentoPreenchido = () => true;
+  let salvo = false, fechado = false, conversoes = 0;
+  ctx.registrarAuditoria = () => {};
+  ctx.salvarEstado = async () => { salvo = true; };
+  ctx.renderizarTudo = async () => {};
+  ctx.fecharEditorAtendimento = () => { assert.ok(salvo); fechado = true; };
+  ctx.abrirModalProcessoPorAtendimento = atendimento => { assert.equal(atendimento.id, state.atendimentos[0].id); conversoes++; };
+  await ctx.salvarAtendimento({ preventDefault() {} });
+  assert.ok(fechado); assert.equal(state.atendimentos.length, 1);
+  assert.equal(state.atendimentos[0].processoId, ''); assert.equal(state.processos.length, 0); assert.equal(conversoes, 0);
+  const evento = { preventDefault() {}, target: { closest() { return { dataset: { convertAttendance: 'id:' + state.atendimentos[0].id } }; } } };
+  await ctx.abrirAtendimentoDaLista(evento);
+  assert.equal(conversoes, 0);
+  state.usuarios[0].permissoes.push('processos');
+  await ctx.abrirAtendimentoDaLista(evento);
+  assert.equal(conversoes, 1); assert.equal(state.atendimentos[0].processoId, ''); assert.equal(state.processos.length, 0);
+});
+
 test('normalizar preserva numero CNJ e campos reais sem trocar jurisdicao', () => {
   const e = ambiente();
   for (const value of ['0000001-00.2026.8.06.0000', '(85) 99999-0000', 'OAB/CE 1234', 'Fortaleza/CE', '8.06 - anotacao original']) assert.equal(e.contexto.migrarTextoParaPb(value), value);
