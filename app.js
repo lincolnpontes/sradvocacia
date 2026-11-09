@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.49";
+const APP_VERSION = "1.0.50";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -59,6 +59,8 @@ let atendimentoSessaoEditor = 0;
 let dispositivoSyncId = "";
 const state = {};
 let viewAtual = "dashboard";
+let syncMinutas;
+let entrouDocumentos = false;
 let mesAgenda = new Date();
 let diaResumoAgenda = "";
 let timerViradaAgenda;
@@ -335,6 +337,19 @@ async function iniciar() {
       indexedDB: window.indexedDB,
       contexto: () => ({ escritorio: urlSyncAppsScript() || "local", usuarioId: usuarioAtual()?.id, permitido: temAcesso("documentos") })
     });
+    syncMinutas = window.SrMinutasSync?.criar({
+      repo:repositorio, contexto:() => {
+        const url = urlSyncAppsScript();
+        if (!temAcesso("documentos") || !url || !tokenSyncAppsScript()) return null;
+        let dest;
+        try { dest = new URL(url); } catch { return null; }
+        const google = dest.protocol === "https:" && dest.hostname === "script.google.com" && /^\/macros\/s\/[^/]+\/exec$/.test(dest.pathname);
+        const testeLocal = dest.origin === location.origin && ["127.0.0.1","localhost"].includes(dest.hostname);
+        return google || testeLocal ? { usuario:usuarioAtual(), endpoint:url } : null;
+      }, ler:k => armazenamentoLocal.getItem(k), guardar:(k,v) => { return armazenamentoLocal.setItem(k,v); },
+      enviar:chamarAppsScriptSync, avisar:() => window.SrDocumentos?.statusNuvem(),
+      atualizar:async () => { if (viewAtual === "documentos" && temAcesso("documentos")) await window.SrDocumentos?.renderizar(); }
+    });
     window.SrDocumentos.iniciar({
       usuario: () => {
         const u = usuarioAtual();
@@ -349,8 +364,18 @@ async function iniciar() {
       })) : [],
       temAcesso: () => temAcesso("documentos"),
       escritorio: () => urlSyncAppsScript() || "local",
-      ...repositorio
+      listar:repositorio.listar, nuvem:syncMinutas,
+      salvar:async (d,base) => {
+        const salvo = await repositorio.salvar(d,base);
+        syncMinutas?.alterado();
+        return salvo;
+      }
     });
+    const conferir = () => { if (!document.hidden && temAcesso("documentos") && viewAtual === "documentos") void syncMinutas?.sincronizar(); };
+    window.addEventListener("online", conferir);
+    window.addEventListener("focus", conferir);
+    document.addEventListener("visibilitychange", conferir);
+    setInterval(conferir, 45000);
   }
   window.SrDjen?.iniciar({
     usuario: () => obterUsuario(state.usuarioAtivoId),
@@ -585,6 +610,8 @@ async function sair() {
 }
 
 function mostrarLogin() {
+  entrouDocumentos = false;
+  syncMinutas?.reset();
   window.SrDocumentos?.sair();
   window.SrDjen?.sessao();
   els.login.classList.remove("is-hidden");
@@ -1261,8 +1288,13 @@ async function renderizarTudo() {
   renderAgenda();
   renderFinanceiro();
   renderConfiguracoes();
+  syncMinutas?.sessao();
   if (!temAcesso("documentos")) window.SrDocumentos?.sair();
-  else if (viewAtual === "documentos") await window.SrDocumentos?.renderizar();
+  else if (viewAtual === "documentos") {
+    await window.SrDocumentos?.renderizar();
+    if (!entrouDocumentos) void syncMinutas?.sincronizar();
+  }
+  entrouDocumentos = temAcesso("documentos") && viewAtual === "documentos";
   window.SrDjen?.sessao();
   void window.SrDjen?.carregar();
 }

@@ -75,7 +75,9 @@ const dadosLocais = modo === 'primeiro-login' ? { ...data, clientes: [], process
 function record() {
   return { hasData: true, data, serverVersion: `qa-${revision}`, hash: `qa-hash-${revision}`, revision, updatedAtServer: agora };
 }
+const minutasQa = require('./minutas-servidor.cjs')(data.usuarios);
 const permitidos = new Map([
+  ['documentos-sync.js', 'text/javascript'],
   ['documentos.js', 'text/javascript'], ['documentos-modelos.js', 'text/javascript'], ['documentos-local.js', 'text/javascript'],
   ['documentos.css', 'text/css'], ['instalacao.js', 'text/javascript'],
   ['tribunal.js', 'text/javascript'], ['tribunal.css', 'text/css'], ['conteudo-seguro.js', 'text/javascript'], ['vendor/purify.min.js', 'text/javascript'],
@@ -113,6 +115,14 @@ http.createServer(async (req, res) => {
     if (modo === 'primeiro-login' && primeiroPull && request.action === 'pull') {
       primeiroPull = false;
       await new Promise(resolve => setTimeout(resolve, 8000));
+    }
+    if (String(request.action).startsWith('minutas')) {
+      let retorno;
+      try { retorno = { ok:true, ...minutasQa.chamar(request.action,request.payload) }; }
+      catch (e) { retorno = { ok:false,error:e.message }; }
+      res.setHeader('Content-Type','application/json');
+      res.end(JSON.stringify({ ...retorno, requestId:request.requestId }));
+      return;
     }
     if (String(request.action).startsWith('djen')) {
       const number = '00000010020268150000';

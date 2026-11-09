@@ -45,10 +45,43 @@
       });
     }
     function publico(item) {
-      const { escritorio, usuarioId, ...doc } = item;
+      const { escritorio, usuarioId, baseRemota, pendente, ...doc } = item;
       return doc;
     }
     return {
+      inventario: () => operar("readonly", (store, chave, ler) => {
+        ler(store.index("perfil").getAll(chave), itens => itens.map(item => ({
+          doc: publico(item), base: item.baseRemota || 0, pendente: item.pendente !== false
+        })));
+      }),
+      incorporar(remoto, enviado) {
+        if (!remoto || !["id","clienteId","modeloId","titulo","texto"].every(k => typeof remoto[k] === "string") ||
+            !remoto.id || !Number.isSafeInteger(remoto.rev) || remoto.rev < 1) throw new Error("Minuta remota inválida.");
+        return operar("readwrite", (store, chave, ler) => {
+          ler(store.get([...chave, remoto.id]), local => {
+            const campos = ["id","clienteId","modeloId","titulo","texto"];
+            const igual = local && campos.every(k => local[k] === remoto[k]);
+            if (local && (local.baseRemota || 0) >= remoto.rev) return { mudou:false };
+            // O envio foi confirmado enquanto a advogada continuava a digitar no mesmo aparelho.
+            if (!igual && local && enviado && enviado.base === (local.baseRemota || 0) &&
+                campos.every(k => enviado.doc[k] === remoto[k])) {
+              store.put({ ...local, baseRemota:remoto.rev, pendente:true });
+              return { mudou:false };
+            }
+            const ms = Math.max(Date.now(), local ? Date.parse(local.atualizadoEm) + 1 : 0);
+            const atualizadoEm = new Date(ms).toISOString();
+            const conflito = local && !igual && local.pendente !== false;
+            if (conflito) {
+              // A edição offline continua como minuta independente antes de adotar a versão remota.
+              const id = crypto.randomUUID?.() || Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2,"0")).join("");
+              store.add({ ...local, id, titulo:local.titulo + " (cópia em conflito)", baseRemota:0, pendente:true, atualizadoEm });
+            }
+            store.put({ ...Object.fromEntries(campos.map(k => [k, remoto[k]])), escritorio:chave[0], usuarioId:chave[1],
+              atualizadoEm:igual ? local.atualizadoEm : atualizadoEm, baseRemota:remoto.rev, pendente:false });
+            return { mudou:!igual, conflito:!!conflito };
+          });
+        });
+      },
       listar: () => operar("readonly", (store, chave, ler) => {
         ler(store.index("perfil").getAll(chave), itens => itens.map(publico).sort((a,b) => b.atualizadoEm.localeCompare(a.atualizadoEm)));
       }),
@@ -65,7 +98,8 @@
               erro.code = "CONFLITO"; throw erro;
             }
             const ms = Math.max(Date.now(), anterior ? Date.parse(anterior.atualizadoEm) + 1 : 0);
-            const item = { ...copia, escritorio: chave[0], usuarioId: chave[1], atualizadoEm: new Date(ms).toISOString() };
+            const item = { ...copia, escritorio: chave[0], usuarioId: chave[1], atualizadoEm: new Date(ms).toISOString(),
+              baseRemota: anterior?.baseRemota || 0, pendente:true };
             store.put(item);
             return publico(item);
           });
