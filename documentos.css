@@ -67,6 +67,9 @@
 }
 
 #view-documentos [hidden] { display: none !important; }
+#docs-nuvem summary { cursor: pointer; padding-block: 10px; }
+#docs-nuvem :is(input, button) { margin-block: 4px; }
+#docs-remoto, #docs-vinculo-status { overflow-wrap: anywhere; }
 #docs-gerar { width: 100%; margin-top: 14px; }
 #view-documentos .docs-editor { width: min(100%, 82ch); }
 #docs-titulo { font-weight: 600; }

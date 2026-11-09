@@ -46,6 +46,26 @@
           <label for="docs-rascunhos">Abrir rascunho</label><select id="docs-rascunhos"></select>
           <p id="docs-lista-status" role="status"></p>
         </div>
+        <section class="docs-arquivo" id="docs-nuvem" hidden>
+          <h2>Sincronização</h2>
+          <p id="docs-remoto" role="status"></p>
+          <button type="button" class="ghost-button" id="docs-verificar">Verificar servidor</button>
+          <button type="button" class="ghost-button" id="docs-sincronizar">Sincronizar agora</button>
+          <details id="docs-parear"><summary>Vincular aparelho</summary>
+            <label for="docs-chave">Chave privada do perfil</label>
+            <input id="docs-chave" type="password" autocomplete="off" spellcheck="false" maxlength="64">
+            <details><summary>Primeiro aparelho</summary>
+              <button type="button" class="ghost-button" id="docs-gerarchave">Gerar nova chave</button>
+              <label for="docs-admin">Senha administrativa do escritório</label>
+              <input id="docs-admin" type="password" autocomplete="off">
+            </details>
+            <button type="button" class="primary-button" id="docs-vincular">Vincular</button>
+          </details>
+          <button type="button" class="ghost-button" id="docs-revelar">Chave para outro aparelho</button>
+          <label class="sr-only" for="docs-compartilhar">Chave privada para o outro aparelho</label>
+          <input id="docs-compartilhar" readonly hidden>
+          <p id="docs-vinculo-status" role="status"></p>
+        </section>
       </aside>
       <section class="docs-editor" aria-label="Editor de minuta">
         <h2>Minuta</h2>
@@ -72,6 +92,7 @@
           </div>
         </div>
         <p id="docs-status" role="status" aria-live="polite"></p>
+        <p id="docs-nuvem-editor" hidden></p>
         <p id="docs-aviso" role="status"></p>
       </section>
     </div>`;
@@ -270,6 +291,37 @@
     raiz().innerHTML = layout; // Apenas marcação constante; dados entram via value/textContent.
     s.el = Object.fromEntries([...raiz().querySelectorAll("[id]")].map(el => [el.id.slice(5), el]));
     const e = s.el;
+    if (api.nuvem) {
+      e.nuvem.hidden = false;
+      statusNuvem();
+      e.verificar.onclick = async () => {
+        if (!vigente(s)) return;
+        e.verificar.disabled = true;
+        try { await api.nuvem.verificar(); } finally { e.verificar.disabled = false; }
+      };
+      e.sincronizar.onclick = () => { if (vigente(s)) void api.nuvem.sincronizar(true); };
+      e.gerarchave.onclick = () => {
+        if (!vigente(s)) return;
+        e.chave.value = api.nuvem.gerar(); e.chave.type = "text";
+      };
+      e.vincular.onclick = async () => {
+        if (!vigente(s)) return;
+        e.vincular.disabled = true;
+        const admin = e.admin.value;
+        e.admin.value = "";
+        try {
+          await api.nuvem.vincular(e.chave.value.trim(),admin);
+          if (vigente(s)) { e.chave.value = ""; e.chave.type = "password"; e.parear.open = false; dizer(e["vinculo-status"], ""); }
+        } catch (err) { if (vigente(s)) dizer(e["vinculo-status"], err.message); }
+        finally { e.vincular.disabled = false; }
+      };
+      e.revelar.onclick = () => {
+        if (!vigente(s)) return;
+        e.compartilhar.hidden = !e.compartilhar.hidden;
+        e.compartilhar.value = e.compartilhar.hidden ? "" : api.nuvem.chave();
+        if (!e.compartilhar.hidden) e.compartilhar.select();
+      };
+    }
     function ouvir(el, tipo, fn) {
       el.addEventListener(tipo, () => { if (vigente(s)) fn(); });
     }
@@ -416,5 +468,15 @@
     }
   }
 
-  window.SrDocumentos = { iniciar(ponte) { sair(); api = ponte; }, renderizar, prepararSaida, sair };
+  function statusNuvem() {
+    if (!atual?.el?.remoto || !vigente(atual) || !api?.nuvem) return;
+    const e = atual.el, status = api.nuvem.estado();
+    dizer(e.remoto, status.texto);
+    e["nuvem-editor"].hidden = !atual.doc;
+    dizer(e["nuvem-editor"], status.texto);
+    e.verificar.hidden = status.vinculado || status.disponivel;
+    e.sincronizar.hidden = e.revelar.hidden = !status.vinculado;
+    e.parear.hidden = status.vinculado || !status.disponivel;
+  }
+  window.SrDocumentos = { iniciar(ponte) { sair(); api = ponte; }, renderizar, prepararSaida, sair, statusNuvem };
 })();
