@@ -6,12 +6,13 @@
   <meta name="theme-color" content="#2f3032">
   <title>SR Advocacia Gestão Jurídica</title>
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.50">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.50">
-  <link rel="stylesheet" href="style.css?v=1.0.50">
-  <link rel="stylesheet" href="tribunal.css?v=1.0.50">
-  <link rel="stylesheet" href="documentos.css?v=1.0.50">
-  <script src="instalacao.js?v=1.0.50"></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png?v=1.0.51">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=1.0.51">
+  <link rel="stylesheet" href="style.css?v=1.0.51">
+  <link rel="stylesheet" href="tribunal.css?v=1.0.51">
+  <link rel="stylesheet" href="documentos.css?v=1.0.51">
+  <link rel="stylesheet" href="agenda-google.css?v=1.0.51">
+  <script src="instalacao.js?v=1.0.51"></script>
 </head>
 <body>
   <svg class="sr-icon-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
@@ -23,6 +24,7 @@
     <symbol id="sr-icon-hand-coins" viewBox="0 0 24 24"><path d="M11 15h2a2 2 0 1 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 17" /><path d="m7 21 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a2 2 0 0 0-2.75-2.91l-4.2 3.9" /><path d="m2 16 6 6" /><circle cx="16" cy="9" r="2.9" /><circle cx="6" cy="5" r="3" /></symbol>
     <symbol id="sr-icon-files" viewBox="0 0 24 24"><path d="M15 2h-4a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V8" /><path d="M16.706 2.706A2.4 2.4 0 0 0 15 2v5a1 1 0 0 0 1 1h5a2.4 2.4 0 0 0-.706-1.706z" /><path d="M5 7a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 1.732-1" /></symbol>
     <symbol id="sr-icon-download" viewBox="0 0 24 24"><path d="M12 15V3" /><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><path d="m7 10 5 5 5-5" /></symbol>
+    <symbol id="sr-icon-calendar-clock" viewBox="0 0 24 24"><path d="M21 7V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4M16 2v4M8 2v4M3 10h8"/><circle cx="17" cy="17" r="5"/><path d="M17 14v3l2 1"/></symbol>
   </svg>
   <section class="login-screen" id="loginScreen" aria-labelledby="loginTitle">
     <form class="login-card" id="formLogin">
@@ -42,7 +44,7 @@
       <button class="login-install" id="btnInstalarApp" type="button" hidden><svg class="sr-icon" aria-hidden="true" focusable="false"><use href="#sr-icon-download"></use></svg> Instalar aplicativo</button>
       <p id="instrucaoInstalacao" class="install-note" role="status" hidden></p>
       <div class="login-version">
-        <small>Versão 1.0.50</small>
+        <small>Versão 1.0.51</small>
         <button class="login-refresh-icon" id="btnForceUpdateLogin" type="button" title="Forçar atualização" aria-label="Forçar atualização">🔄︎</button>
       </div>
     </form>
@@ -103,6 +105,10 @@
         <button class="nav-item" type="button" data-view="agenda" title="Agenda" aria-label="Agenda">
           <span class="nav-icon" aria-hidden="true"><svg class="sr-icon" aria-hidden="true" focusable="false"><use href="#sr-icon-calendar-days"></use></svg></span>
           <span>Agenda</span>
+        </button>
+        <button class="nav-item" type="button" data-view="agendaGoogle" title="Google Agenda" aria-label="Google Agenda">
+          <span class="nav-icon" aria-hidden="true"><svg class="sr-icon" aria-hidden="true" focusable="false"><use href="#sr-icon-calendar-clock"></use></svg></span>
+          <span>Google Agenda</span>
         </button>
         <button class="nav-item" type="button" data-view="financeiro" title="Honorários" aria-label="Honorários">
           <span class="nav-icon" aria-hidden="true"><svg class="sr-icon" aria-hidden="true" focusable="false"><use href="#sr-icon-hand-coins"></use></svg></span>
@@ -534,6 +540,35 @@
         </div>
       </section>
 
+      <section class="view" id="view-agendaGoogle" aria-labelledby="viewTitle">
+        <div class="gcal-head"><div><p class="gcal-eyebrow">Agenda do escritório</p><h2>Compromissos no Google</h2></div>
+          <div class="gcal-actions" id="gcalActions" hidden>
+            <a class="ghost-button" id="gcalOpen" target="_blank" rel="noopener noreferrer">Abrir no Google</a>
+            <a class="primary-button" id="gcalCreate" target="_blank" rel="noopener noreferrer">Novo evento</a>
+            <button class="ghost-button" type="button" id="gcalExit">Desconectar</button>
+          </div>
+        </div>
+        <div id="gcalStart" class="gcal-start">
+          <svg class="sr-icon" aria-hidden="true"><use href="#sr-icon-calendar-clock"></use></svg>
+          <div><h3>Agenda privada</h3><p>Entre com a conta do escritório para consultar os compromissos. Nenhum prazo da Agenda do SR será enviado ao Google.</p>
+          <button type="button" class="primary-button" id="gcalConnect">Conectar Google Agenda</button></div>
+        </div>
+        <div class="gcal-toolbar" id="gcalTools" hidden>
+          <div class="gcal-modes" role="group" aria-label="Visualização da agenda">
+            <button type="button" data-gcal-mode="WEEK" aria-pressed="true">Semana</button>
+            <button type="button" data-gcal-mode="MONTH" aria-pressed="false">Mês</button>
+          </div>
+          <div class="gcal-actions">
+            <button type="button" class="ghost-button" id="gcalPrevious" aria-label="Período anterior" title="Período anterior">‹</button>
+            <button type="button" class="ghost-button" id="gcalToday">Hoje</button>
+            <button type="button" class="ghost-button" id="gcalNext" aria-label="Próximo período" title="Próximo período">›</button>
+            <button type="button" class="ghost-button" id="gcalRefresh">Atualizar</button>
+          </div>
+        </div>
+        <h3 id="gcalRange" hidden></h3>
+        <p class="gcal-status" role="status" id="gcalStatus"></p>
+        <div id="gcalBody"></div>
+      </section>
       <section class="view" id="view-documentos" aria-labelledby="viewTitle"></section>
 
       <section class="view" id="view-financeiro" aria-labelledby="viewTitle">
@@ -1411,14 +1446,15 @@
     <span data-djen-alert-text></span>
     <button type="button" data-djen-dismiss aria-label="Fechar aviso de publicações" title="Fechar aviso">×</button>
   </aside>
-  <script src="armazenamento.js?v=1.0.50"></script>
+  <script src="armazenamento.js?v=1.0.51"></script>
   <script src="vendor/purify.min.js?v=3.4.16"></script>
-  <script src="conteudo-seguro.js?v=1.0.50"></script>
-  <script src="tribunal.js?v=1.0.50"></script>
-  <script src="documentos-modelos.js?v=1.0.50"></script>
-  <script src="documentos-local.js?v=1.0.50"></script>
-  <script src="documentos-sync.js?v=1.0.50"></script>
-  <script src="documentos.js?v=1.0.50"></script>
-  <script src="app.js?v=1.0.50"></script>
+  <script src="conteudo-seguro.js?v=1.0.51"></script>
+  <script src="tribunal.js?v=1.0.51"></script>
+  <script src="documentos-modelos.js?v=1.0.51"></script>
+  <script src="documentos-local.js?v=1.0.51"></script>
+  <script src="documentos-sync.js?v=1.0.51"></script>
+  <script src="documentos.js?v=1.0.51"></script>
+  <script src="agenda-google.js?v=1.0.51"></script>
+  <script src="app.js?v=1.0.51"></script>
 </body>
 </html>

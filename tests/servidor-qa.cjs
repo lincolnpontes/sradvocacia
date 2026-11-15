@@ -77,6 +77,8 @@ function record() {
 }
 const minutasQa = require('./minutas-servidor.cjs')(data.usuarios);
 const permitidos = new Map([
+  ['agenda-google.js', 'text/javascript'], ['agenda-google.css', 'text/css'],
+  ['agenda-retorno.html', 'text/html'], ['agenda-retorno.js', 'text/javascript'],
   ['documentos-sync.js', 'text/javascript'],
   ['documentos.js', 'text/javascript'], ['documentos-modelos.js', 'text/javascript'], ['documentos-local.js', 'text/javascript'],
   ['documentos.css', 'text/css'], ['instalacao.js', 'text/javascript'],

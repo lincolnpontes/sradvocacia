@@ -1,4 +1,4 @@
-const APP_VERSION = "1.0.50";
+const APP_VERSION = "1.0.51";
 const STORAGE_KEY = "sr-advocacia-gestao-juridica-v134";
 const LEGACY_STORAGE_KEYS = ["sr-advocacia-gestao-juridica-v133", "sr-advocacia-gestao-juridica-v132", "sr-advocacia-gestao-juridica-v131", "sr-advocacia-gestao-juridica-v130", "sr-advocacia-gestao-juridica-v129", "sr-advocacia-gestao-juridica-v128", "sr-advocacia-gestao-juridica-v127", "sr-advocacia-gestao-juridica-v126", "sr-advocacia-gestao-juridica-v125", "sr-advocacia-gestao-juridica-v124", "sr-advocacia-gestao-juridica-v123", "sr-advocacia-gestao-juridica-v122", "sr-advocacia-gestao-juridica-v121", "sr-advocacia-gestao-juridica-v120", "sr-advocacia-gestao-juridica-v119", "sr-advocacia-gestao-juridica-v118", "sr-advocacia-gestao-juridica-v117", "sr-advocacia-gestao-juridica-v116", "sr-advocacia-gestao-juridica-v115", "sr-advocacia-gestao-juridica-v114", "sr-advocacia-gestao-juridica-v113", "sr-advocacia-gestao-juridica-v112", "sr-advocacia-gestao-juridica-v111", "sr-advocacia-gestao-juridica-v110", "sr-advocacia-gestao-juridica-v109", "sr-advocacia-gestao-juridica-v108", "sr-advocacia-gestao-juridica-v107", "sr-advocacia-gestao-juridica-v106", "sr-advocacia-gestao-juridica-v105", "sr-advocacia-gestao-juridica-v104"];
 const SESSION_KEY = "sr-advocacia-usuario-ativo";
@@ -332,6 +332,10 @@ async function iniciar() {
   aplicarSidebar();
   popularLogin();
   configurarEventos();
+  window.SrAgendaGoogle?.iniciar({
+    perfil: () => temAcesso("agendaGoogle") ? usuarioAtual()?.id : null,
+    visivel: () => viewAtual === "agendaGoogle" && temAcesso("agendaGoogle")
+  });
   if (window.SrDocumentos && window.SrRepositorioDocumentos) {
     const repositorio = window.SrRepositorioDocumentos.criar({
       indexedDB: window.indexedDB,
@@ -610,6 +614,7 @@ async function sair() {
 }
 
 function mostrarLogin() {
+  window.SrAgendaGoogle?.sair();
   entrouDocumentos = false;
   syncMinutas?.reset();
   window.SrDocumentos?.sair();
@@ -622,6 +627,10 @@ async function mostrarApp() {
   els.login.classList.add("is-hidden");
   els.app.classList.remove("is-locked");
   await aplicarPermissoes();
+  if (window.location?.hash === "#agenda-google" && temAcesso("agendaGoogle")) {
+    history.replaceState(null, "", window.location.pathname + window.location.search);
+    await trocarView("agendaGoogle");
+  }
   void window.SrDjen?.carregar(true);
 }
 
@@ -1241,6 +1250,7 @@ async function trocarView(view) {
     documentos: "Documentos",
     atendimentos: "Atendimentos",
     agenda: "Agenda",
+    agendaGoogle: "Google Agenda",
     financeiro: "Honorários",
     configuracoes: "Configurações"
   };
@@ -1279,6 +1289,7 @@ function atualizarAcoesTopo(view = viewAtual) {
 
 async function renderizarTudo() {
   await aplicarPermissoes();
+  window.SrAgendaGoogle?.sessao();
   popularFiltros();
   renderMetricas();
   renderProcessosDestaque();
@@ -5326,16 +5337,16 @@ async function aplicarPermissoes() {
   const usuario = usuarioAtual();
   const permissoes = usuario?.permissoes || [];
   document.querySelectorAll("[data-view]").forEach((button) => {
-    button.classList.toggle("is-hidden", !permissoes.includes(button.dataset.view));
+    button.classList.toggle("is-hidden", !temAcesso(button.dataset.view));
   });
   document.querySelectorAll("[data-view-shortcut]").forEach((button) => {
     button.classList.toggle("is-hidden", !permissoes.includes(button.dataset.viewShortcut));
   });
-  if (usuario && permissoes.length && !permissoes.includes(viewAtual)) await trocarView(permissoes[0]);
+  if (usuario && permissoes.length && !temAcesso(viewAtual)) await trocarView(permissoes[0]);
 }
 
 function temAcesso(view) {
-  return (usuarioAtual()?.permissoes || []).includes(view);
+  return (usuarioAtual()?.permissoes || []).includes(view === "agendaGoogle" ? "agenda" : view);
 }
 
 function usuarioAtual() {
