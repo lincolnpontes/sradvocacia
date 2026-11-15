@@ -1,0 +1,27 @@
+#view-agendaGoogle [hidden] { display:none !important; }
+.gcal-head, .gcal-toolbar, .gcal-actions, .gcal-modes { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.gcal-head, .gcal-toolbar { justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line); }
+.gcal-head h2, .gcal-start h3 { margin:0; }
+.gcal-eyebrow { color:var(--muted); font-size:.875rem; margin:0 0 4px; }
+.gcal-start { display:flex; align-items:flex-start; gap:16px; margin:28px 0; max-width:540px; }
+.gcal-start > .sr-icon { flex:none; width:36px; height:36px; color:var(--wine); }
+.gcal-start p, .gcal-status { color:var(--muted); line-height:1.5; }
+#view-agendaGoogle button, #view-agendaGoogle .gcal-actions a { min-height:44px; }
+.gcal-actions a { text-decoration:none; display:inline-flex; align-items:center; justify-content:center; }
+.gcal-modes { gap:0; border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+.gcal-modes button { background:var(--surface); color:var(--ink); border:0; border-radius:0; padding:0 14px; }
+.gcal-modes button[aria-pressed="true"] { background:var(--wine); color:white; }
+#gcalNext, #gcalPrevious { min-width:44px; font-size:1.5rem; line-height:1; }
+#gcalRange { margin:18px 0 0; }
+#gcalRange::first-letter, .gcal-day::first-letter { text-transform:uppercase; }
+#view-agendaGoogle :focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+.gcal-day { margin:18px 0 6px; font-size:1rem; }
+.gcal-event { display:grid; grid-template-columns:8rem minmax(0,1fr); align-items:baseline; gap:12px; padding:12px; border-bottom:1px solid var(--line); background:var(--surface); }
+.gcal-event time { color:var(--muted); font-variant-numeric:tabular-nums; font-size:.92rem; }
+.gcal-event a, .gcal-event strong { color:var(--ink); overflow-wrap:anywhere; text-underline-offset:3px; }
+.gcal-event small { display:block; color:var(--muted); overflow-wrap:anywhere; margin-top:3px; }
+@media (max-width:620px) {
+  .gcal-head, .gcal-toolbar { align-items:flex-start; flex-direction:column; gap:12px; }
+  .gcal-event { grid-template-columns:1fr; gap:4px; }
+  .gcal-actions { gap:5px; }
+}
